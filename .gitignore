@@ -36,12 +36,19 @@ ENV/
 Thumbs.db
 
 # Application specific
-uploads/*.docx
-data/*.json
+uploads/
+data/
 *.log
 
-# AWS
+# AWS credentials (security)
 .aws/
+credentials
+config
 
 # Environment variables
 .env
+setup_aws.bat
+
+# Temporary files
+*.tmp
+*.temp

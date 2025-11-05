@@ -171,7 +171,7 @@ def analyze_section():
         # Store feedback data
         review_session.feedback_data[section_name] = feedback_items
         
-        # Update statistics
+        # Update statistics immediately
         stats_manager.update_feedback_data(section_name, feedback_items)
         
         # Log activity
@@ -486,6 +486,10 @@ def get_statistics():
         
         review_session = sessions[session_id]
         
+        # Reset and rebuild statistics from current session
+        global stats_manager
+        stats_manager = StatisticsManager()
+        
         # Update statistics manager with current session data
         for section_name, feedback_items in review_session.feedback_data.items():
             stats_manager.update_feedback_data(section_name, feedback_items)
@@ -517,6 +521,28 @@ def get_statistics_breakdown():
         
         if not session_id or session_id not in sessions:
             return jsonify({'error': 'Invalid session'}), 400
+        
+        review_session = sessions[session_id]
+        
+        # Reset and rebuild statistics from current session
+        global stats_manager
+        stats_manager = StatisticsManager()
+        
+        # Update statistics manager with current session data
+        for section_name, feedback_items in review_session.feedback_data.items():
+            stats_manager.update_feedback_data(section_name, feedback_items)
+        
+        for section_name, accepted_items in review_session.accepted_feedback.items():
+            for item in accepted_items:
+                stats_manager.record_acceptance(section_name, item)
+        
+        for section_name, rejected_items in review_session.rejected_feedback.items():
+            for item in rejected_items:
+                stats_manager.record_rejection(section_name, item)
+        
+        for section_name, user_items in review_session.user_feedback.items():
+            for item in user_items:
+                stats_manager.add_user_feedback(section_name, item)
         
         breakdown = stats_manager.get_detailed_breakdown(stat_type)
         breakdown_html = stats_manager.generate_breakdown_html(breakdown, stat_type)
