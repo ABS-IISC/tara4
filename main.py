@@ -32,8 +32,8 @@ from app import app
 def main():
     """Main entry point for the application"""
     try:
-        # Get port from environment or use 8000 as default
-        port = int(os.environ.get('PORT', 8000))
+        # Get port from environment or use 8080 as default
+        port = int(os.environ.get('PORT', 8080))
         
         # Always use 0.0.0.0 for deployment compatibility
         host = '0.0.0.0'

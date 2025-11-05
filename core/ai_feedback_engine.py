@@ -281,7 +281,7 @@ Apply these Hawkeye investigation mental models in your analysis. Reference spec
         """Invoke AWS Bedrock for AI analysis"""
         try:
             # Get model ID from environment or use default
-            model_id = os.environ.get('BEDROCK_MODEL_ID', 'anthropic.claude-3-sonnet-20240229-v1:0')
+            model_id = os.environ.get('BEDROCK_MODEL_ID', 'anthropic.claude-3-5-sonnet-20241022-v2:0')
             region = os.environ.get('AWS_REGION', 'us-east-1')
             
             # Create Bedrock client with explicit region

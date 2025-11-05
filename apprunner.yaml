@@ -10,10 +10,14 @@ run:
   runtime-version: 3.11
   command: python main.py
   network:
-    port: 8000
+    port: 8080
     env: PORT
   env:
     - name: PORT
-      value: "8000"
-    - name: AWS_DEFAULT_REGION
+      value: "8080"
+    - name: AWS_REGION
       value: "us-east-1"
+    - name: BEDROCK_MODEL_ID
+      value: "anthropic.claude-3-5-sonnet-20241022-v2:0"
+    - name: FLASK_ENV
+      value: "production"

@@ -1255,7 +1255,7 @@ def download_statistics():
 
 if __name__ == '__main__':
     try:
-        port = int(os.environ.get('PORT', 8000))
+        port = int(os.environ.get('PORT', 8080))
         print(f"Starting Flask app on port {port}")
         app.run(debug=False, host='0.0.0.0', port=port, threaded=True, use_reloader=False)
     except Exception as e:
