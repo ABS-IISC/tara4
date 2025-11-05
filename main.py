@@ -31,15 +31,14 @@ from app import app
 
 def main():
     """Main entry point for the application"""
-    # Get port from environment or use random for local development
-    port = int(os.environ.get('PORT', 0))
-    if port == 0:
-        import random
-        port = random.randint(8000, 9999)
+    # Get port from environment or use 8000 as default
+    port = int(os.environ.get('PORT', 8000))
+    
+    # Always use 0.0.0.0 for deployment compatibility
+    host = '0.0.0.0'
     
     # Determine if running in production
     is_production = os.environ.get('FLASK_ENV') == 'production'
-    host = '0.0.0.0' if is_production else '127.0.0.1'
     
     print("Starting Enhanced Document Analysis Tool...")
     print("Features: AI Analysis, Chat Assistant, Pattern Recognition, Learning System")

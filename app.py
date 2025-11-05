@@ -55,6 +55,10 @@ class ReviewSession:
 def index():
     return render_template('enhanced_index.html')
 
+@app.route('/health')
+def health_check():
+    return jsonify({'status': 'healthy', 'timestamp': datetime.now().isoformat()}), 200
+
 @app.route('/upload', methods=['POST'])
 def upload_document():
     try:
@@ -1008,4 +1012,5 @@ def export_user_feedback():
         return jsonify({'error': f'Export user feedback failed: {str(e)}'}), 500
 
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    port = int(os.environ.get('PORT', 8000))
+    app.run(debug=False, host='0.0.0.0', port=port)
