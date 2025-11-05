@@ -3646,6 +3646,45 @@
                 showNotification('No document available for download', 'error');
             }
         }
+        
+        function downloadStatistics() {
+            if (!currentSession) {
+                showNotification('No active session', 'error');
+                return;
+            }
+            
+            // Show format selection modal
+            const modalContent = `
+                <div style="text-align: center; padding: 20px;">
+                    <h3 style="color: #667eea; margin-bottom: 20px;">📊 Download Statistics</h3>
+                    <p style="margin-bottom: 30px;">Choose the format for your statistics export:</p>
+                    
+                    <div style="display: flex; gap: 20px; justify-content: center; flex-wrap: wrap;">
+                        <button class="btn btn-primary" onclick="downloadStatsFormat('json')" style="padding: 15px 25px;">
+                            📄 JSON Format
+                        </button>
+                        <button class="btn btn-success" onclick="downloadStatsFormat('csv')" style="padding: 15px 25px;">
+                            📅 CSV Format
+                        </button>
+                        <button class="btn btn-info" onclick="downloadStatsFormat('txt')" style="padding: 15px 25px;">
+                            📝 Text Format
+                        </button>
+                    </div>
+                    
+                    <p style="margin-top: 20px; font-size: 0.9em; color: #666;">
+                        Statistics include feedback counts, risk levels, and section analysis.
+                    </p>
+                </div>
+            `;
+            
+            showModal('genericModal', 'Download Statistics', modalContent);
+        }
+        
+        function downloadStatsFormat(format) {
+            closeModal('genericModal');
+            window.location.href = `/download_statistics?session_id=${currentSession}&format=${format}`;
+            showNotification(`Downloading statistics as ${format.toUpperCase()}...`, 'info');
+        }
 
         function toggleDarkMode() {
             isDarkMode = !isDarkMode;
@@ -3705,35 +3744,89 @@
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    let html = '<h4>📊 Recurring Patterns Analysis</h4>';
+                    let html = `
+                        <div style="max-height: 70vh; overflow-y: auto;">
+                            <h3 style="color: #667eea; margin-bottom: 20px;">📊 Pattern Analysis Dashboard</h3>
+                            
+                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 20px;">
+                                <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 15px; border-radius: 10px; text-align: center;">
+                                    <div style="font-size: 2em; font-weight: bold;">${data.patterns.recurring_patterns.length}</div>
+                                    <div>Recurring Patterns</div>
+                                </div>
+                                <div style="background: linear-gradient(135deg, #2ecc71 0%, #27ae60 100%); color: white; padding: 15px; border-radius: 10px; text-align: center;">
+                                    <div style="font-size: 2em; font-weight: bold;">${Object.keys(data.patterns.section_analysis || {}).length}</div>
+                                    <div>Sections Analyzed</div>
+                                </div>
+                                <div style="background: linear-gradient(135deg, #f39c12 0%, #e67e22 100%); color: white; padding: 15px; border-radius: 10px; text-align: center;">
+                                    <div style="font-size: 2em; font-weight: bold;">${Object.keys(data.patterns.category_trends || {}).length}</div>
+                                    <div>Categories Found</div>
+                                </div>
+                            </div>
+                    `;
                     
                     if (data.patterns.recurring_patterns.length === 0) {
-                        html += '<p>No recurring patterns found yet. Review more documents to identify patterns.</p>';
+                        html += '<div style="text-align: center; padding: 40px; background: #f8f9fa; border-radius: 10px; color: #666;"><h4>No Recurring Patterns Found</h4><p>Continue analyzing more sections to identify patterns across your document.</p></div>';
                     } else {
-                        html += '<p>The following patterns have been identified across multiple documents:</p>';
+                        html += '<h4>🔍 Recurring Patterns Identified:</h4>';
                         
                         data.patterns.recurring_patterns.forEach((pattern, index) => {
                             html += `
-                                <div style="margin: 15px 0; padding: 15px; border-left: 4px solid #667eea; background: #f8f9ff; border-radius: 8px;">
-                                    <h5>Pattern #${index + 1}: ${pattern.category}</h5>
+                                <div style="margin: 15px 0; padding: 20px; border-left: 4px solid #667eea; background: #f8f9ff; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+                                    <h5 style="color: #667eea; margin-bottom: 10px;">Pattern #${index + 1}: ${pattern.category}</h5>
                                     <p><strong>Description:</strong> ${pattern.pattern}</p>
-                                    <p><strong>Occurrences:</strong> ${pattern.occurrence_count} documents</p>
-                                    <details>
-                                        <summary>Examples</summary>
-                                        <ul>
+                                    <p><strong>Sections Affected:</strong> ${pattern.occurrence_count} sections</p>
+                                    <p><strong>Affected Sections:</strong> ${pattern.sections_affected ? pattern.sections_affected.join(', ') : 'Multiple sections'}</p>
+                                    <details style="margin-top: 10px;">
+                                        <summary style="cursor: pointer; font-weight: bold; color: #667eea;">View Examples</summary>
+                                        <div style="margin-top: 10px; padding: 10px; background: white; border-radius: 5px;">
                                             ${pattern.examples.map(ex => `
-                                                <li><strong>${ex.document}:</strong> 
-                                                    <span style="color: ${ex.risk_level === 'High' ? '#e74c3c' : ex.risk_level === 'Medium' ? '#f39c12' : '#2ecc71'}">
-                                                        ${ex.risk_level} risk
-                                                    </span> - ${ex.description}
-                                                </li>
+                                                <div style="margin: 8px 0; padding: 8px; border-left: 3px solid ${ex.risk_level === 'High' ? '#e74c3c' : ex.risk_level === 'Medium' ? '#f39c12' : '#2ecc71'}; background: #fafafa;">
+                                                    <strong>${ex.section || ex.document}:</strong> 
+                                                    <span style="color: ${ex.risk_level === 'High' ? '#e74c3c' : ex.risk_level === 'Medium' ? '#f39c12' : '#2ecc71'}; font-weight: bold;">
+                                                        ${ex.risk_level} Risk
+                                                    </span><br>
+                                                    <em>${ex.description}</em>
+                                                </div>
                                             `).join('')}
-                                        </ul>
+                                        </div>
                                     </details>
                                 </div>
                             `;
                         });
                     }
+                    
+                    // Add risk distribution if available
+                    if (data.patterns.risk_distribution) {
+                        html += `
+                            <h4>⚠️ Risk Distribution:</h4>
+                            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 15px 0;">
+                                <div style="text-align: center; padding: 15px; background: #ffeaea; border-radius: 8px;">
+                                    <div style="font-size: 1.5em; font-weight: bold; color: #e74c3c;">${data.patterns.risk_distribution.High || 0}</div>
+                                    <div>High Risk</div>
+                                </div>
+                                <div style="text-align: center; padding: 15px; background: #fff3cd; border-radius: 8px;">
+                                    <div style="font-size: 1.5em; font-weight: bold; color: #f39c12;">${data.patterns.risk_distribution.Medium || 0}</div>
+                                    <div>Medium Risk</div>
+                                </div>
+                                <div style="text-align: center; padding: 15px; background: #e8f5e8; border-radius: 8px;">
+                                    <div style="font-size: 1.5em; font-weight: bold; color: #2ecc71;">${data.patterns.risk_distribution.Low || 0}</div>
+                                    <div>Low Risk</div>
+                                </div>
+                            </div>
+                        `;
+                    }
+                    
+                    html += `
+                            <div style="text-align: center; margin-top: 20px; padding-top: 20px; border-top: 2px solid #ecf0f1;">
+                                <button class="btn btn-primary" onclick="exportPatterns()" style="margin: 5px;">
+                                    📥 Export Pattern Analysis
+                                </button>
+                                <button class="btn btn-info" onclick="refreshPatterns()" style="margin: 5px;">
+                                    🔄 Refresh Analysis
+                                </button>
+                            </div>
+                        </div>
+                    `;
                     
                     showModal('genericModal', '📊 Pattern Analysis', html);
                 } else {
@@ -3743,6 +3836,47 @@
             .catch(error => {
                 showNotification('Failed to load patterns: ' + error.message, 'error');
             });
+        }
+        
+        function exportPatterns() {
+            if (!currentSession) {
+                showNotification('No active session', 'error');
+                return;
+            }
+            
+            fetch(`/get_patterns?session_id=${currentSession}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    const exportData = {
+                        export_timestamp: new Date().toISOString(),
+                        session_id: currentSession,
+                        patterns: data.patterns
+                    };
+                    
+                    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `patterns_analysis_${new Date().toISOString().split('T')[0]}.json`;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    window.URL.revokeObjectURL(url);
+                    
+                    showNotification('Pattern analysis exported successfully!', 'success');
+                } else {
+                    showNotification('Export failed: ' + (data.error || 'Unknown error'), 'error');
+                }
+            })
+            .catch(error => {
+                showNotification('Export failed: ' + error.message, 'error');
+            });
+        }
+        
+        function refreshPatterns() {
+            closeModal('genericModal');
+            setTimeout(() => showPatterns(), 100);
         }
 
         function showLogs() {
@@ -3802,26 +3936,101 @@
                     const status = data.learning_status;
                     
                     let html = `
-                        <h4>🧠 AI Learning System Status</h4>
-                        <div>
-                            <h5>Training Data Summary</h5>
-                            <ul>
-                                <li>Custom feedback entries: ${status.custom_feedback_count}</li>
-                                <li>Accepted AI feedback: ${status.accepted_feedback_count}</li>
-                                <li>Rejected AI feedback: ${status.rejected_feedback_count}</li>
-                                <li>Sections with learned patterns: ${status.sections_with_patterns}</li>
-                            </ul>
+                        <div style="max-height: 70vh; overflow-y: auto;">
+                            <h3 style="color: #667eea; margin-bottom: 20px;">🧠 AI Learning System Dashboard</h3>
                             
-                            <h5>Learning Status</h5>
-                            <p>AI Learning: <span style="color: ${status.learning_active ? '#2ecc71' : '#e74c3c'}">
-                                ${status.learning_active ? 'Active' : 'Inactive'}
-                            </span></p>
+                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; margin-bottom: 20px;">
+                                <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 15px; border-radius: 10px; text-align: center;">
+                                    <div style="font-size: 2em; font-weight: bold;">${status.total_ai_feedback || 0}</div>
+                                    <div style="font-size: 0.9em;">AI Feedback Items</div>
+                                </div>
+                                <div style="background: linear-gradient(135deg, #2ecc71 0%, #27ae60 100%); color: white; padding: 15px; border-radius: 10px; text-align: center;">
+                                    <div style="font-size: 2em; font-weight: bold;">${status.accepted_feedback_count || 0}</div>
+                                    <div style="font-size: 0.9em;">Accepted</div>
+                                </div>
+                                <div style="background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%); color: white; padding: 15px; border-radius: 10px; text-align: center;">
+                                    <div style="font-size: 2em; font-weight: bold;">${status.rejected_feedback_count || 0}</div>
+                                    <div style="font-size: 0.9em;">Rejected</div>
+                                </div>
+                                <div style="background: linear-gradient(135deg, #3498db 0%, #2980b9 100%); color: white; padding: 15px; border-radius: 10px; text-align: center;">
+                                    <div style="font-size: 2em; font-weight: bold;">${status.custom_feedback_count || 0}</div>
+                                    <div style="font-size: 0.9em;">User Added</div>
+                                </div>
+                            </div>
                             
-                            <p><em>The AI continuously learns from your custom feedback and acceptance patterns to provide more relevant suggestions.</em></p>
+                            <div style="background: linear-gradient(135deg, #f8f9ff 0%, #e3f2fd 100%); padding: 20px; border-radius: 15px; margin-bottom: 20px; border: 2px solid #667eea;">
+                                <h4 style="color: #667eea; margin-bottom: 15px;">📈 Learning Performance</h4>
+                                <div style="margin-bottom: 15px;">
+                                    <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                                        <span>Acceptance Rate</span>
+                                        <span style="font-weight: bold; color: ${status.acceptance_rate > 70 ? '#2ecc71' : status.acceptance_rate > 40 ? '#f39c12' : '#e74c3c'};">${status.acceptance_rate || 0}%</span>
+                                    </div>
+                                    <div style="background: #ecf0f1; height: 10px; border-radius: 5px; overflow: hidden;">
+                                        <div style="background: ${status.acceptance_rate > 70 ? '#2ecc71' : status.acceptance_rate > 40 ? '#f39c12' : '#e74c3c'}; height: 100%; width: ${status.acceptance_rate || 0}%; transition: width 0.3s ease;"></div>
+                                    </div>
+                                </div>
+                                
+                                <div style="margin-bottom: 15px;">
+                                    <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                                        <span>User Engagement Score</span>
+                                        <span style="font-weight: bold; color: ${status.user_engagement_score > 30 ? '#2ecc71' : status.user_engagement_score > 15 ? '#f39c12' : '#e74c3c'};">${status.user_engagement_score || 0}%</span>
+                                    </div>
+                                    <div style="background: #ecf0f1; height: 10px; border-radius: 5px; overflow: hidden;">
+                                        <div style="background: ${status.user_engagement_score > 30 ? '#2ecc71' : status.user_engagement_score > 15 ? '#f39c12' : '#e74c3c'}; height: 100%; width: ${status.user_engagement_score || 0}%; transition: width 0.3s ease;"></div>
+                                    </div>
+                                </div>
+                                
+                                <div style="text-align: center; padding: 10px; background: ${status.learning_active ? '#e8f5e8' : '#ffeaea'}; border-radius: 8px;">
+                                    <span style="color: ${status.learning_active ? '#2ecc71' : '#e74c3c'}; font-weight: bold;">
+                                        AI Learning: ${status.learning_active ? '🟢 Active' : '🔴 Inactive'}
+                                    </span>
+                                </div>
+                            </div>
+                    `;
+                    
+                    if (status.learning_insights && status.learning_insights.length > 0) {
+                        html += `
+                            <div style="background: white; padding: 20px; border-radius: 15px; margin-bottom: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+                                <h4 style="color: #667eea; margin-bottom: 15px;">💡 Learning Insights</h4>
+                                <ul style="margin: 0; padding-left: 20px;">
+                                    ${status.learning_insights.map(insight => `<li style="margin-bottom: 8px; color: #2c3e50;">${insight}</li>`).join('')}
+                                </ul>
+                            </div>
+                        `;
+                    }
+                    
+                    if (status.improvement_suggestions && status.improvement_suggestions.length > 0) {
+                        html += `
+                            <div style="background: #fff3cd; padding: 20px; border-radius: 15px; border-left: 5px solid #f39c12; margin-bottom: 20px;">
+                                <h4 style="color: #f39c12; margin-bottom: 15px;">🎯 Improvement Suggestions</h4>
+                                <ul style="margin: 0; padding-left: 20px;">
+                                    ${status.improvement_suggestions.map(suggestion => `<li style="margin-bottom: 8px; color: #856404;">${suggestion}</li>`).join('')}
+                                </ul>
+                            </div>
+                        `;
+                    }
+                    
+                    html += `
+                            <div style="background: #f0fff4; padding: 20px; border-radius: 15px; border-left: 5px solid #2ecc71;">
+                                <h4 style="color: #2ecc71; margin-bottom: 10px;">🤖 How AI Learning Works</h4>
+                                <p style="margin: 0; color: #27ae60; line-height: 1.6;">
+                                    TARA continuously learns from your feedback patterns. When you accept, reject, or add custom feedback, 
+                                    the AI adapts to provide more relevant suggestions that match your preferences and standards.
+                                </p>
+                            </div>
+                            
+                            <div style="text-align: center; margin-top: 20px; padding-top: 20px; border-top: 2px solid #ecf0f1;">
+                                <button class="btn btn-primary" onclick="exportLearningData()" style="margin: 5px;">
+                                    📥 Export Learning Data
+                                </button>
+                                <button class="btn btn-info" onclick="refreshLearning()" style="margin: 5px;">
+                                    🔄 Refresh Status
+                                </button>
+                            </div>
                         </div>
                     `;
                     
-                    showModal('genericModal', '🧠 Learning Status', html);
+                    showModal('genericModal', '🧠 AI Learning System', html);
                 } else {
                     showNotification(data.error || 'Failed to load learning status', 'error');
                 }
@@ -3829,6 +4038,47 @@
             .catch(error => {
                 showNotification('Failed to load learning status: ' + error.message, 'error');
             });
+        }
+        
+        function exportLearningData() {
+            if (!currentSession) {
+                showNotification('No active session', 'error');
+                return;
+            }
+            
+            fetch(`/get_learning_status?session_id=${currentSession}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    const exportData = {
+                        export_timestamp: new Date().toISOString(),
+                        session_id: currentSession,
+                        learning_status: data.learning_status
+                    };
+                    
+                    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `learning_data_${new Date().toISOString().split('T')[0]}.json`;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    window.URL.revokeObjectURL(url);
+                    
+                    showNotification('Learning data exported successfully!', 'success');
+                } else {
+                    showNotification('Export failed: ' + (data.error || 'Unknown error'), 'error');
+                }
+            })
+            .catch(error => {
+                showNotification('Export failed: ' + error.message, 'error');
+            });
+        }
+        
+        function refreshLearning() {
+            closeModal('genericModal');
+            setTimeout(() => showLearning(), 100);
         }
 
         function resetSession() {

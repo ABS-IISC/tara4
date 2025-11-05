@@ -56,7 +56,14 @@ class StatisticsManager:
         if cache_key in self.statistics_cache:
             return self.statistics_cache[cache_key]
 
-        breakdown = {}
+        breakdown = {
+            'total': 0,
+            'by_section': {},
+            'by_type': {},
+            'by_category': {},
+            'by_risk_level': {},
+            'items': []
+        }
 
         if stat_type == 'total_feedback':
             breakdown = self._get_total_feedback_breakdown()
@@ -111,17 +118,20 @@ class StatisticsManager:
     def _get_total_feedback_breakdown(self):
         """Get breakdown of total feedback by section and type"""
         breakdown = {
+            'total': 0,
             'by_section': {},
             'by_type': defaultdict(int),
-            'by_category': defaultdict(int)
+            'by_category': defaultdict(int),
+            'by_risk_level': defaultdict(int),
+            'items': []
         }
 
+        total_count = 0
         for section_name, items in self.feedback_data.items():
-            breakdown['by_section'][section_name] = {
-                'count': len(items),
-                'types': defaultdict(int),
-                'risk_levels': defaultdict(int)
-            }
+            section_count = len(items)
+            total_count += section_count
+            
+            breakdown['by_section'][section_name] = section_count
 
             for item in items:
                 item_type = item.get('type', 'unknown')
@@ -130,25 +140,37 @@ class StatisticsManager:
 
                 breakdown['by_type'][item_type] += 1
                 breakdown['by_category'][category] += 1
-                breakdown['by_section'][section_name]['types'][item_type] += 1
-                breakdown['by_section'][section_name]['risk_levels'][risk_level] += 1
-
+                breakdown['by_risk_level'][risk_level] += 1
+                
+                breakdown['items'].append({
+                    'section': section_name,
+                    'type': item_type,
+                    'risk_level': risk_level,
+                    'category': category,
+                    'description': item.get('description', '')[:100] + '...' if len(item.get('description', '')) > 100 else item.get('description', '')
+                })
+        
+        breakdown['total'] = total_count
         return breakdown
 
     def _get_risk_breakdown(self, risk_level):
         """Get breakdown of items by risk level"""
         breakdown = {
+            'total': 0,
             'by_section': {},
             'by_type': defaultdict(int),
             'by_category': defaultdict(int),
             'items': []
         }
 
+        total_count = 0
         for section_name, items in self.feedback_data.items():
             risk_items = [item for item in items if item.get('risk_level') == risk_level]
             
             if risk_items:
-                breakdown['by_section'][section_name] = len(risk_items)
+                section_count = len(risk_items)
+                total_count += section_count
+                breakdown['by_section'][section_name] = section_count
                 
                 for item in risk_items:
                     breakdown['by_type'][item.get('type', 'unknown')] += 1
@@ -157,22 +179,28 @@ class StatisticsManager:
                         'section': section_name,
                         'type': item.get('type'),
                         'category': item.get('category'),
+                        'risk_level': risk_level,
                         'description': item.get('description', '')[:100] + '...' if len(item.get('description', '')) > 100 else item.get('description', '')
                     })
-
+        
+        breakdown['total'] = total_count
         return breakdown
 
     def _get_accepted_breakdown(self):
         """Get breakdown of accepted feedback"""
         breakdown = {
+            'total': 0,
             'by_section': {},
             'by_type': defaultdict(int),
             'by_risk_level': defaultdict(int),
             'items': []
         }
 
+        total_count = 0
         for section_name, items in self.accepted_feedback.items():
-            breakdown['by_section'][section_name] = len(items)
+            section_count = len(items)
+            total_count += section_count
+            breakdown['by_section'][section_name] = section_count
             
             for item in items:
                 breakdown['by_type'][item.get('type', 'unknown')] += 1
@@ -183,20 +211,25 @@ class StatisticsManager:
                     'risk_level': item.get('risk_level'),
                     'description': item.get('description', '')[:100] + '...' if len(item.get('description', '')) > 100 else item.get('description', '')
                 })
-
+        
+        breakdown['total'] = total_count
         return breakdown
 
     def _get_rejected_breakdown(self):
         """Get breakdown of rejected feedback"""
         breakdown = {
+            'total': 0,
             'by_section': {},
             'by_type': defaultdict(int),
             'by_risk_level': defaultdict(int),
             'items': []
         }
 
+        total_count = 0
         for section_name, items in self.rejected_feedback.items():
-            breakdown['by_section'][section_name] = len(items)
+            section_count = len(items)
+            total_count += section_count
+            breakdown['by_section'][section_name] = section_count
             
             for item in items:
                 breakdown['by_type'][item.get('type', 'unknown')] += 1
@@ -207,20 +240,25 @@ class StatisticsManager:
                     'risk_level': item.get('risk_level'),
                     'description': item.get('description', '')[:100] + '...' if len(item.get('description', '')) > 100 else item.get('description', '')
                 })
-
+        
+        breakdown['total'] = total_count
         return breakdown
 
     def _get_user_added_breakdown(self):
         """Get breakdown of user-added feedback"""
         breakdown = {
+            'total': 0,
             'by_section': {},
             'by_type': defaultdict(int),
             'by_category': defaultdict(int),
             'items': []
         }
 
+        total_count = 0
         for section_name, items in self.user_feedback.items():
-            breakdown['by_section'][section_name] = len(items)
+            section_count = len(items)
+            total_count += section_count
+            breakdown['by_section'][section_name] = section_count
             
             for item in items:
                 breakdown['by_type'][item.get('type', 'unknown')] += 1
@@ -231,7 +269,8 @@ class StatisticsManager:
                     'category': item.get('category'),
                     'description': item.get('description', '')[:100] + '...' if len(item.get('description', '')) > 100 else item.get('description', '')
                 })
-
+        
+        breakdown['total'] = total_count
         return breakdown
 
     def generate_statistics_html(self, stats):

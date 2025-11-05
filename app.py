@@ -528,25 +528,101 @@ def get_patterns():
         if not session_id or session_id not in sessions:
             return jsonify({'error': 'Invalid session'}), 400
         
-        # Mock pattern data for now
-        patterns = {
-            'recurring_patterns': [
-                {
-                    'pattern': 'Missing customer impact assessment',
-                    'category': 'investigation process',
-                    'occurrence_count': 3,
-                    'examples': [
-                        {'document': 'Document 1', 'risk_level': 'High', 'description': 'No CX impact evaluation'},
-                        {'document': 'Document 2', 'risk_level': 'Medium', 'description': 'Limited customer consideration'}
-                    ]
-                }
-            ]
-        }
+        review_session = sessions[session_id]
+        
+        # Analyze patterns from current session data
+        patterns = analyze_feedback_patterns(review_session)
         
         return jsonify({'success': True, 'patterns': patterns})
         
     except Exception as e:
         return jsonify({'error': f'Get patterns failed: {str(e)}'}), 500
+
+def analyze_feedback_patterns(review_session):
+    """Analyze patterns in feedback data"""
+    patterns = {
+        'recurring_patterns': [],
+        'risk_distribution': {},
+        'category_trends': {},
+        'section_analysis': {}
+    }
+    
+    # Collect all feedback for analysis
+    all_feedback = []
+    for section_name, feedback_items in review_session.feedback_data.items():
+        for item in feedback_items:
+            item_copy = item.copy()
+            item_copy['section'] = section_name
+            all_feedback.append(item_copy)
+    
+    if not all_feedback:
+        return patterns
+    
+    # Analyze risk distribution
+    risk_counts = {'High': 0, 'Medium': 0, 'Low': 0}
+    category_counts = {}
+    type_counts = {}
+    
+    for item in all_feedback:
+        risk_level = item.get('risk_level', 'Low')
+        category = item.get('category', 'Unknown')
+        item_type = item.get('type', 'unknown')
+        
+        risk_counts[risk_level] += 1
+        category_counts[category] = category_counts.get(category, 0) + 1
+        type_counts[item_type] = type_counts.get(item_type, 0) + 1
+    
+    patterns['risk_distribution'] = risk_counts
+    patterns['category_trends'] = category_counts
+    
+    # Find recurring patterns (categories appearing in multiple sections)
+    category_sections = {}
+    for item in all_feedback:
+        category = item.get('category', 'Unknown')
+        section = item.get('section', 'Unknown')
+        
+        if category not in category_sections:
+            category_sections[category] = set()
+        category_sections[category].add(section)
+    
+    # Identify patterns that appear in multiple sections
+    for category, sections in category_sections.items():
+        if len(sections) > 1:  # Appears in multiple sections
+            # Get examples from different sections
+            examples = []
+            for section in list(sections)[:3]:  # Max 3 examples
+                section_items = [item for item in all_feedback 
+                               if item.get('category') == category and item.get('section') == section]
+                if section_items:
+                    example_item = section_items[0]
+                    examples.append({
+                        'section': section,
+                        'risk_level': example_item.get('risk_level', 'Low'),
+                        'description': example_item.get('description', '')[:100] + '...' if len(example_item.get('description', '')) > 100 else example_item.get('description', '')
+                    })
+            
+            patterns['recurring_patterns'].append({
+                'pattern': f'Issues related to {category}',
+                'category': category.lower(),
+                'occurrence_count': len(sections),
+                'sections_affected': list(sections),
+                'examples': examples
+            })
+    
+    # Section-level analysis
+    for section_name in review_session.sections:
+        section_feedback = [item for item in all_feedback if item.get('section') == section_name]
+        if section_feedback:
+            patterns['section_analysis'][section_name] = {
+                'total_items': len(section_feedback),
+                'high_risk_count': len([item for item in section_feedback if item.get('risk_level') == 'High']),
+                'most_common_category': max(set([item.get('category', 'Unknown') for item in section_feedback]), 
+                                          key=[item.get('category', 'Unknown') for item in section_feedback].count),
+                'accepted_count': len(review_session.accepted_feedback.get(section_name, [])),
+                'rejected_count': len(review_session.rejected_feedback.get(section_name, []))
+            }
+    
+    return patterns
 
 @app.route('/get_logs', methods=['GET'])
 def get_logs():
@@ -573,19 +649,93 @@ def get_learning_status():
         
         review_session = sessions[session_id]
         
-        # Mock learning data
+        # Calculate learning metrics
+        custom_feedback_count = sum(len(items) for items in review_session.user_feedback.values())
+        accepted_count = sum(len(items) for items in review_session.accepted_feedback.values())
+        rejected_count = sum(len(items) for items in review_session.rejected_feedback.values())
+        total_ai_feedback = sum(len(items) for items in review_session.feedback_data.values())
+        
+        # Calculate learning effectiveness
+        acceptance_rate = (accepted_count / max(accepted_count + rejected_count, 1)) * 100
+        user_engagement = (custom_feedback_count / max(total_ai_feedback, 1)) * 100
+        
         learning_status = {
-            'custom_feedback_count': sum(len(items) for items in review_session.user_feedback.values()),
-            'accepted_feedback_count': sum(len(items) for items in review_session.accepted_feedback.values()),
-            'rejected_feedback_count': sum(len(items) for items in review_session.rejected_feedback.values()),
-            'sections_with_patterns': len([s for s in review_session.sections.keys() if review_session.feedback_data.get(s)]),
-            'learning_active': True
+            'custom_feedback_count': custom_feedback_count,
+            'accepted_feedback_count': accepted_count,
+            'rejected_feedback_count': rejected_count,
+            'total_ai_feedback': total_ai_feedback,
+            'sections_with_patterns': len([s for s in review_session.sections if review_session.feedback_data.get(s)]),
+            'learning_active': True,
+            'acceptance_rate': round(acceptance_rate, 1),
+            'user_engagement_score': round(user_engagement, 1),
+            'learning_insights': generate_learning_insights(review_session),
+            'improvement_suggestions': generate_improvement_suggestions(acceptance_rate, user_engagement)
         }
         
         return jsonify({'success': True, 'learning_status': learning_status})
         
     except Exception as e:
         return jsonify({'error': f'Get learning status failed: {str(e)}'}), 500
+
+def generate_learning_insights(review_session):
+    """Generate insights about AI learning patterns"""
+    insights = []
+    
+    # Analyze acceptance patterns
+    accepted_categories = {}
+    rejected_categories = {}
+    
+    for section_feedback in review_session.accepted_feedback.values():
+        for item in section_feedback:
+            category = item.get('category', 'Unknown')
+            accepted_categories[category] = accepted_categories.get(category, 0) + 1
+    
+    for section_feedback in review_session.rejected_feedback.values():
+        for item in section_feedback:
+            category = item.get('category', 'Unknown')
+            rejected_categories[category] = rejected_categories.get(category, 0) + 1
+    
+    # Find most accepted category
+    if accepted_categories:
+        most_accepted = max(accepted_categories, key=accepted_categories.get)
+        insights.append(f"You most often accept feedback about '{most_accepted}' ({accepted_categories[most_accepted]} times)")
+    
+    # Find most rejected category
+    if rejected_categories:
+        most_rejected = max(rejected_categories, key=rejected_categories.get)
+        insights.append(f"You most often reject feedback about '{most_rejected}' ({rejected_categories[most_rejected]} times)")
+    
+    # User feedback patterns
+    user_categories = {}
+    for section_feedback in review_session.user_feedback.values():
+        for item in section_feedback:
+            category = item.get('category', 'Unknown')
+            user_categories[category] = user_categories.get(category, 0) + 1
+    
+    if user_categories:
+        most_user_category = max(user_categories, key=user_categories.get)
+        insights.append(f"You add most custom feedback about '{most_user_category}' ({user_categories[most_user_category]} times)")
+    
+    return insights
+
+def generate_improvement_suggestions(acceptance_rate, user_engagement):
+    """Generate suggestions for improving AI performance"""
+    suggestions = []
+    
+    if acceptance_rate < 50:
+        suggestions.append("Consider providing more specific feedback to help AI learn your preferences")
+    elif acceptance_rate > 80:
+        suggestions.append("Great! AI is learning your preferences well")
+    
+    if user_engagement < 20:
+        suggestions.append("Try adding more custom feedback to help AI understand your specific needs")
+    elif user_engagement > 50:
+        suggestions.append("Excellent engagement! Your custom feedback is helping AI improve")
+    
+    suggestions.append("Continue reviewing documents to improve AI accuracy")
+    suggestions.append("Use the chat feature to clarify feedback when needed")
+    
+    return suggestions
 
 @app.route('/complete_review', methods=['POST'])
 def complete_review():
@@ -1010,6 +1160,92 @@ def export_user_feedback():
         
     except Exception as e:
         return jsonify({'error': f'Export user feedback failed: {str(e)}'}), 500
+
+@app.route('/download_statistics', methods=['GET'])
+def download_statistics():
+    try:
+        session_id = request.args.get('session_id') or session.get('session_id')
+        format_type = request.args.get('format', 'json')
+        
+        if not session_id or session_id not in sessions:
+            return jsonify({'error': 'Invalid session'}), 400
+        
+        review_session = sessions[session_id]
+        
+        # Get comprehensive statistics
+        stats = stats_manager.get_statistics()
+        
+        # Add session-specific data
+        stats_data = {
+            'session_id': session_id,
+            'document_name': review_session.document_name,
+            'timestamp': datetime.now().isoformat(),
+            'statistics': stats,
+            'sections_analyzed': len(review_session.sections),
+            'total_sections': len(review_session.sections),
+            'accepted_feedback_by_section': {k: len(v) for k, v in review_session.accepted_feedback.items()},
+            'rejected_feedback_by_section': {k: len(v) for k, v in review_session.rejected_feedback.items()},
+            'user_feedback_by_section': {k: len(v) for k, v in review_session.user_feedback.items()},
+            'chat_interactions': len(review_session.chat_history),
+            'activity_log_count': len(review_session.activity_log)
+        }
+        
+        if format_type == 'csv':
+            import csv
+            import io
+            
+            output = io.StringIO()
+            writer = csv.writer(output)
+            
+            # Write headers
+            writer.writerow(['Metric', 'Value', 'Percentage'])
+            
+            # Write statistics
+            total = stats.get('total_feedback', 1)
+            writer.writerow(['Total Feedback', stats.get('total_feedback', 0), '100%'])
+            writer.writerow(['High Risk', stats.get('high_risk', 0), f"{(stats.get('high_risk', 0)/total*100):.1f}%"])
+            writer.writerow(['Medium Risk', stats.get('medium_risk', 0), f"{(stats.get('medium_risk', 0)/total*100):.1f}%"])
+            writer.writerow(['Low Risk', stats.get('low_risk', 0), f"{(stats.get('low_risk', 0)/total*100):.1f}%"])
+            writer.writerow(['Accepted', stats.get('accepted', 0), f"{(stats.get('accepted', 0)/total*100):.1f}%"])
+            writer.writerow(['Rejected', stats.get('rejected', 0), f"{(stats.get('rejected', 0)/total*100):.1f}%"])
+            writer.writerow(['User Added', stats.get('user_added', 0), f"{(stats.get('user_added', 0)/total*100):.1f}%"])
+            
+            output.seek(0)
+            return output.getvalue(), 200, {
+                'Content-Type': 'text/csv',
+                'Content-Disposition': f'attachment; filename=statistics_{datetime.now().strftime("%Y%m%d_%H%M%S")}.csv'
+            }
+        
+        elif format_type == 'txt':
+            output = f"TARA Statistics Report\n"
+            output += f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
+            output += f"Document: {review_session.document_name}\n"
+            output += f"Session ID: {session_id}\n"
+            output += "=" * 50 + "\n\n"
+            
+            output += "SUMMARY STATISTICS:\n"
+            output += f"Total Feedback Items: {stats.get('total_feedback', 0)}\n"
+            output += f"High Risk Items: {stats.get('high_risk', 0)}\n"
+            output += f"Medium Risk Items: {stats.get('medium_risk', 0)}\n"
+            output += f"Low Risk Items: {stats.get('low_risk', 0)}\n"
+            output += f"Accepted Items: {stats.get('accepted', 0)}\n"
+            output += f"Rejected Items: {stats.get('rejected', 0)}\n"
+            output += f"User Added Items: {stats.get('user_added', 0)}\n"
+            output += f"Sections Analyzed: {len(review_session.sections)}\n"
+            output += f"Chat Interactions: {len(review_session.chat_history)}\n"
+            
+            return output, 200, {
+                'Content-Type': 'text/plain',
+                'Content-Disposition': f'attachment; filename=statistics_{datetime.now().strftime("%Y%m%d_%H%M%S")}.txt'
+            }
+        
+        else:  # JSON format
+            return jsonify(stats_data), 200, {
+                'Content-Disposition': f'attachment; filename=statistics_{datetime.now().strftime("%Y%m%d_%H%M%S")}.json'
+            }
+        
+    except Exception as e:
+        return jsonify({'error': f'Download statistics failed: {str(e)}'}), 500
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 8000))

@@ -1,6 +1,7 @@
 import json
 import re
 import boto3
+import os
 from datetime import datetime
 from collections import defaultdict
 
@@ -119,18 +120,25 @@ Apply these Hawkeye investigation mental models in your analysis. Reference spec
 
         response = self._invoke_bedrock(system_prompt, prompt)
         
-        try:
-            result = json.loads(response)
-        except:
-            # Try to extract JSON from response
-            json_match = re.search(r'\{.*\}', response, re.DOTALL)
-            if json_match:
-                try:
-                    result = json.loads(json_match.group(0))
-                except:
+        # Check if response contains error
+        if response.startswith('{"error"'):
+            error_data = json.loads(response)
+            print(f"Analysis error: {error_data.get('error')}")
+            # Return empty result for now, but log the error
+            result = {"feedback_items": [], "error": error_data.get('error')}
+        else:
+            try:
+                result = json.loads(response)
+            except:
+                # Try to extract JSON from response
+                json_match = re.search(r'\{.*\}', response, re.DOTALL)
+                if json_match:
+                    try:
+                        result = json.loads(json_match.group(0))
+                    except:
+                        result = {"feedback_items": []}
+                else:
                     result = {"feedback_items": []}
-            else:
-                result = {"feedback_items": []}
 
         # Enhance feedback items
         for item in result.get('feedback_items', []):
@@ -272,28 +280,69 @@ Apply these Hawkeye investigation mental models in your analysis. Reference spec
     def _invoke_bedrock(self, system_prompt, user_prompt):
         """Invoke AWS Bedrock for AI analysis"""
         try:
-            runtime = boto3.client('bedrock-runtime')
+            # Get model ID from environment or use default
+            model_id = os.environ.get('BEDROCK_MODEL_ID', 'anthropic.claude-3-sonnet-20240229-v1:0')
+            region = os.environ.get('AWS_REGION', 'us-east-1')
             
-            body = json.dumps({
-                "anthropic_version": "bedrock-2023-05-31",
-                "max_tokens": 4000,
-                "system": system_prompt,
-                "messages": [{"role": "user", "content": user_prompt}]
-            })
+            # Create Bedrock client with explicit region
+            runtime = boto3.client(
+                'bedrock-runtime',
+                region_name=region
+            )
+            
+            # Handle different model formats
+            if 'claude-v2' in model_id:
+                # Legacy Claude v2 format
+                body = json.dumps({
+                    "prompt": f"\n\nHuman: {system_prompt}\n\n{user_prompt}\n\nAssistant:",
+                    "max_tokens_to_sample": 4000,
+                    "temperature": 0.1,
+                    "top_p": 0.9
+                })
+            else:
+                # Claude 3 format
+                body = json.dumps({
+                    "anthropic_version": "bedrock-2023-05-31",
+                    "max_tokens": 4000,
+                    "system": system_prompt,
+                    "messages": [{"role": "user", "content": user_prompt}]
+                })
             
             response = runtime.invoke_model(
                 body=body,
-                modelId='anthropic.claude-3-sonnet-20240229-v1:0',
+                modelId=model_id,
                 accept="application/json",
                 contentType="application/json"
             )
             
             response_body = json.loads(response.get('body').read())
-            return response_body['content'][0]['text']
+            
+            # Handle different response formats
+            if 'claude-v2' in model_id:
+                return response_body.get('completion', '')
+            else:
+                return response_body['content'][0]['text']
             
         except Exception as e:
-            # Comprehensive fallback response for testing
-            return json.dumps({
+            print(f"Bedrock error: {str(e)}")
+            
+            # Check if it's a credentials issue
+            if 'credentials' in str(e).lower() or 'access' in str(e).lower():
+                error_msg = "AWS credentials not configured. Please set up AWS credentials or IAM role."
+            elif 'region' in str(e).lower():
+                error_msg = f"AWS region issue. Current region: {os.environ.get('AWS_REGION', 'not set')}"
+            elif 'model' in str(e).lower():
+                error_msg = f"Model access issue. Model ID: {os.environ.get('BEDROCK_MODEL_ID', 'not set')}"
+            else:
+                error_msg = f"Bedrock service error: {str(e)}"
+            
+            print(f"AI Error: {error_msg}")
+            
+            # Return error in expected format
+            return json.dumps({"error": error_msg})
+            
+            # Fallback response only if needed
+            # return json.dumps({
                 "feedback_items": [
                     {
                         "id": "fb_001",
@@ -387,15 +436,13 @@ Apply these Hawkeye investigation mental models in your analysis. Reference spec
         
         try:
             response = self._invoke_bedrock(system_prompt, prompt)
+            
+            # Check if response contains error
+            if response.startswith('{"error"'):
+                error_data = json.loads(response)
+                return f"Sorry, all AI models are currently unavailable. Error: {error_data.get('error', 'Unknown error')}"
+            
             return response
-        except:
-            # Professional error messages
-            error_responses = [
-                "I'm experiencing technical difficulties. Please try rephrasing your question.",
-                "Unable to process your request at the moment. Please try again.",
-                "Technical issue encountered. Please rephrase your question and try again.",
-                "Service temporarily unavailable. Please try your question again.",
-                "Connection issue detected. Please try asking your question again."
-            ]
-            import random
-            return random.choice(error_responses)
+        except Exception as e:
+            print(f"Chat error: {str(e)}")
+            return "Sorry, all AI models are currently unavailable. Please try again later."
