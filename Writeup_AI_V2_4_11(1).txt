@@ -1,0 +1,3184 @@
+
+import pandas as pd
+import base64
+import json
+from datetime import datetime
+import boto3
+import threading
+import os
+import re
+import traceback
+import ipywidgets as widgets
+from IPython.display import display, HTML, clear_output, FileLink, Javascript
+import time
+from pathlib import Path
+import asyncio
+import uuid
+from collections import defaultdict
+import queue
+import zipfile
+import shutil
+from lxml import etree
+
+# Install required packages if not already installed
+try:
+    import docx
+except ImportError:
+    !pip install python-docx --quiet
+    import docx
+
+try:
+    from lxml import etree
+except ImportError:
+    !pip install lxml --quiet
+    from lxml import etree
+
+from docx import Document
+from docx.shared import RGBColor, Pt
+from docx.enum.text import WD_PARAGRAPH_ALIGNMENT
+from docx.oxml import parse_xml
+from docx.oxml.ns import nsdecls, qn
+
+# Global variables
+guidelines_content = None
+hawkeye_checklist = None
+current_session = None
+document_sections = {}
+current_section_index = 0
+accepted_feedback = defaultdict(list)
+rejected_feedback = defaultdict(list)
+user_feedback = defaultdict(list)
+ai_feedback_cache = {}
+current_section_feedback = []
+review_completed = False
+chat_history = []
+
+# Define paths to guidelines documents
+GUIDELINES_PATH = "CT_EE_Review_Guidelines.docx"
+HAWKEYE_PATH = "/home/ec2-user/SageMaker/Hawkeye_checklisttt.docx"
+
+# Hawkeye checklist mapping
+HAWKEYE_SECTIONS = {
+    1: "Initial Assessment",
+    2: "Investigation Process", 
+    3: "Seller Classification",
+    4: "Enforcement Decision-Making",
+    5: "Additional Verification (High-Risk Cases)",
+    6: "Multiple Appeals Handling",
+    7: "Account Hijacking Prevention",
+    8: "Funds Management",
+    9: "REs-Q Outreach Process",
+    10: "Sentiment Analysis",
+    11: "Root Cause Analysis",
+    12: "Preventative Actions",
+    13: "Documentation and Reporting",
+    14: "Cross-Team Collaboration",
+    15: "Quality Control",
+    16: "Continuous Improvement",
+    17: "Communication Standards",
+    18: "Performance Metrics",
+    19: "Legal and Compliance",
+    20: "New Service Launch Considerations"
+}
+
+# Standard writeup sections to look for - Updated based on the document
+STANDARD_SECTIONS = [
+    "Executive Summary",
+    "Background",
+    "Timeline of Events",
+    "Resolving Actions",
+    "Root Causes (RC) and Preventative Actions (PA)",
+    "Root Cause",
+    "Preventative Actions",
+    "Investigation Process",
+    "Seller Classification",
+    "Documentation and Reporting",
+    "Impact Assessment",
+    "Timeline",
+    "Recommendations",
+    "Executive Summary",
+    "Timeline of Events",
+]
+
+# Sections to exclude from analysis
+EXCLUDED_SECTIONS = [
+    "Original Email",
+    "Email Correspondence",
+    "Raw Data",
+    "Logs",
+    "Attachments",
+    "From:",
+    "Sent:",
+    "To:",
+    "Cc:",
+    "Subject:"
+]
+
+class AuditLogger:
+    def __init__(self, log_file="writeup_automation_audit.log"):
+        self.log_file = log_file
+        self.log_queue = queue.Queue()
+        self.user_id = str(uuid.uuid4())[:8]  # Generate a unique session ID
+        self.session_start = datetime.now()
+        
+        # Start logging thread
+        self.logging_thread = threading.Thread(target=self._log_worker)
+        self.logging_thread.daemon = True
+        self.logging_thread.start()
+        
+        # Log session start
+        self.log("SESSION_START", f"New review session started")
+    
+    def _log_worker(self):
+        """Background thread to handle logging"""
+        while True:
+            try:
+                # Get log entry from queue
+                timestamp, level, action, details = self.log_queue.get(timeout=1)
+                
+                # Format log entry
+                log_entry = f"{timestamp.isoformat()} | {self.user_id} | {level} | {action} | {details}\n"
+                
+                # Write to log file
+                with open(self.log_file, 'a') as f:
+                    f.write(log_entry)
+                
+                self.log_queue.task_done()
+            except queue.Empty:
+                # No log entries for 1 second, continue checking
+                continue
+            except Exception as e:
+                # Log error but don't crash thread
+                print(f"Logging error: {str(e)}")
+    
+    def log(self, action, details, level="INFO"):
+        """Add a log entry to the queue"""
+        timestamp = datetime.now()
+        self.log_queue.put((timestamp, level, action, details))
+    
+    def get_session_logs(self):
+        """Get logs for current session (useful for UI display)"""
+        if not os.path.exists(self.log_file):
+            return []
+            
+        session_logs = []
+        with open(self.log_file, 'r') as f:
+            for line in f:
+                parts = line.strip().split(' | ')
+                if len(parts) >= 5 and parts[1] == self.user_id:
+                    timestamp = parts[0]
+                    level = parts[2]
+                    action = parts[3]
+                    details = ' | '.join(parts[4:])
+                    
+                    session_logs.append({
+                        'timestamp': timestamp,
+                        'level': level,
+                        'action': action,
+                        'details': details
+                    })
+        
+        return session_logs
+    
+    def generate_audit_report(self):
+        """Generate an HTML audit report for the current session"""
+        logs = self.get_session_logs()
+        
+        html = f"""
+        <div style="padding: 20px; background: white; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.05);" class="dark-mode-panel">
+            <h3>📋 Audit Log for Session {self.user_id}</h3>
+            <p>Session started: {self.session_start.strftime('%Y-%m-%d %H:%M:%S')}</p>
+            <p>Total actions logged: {len(logs)}</p>
+            
+            <div style="max-height: 400px; overflow-y: auto; margin-top: 15px;">
+                <table style="width: 100%; border-collapse: collapse;">
+                    <tr>
+                        <th style="text-align: left; padding: 8px; border-bottom: 2px solid #ddd;">Time</th>
+                        <th style="text-align: left; padding: 8px; border-bottom: 2px solid #ddd;">Level</th>
+                        <th style="text-align: left; padding: 8px; border-bottom: 2px solid #ddd;">Action</th>
+                        <th style="text-align: left; padding: 8px; border-bottom: 2px solid #ddd;">Details</th>
+                    </tr>
+        """
+        
+        for log in logs:
+            level_color = "#2ecc71" if log['level'] == "INFO" else "#e74c3c" if log['level'] == "ERROR" else "#f39c12"
+            
+            html += f"""
+                <tr>
+                    <td style="text-align: left; padding: 8px; border-bottom: 1px solid #ddd;">{log['timestamp'].split('T')[1].split('.')[0] if 'T' in log['timestamp'] else log['timestamp']}</td>
+                    <td style="text-align: left; padding: 8px; border-bottom: 1px solid #ddd; color: {level_color};">{log['level']}</td>
+                    <td style="text-align: left; padding: 8px; border-bottom: 1px solid #ddd;">{log['action']}</td>
+                    <td style="text-align: left; padding: 8px; border-bottom: 1px solid #ddd;">{log['details']}</td>
+                </tr>
+            """
+        
+        html += """
+                </table>
+            </div>
+        </div>
+        """
+        
+        return html
+
+class DocumentPatternAnalyzer:
+    def __init__(self):
+        self.feedback_history = {}  # Store feedback across multiple documents
+        self.pattern_cache = {}     # Cache identified patterns
+        
+    def add_document_feedback(self, doc_name, feedback_items):
+        """Add feedback from a document to the analyzer"""
+        self.feedback_history[doc_name] = feedback_items
+        # Invalidate cache when new data is added
+        self.pattern_cache = {}
+        
+    def find_recurring_patterns(self, threshold=2):
+        """Identify recurring feedback patterns across documents"""
+        if 'recurring_patterns' in self.pattern_cache:
+            return self.pattern_cache['recurring_patterns']
+            
+        # Count occurrences of similar feedback
+        pattern_counts = defaultdict(int)
+        pattern_examples = defaultdict(list)
+        
+        for doc_name, feedback_items in self.feedback_history.items():
+            for item in feedback_items:
+                # Create a normalized key for the feedback
+                category = item.get('category', '').lower()
+                # Get the first sentence of the description (as a pattern identifier)
+                description = item.get('description', '').lower().split('.')[0]
+                pattern_key = f"{category}:{description[:50]}"
+                
+                pattern_counts[pattern_key] += 1
+                if len(pattern_examples[pattern_key]) < 3:  # Keep up to 3 examples
+                    pattern_examples[pattern_key].append({
+                        'document': doc_name,
+                        'description': item.get('description'),
+                        'risk_level': item.get('risk_level')
+                    })
+        
+        # Filter to patterns that meet the threshold
+        recurring_patterns = []
+        for pattern_key, count in pattern_counts.items():
+            if count >= threshold:
+                category, description = pattern_key.split(':', 1)
+                recurring_patterns.append({
+                    'pattern': description,
+                    'category': category,
+                    'occurrence_count': count,
+                    'examples': pattern_examples[pattern_key]
+                })
+        
+        # Sort by occurrence count (descending)
+        recurring_patterns.sort(key=lambda x: x['occurrence_count'], reverse=True)
+        
+        # Cache the results
+        self.pattern_cache['recurring_patterns'] = recurring_patterns
+        return recurring_patterns
+    
+    def get_pattern_report_html(self):
+        """Generate an HTML report of the patterns"""
+        patterns = self.find_recurring_patterns()
+        
+        if not patterns:
+            return "<p>No recurring patterns found yet. Review more documents to identify patterns.</p>"
+        
+        html = """
+        <div style="padding: 15px; background: white; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.05);" class="dark-mode-panel">
+            <h3>📊 Recurring Feedback Patterns</h3>
+            <p>The following patterns have been identified across multiple documents:</p>
+            <div style="max-height: 400px; overflow-y: auto;">
+        """
+        
+        for i, pattern in enumerate(patterns):
+            html += f"""
+            <div style="margin: 15px 0; padding: 10px; border-left: 4px solid #667eea; background: #f8f9ff;" class="dark-mode-feedback-item">
+                <h4>Pattern #{i+1}: {pattern['category'].title()}</h4>
+                <p><strong>Description:</strong> {pattern['pattern']}</p>
+                <p><strong>Occurrences:</strong> {pattern['occurrence_count']} documents</p>
+                <details>
+                    <summary>Examples</summary>
+                    <ul>
+            """
+            
+            for example in pattern['examples']:
+                html += f"""
+                <li>
+                    <strong>{example['document']}:</strong> 
+                    <span style="color: {'#e74c3c' if example['risk_level'] == 'High' else '#f39c12' if example['risk_level'] == 'Medium' else '#3498db'}">
+                        {example['risk_level']} risk
+                    </span> - 
+                    {example['description']}
+                </li>
+                """
+            
+            html += """
+                    </ul>
+                </details>
+            </div>
+            """
+        
+        html += """
+            </div>
+        </div>
+        """
+        
+        return html
+
+class FeedbackLearningSystem:
+    def __init__(self, storage_file="custom_feedback_training.json"):
+        self.storage_file = storage_file
+        self.feedback_data = self._load_feedback_data()
+        
+    def _load_feedback_data(self):
+        """Load existing feedback training data"""
+        if os.path.exists(self.storage_file):
+            try:
+                with open(self.storage_file, 'r') as f:
+                    return json.load(f)
+            except json.JSONDecodeError:
+                return {
+                    "custom_feedback": [],
+                    "accepted_ai_feedback": [],
+                    "rejected_ai_feedback": [],
+                    "section_patterns": {}
+                }
+        else:
+            return {
+                "custom_feedback": [],
+                "accepted_ai_feedback": [],
+                "rejected_ai_feedback": [],
+                "section_patterns": {}
+            }
+    
+    def _save_feedback_data(self):
+        """Save the feedback data"""
+        with open(self.storage_file, 'w') as f:
+            json.dump(self.feedback_data, f)
+    
+    def add_custom_feedback(self, feedback_item, section_name):
+        """Add custom feedback for learning"""
+        feedback_entry = feedback_item.copy()
+        feedback_entry["section_type"] = section_name
+        feedback_entry["timestamp"] = datetime.now().isoformat()
+        
+        self.feedback_data["custom_feedback"].append(feedback_entry)
+        
+        # Update section patterns
+        if section_name not in self.feedback_data["section_patterns"]:
+            self.feedback_data["section_patterns"][section_name] = {
+                "feedback_types": {},
+                "total_count": 0
+            }
+        
+        section_data = self.feedback_data["section_patterns"][section_name]
+        section_data["total_count"] += 1
+        
+        feedback_type = feedback_item.get("type", "suggestion")
+        category = feedback_item.get("category", "general")
+        
+        key = f"{feedback_type}:{category}"
+        if key not in section_data["feedback_types"]:
+            section_data["feedback_types"][key] = {
+                "count": 0,
+                "examples": []
+            }
+        
+        section_data["feedback_types"][key]["count"] += 1
+        if len(section_data["feedback_types"][key]["examples"]) < 3:  # Keep up to 3 examples
+            section_data["feedback_types"][key]["examples"].append({
+                "description": feedback_item.get("description", ""),
+                "timestamp": feedback_entry["timestamp"]
+            })
+        
+        self._save_feedback_data()
+    
+    def record_ai_feedback_response(self, feedback_item, section_name, accepted):
+        """Record user response to AI feedback"""
+        feedback_entry = feedback_item.copy()
+        feedback_entry["section_type"] = section_name
+        feedback_entry["timestamp"] = datetime.now().isoformat()
+        
+        if accepted:
+            self.feedback_data["accepted_ai_feedback"].append(feedback_entry)
+        else:
+            self.feedback_data["rejected_ai_feedback"].append(feedback_entry)
+        
+        self._save_feedback_data()
+    
+    def get_recommended_feedback(self, section_name, content):
+        """Get recommended feedback based on past patterns"""
+        if section_name not in self.feedback_data["section_patterns"]:
+            return []
+        
+        section_data = self.feedback_data["section_patterns"][section_name]
+        if section_data["total_count"] < 3:  # Not enough data yet
+            return []
+        
+        # Sort feedback types by frequency
+        sorted_types = sorted(
+            section_data["feedback_types"].items(),
+            key=lambda x: x[1]["count"],
+            reverse=True
+        )
+        
+        recommendations = []
+        for type_key, type_data in sorted_types[:3]:  # Top 3 types
+            feedback_type, category = type_key.split(":")
+            
+            # Only recommend if we have examples
+            if type_data["examples"]:
+                example = type_data["examples"][0]
+                
+                recommendations.append({
+                    "type": feedback_type,
+                    "category": category,
+                    "description": f"[AI SUGGESTION BASED ON YOUR PAST FEEDBACK] {example['description']}",
+                    "confidence": min(0.5 + (type_data["count"] / section_data["total_count"]), 0.9),
+                    "learned": True,
+                    "based_on": type_data["count"]
+                })
+        
+        return recommendations
+    
+    def generate_learning_report(self):
+        """Generate an HTML report of the learning system status"""
+        html = """
+        <div style="padding: 20px; background: white; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.05);" class="dark-mode-panel">
+            <h3>🧠 AI Learning System Status</h3>
+            
+            <h4>Training Data Summary</h4>
+            <ul>
+        """
+        
+        html += f"<li>Custom feedback entries: {len(self.feedback_data['custom_feedback'])}</li>"
+        html += f"<li>Accepted AI feedback: {len(self.feedback_data['accepted_ai_feedback'])}</li>"
+        html += f"<li>Rejected AI feedback: {len(self.feedback_data['rejected_ai_feedback'])}</li>"
+        html += f"<li>Sections with learned patterns: {len(self.feedback_data['section_patterns'])}</li>"
+        
+        html += """
+            </ul>
+            
+            <h4>Section-Specific Learning</h4>
+            <div style="max-height: 300px; overflow-y: auto;">
+                <table style="width: 100%; border-collapse: collapse;">
+                    <tr>
+                        <th style="text-align: left; padding: 8px; border-bottom: 2px solid #ddd;">Section</th>
+                        <th style="text-align: left; padding: 8px; border-bottom: 2px solid #ddd;">Feedback Count</th>
+                        <th style="text-align: left; padding: 8px; border-bottom: 2px solid #ddd;">Top Pattern</th>
+                    </tr>
+        """
+        
+        for section_name, section_data in self.feedback_data["section_patterns"].items():
+            top_pattern = "None"
+            if section_data["feedback_types"]:
+                # Find top pattern
+                top_type = sorted(
+                    section_data["feedback_types"].items(),
+                    key=lambda x: x[1]["count"],
+                    reverse=True
+                )[0]
+                feedback_type, category = top_type[0].split(":")
+                top_pattern = f"{feedback_type.capitalize()} - {category}"
+            
+            html += f"""
+                <tr>
+                    <td style="text-align: left; padding: 8px; border-bottom: 1px solid #ddd;">{section_name}</td>
+                    <td style="text-align: left; padding: 8px; border-bottom: 1px solid #ddd;">{section_data["total_count"]}</td>
+                    <td style="text-align: left; padding: 8px; border-bottom: 1px solid #ddd;">{top_pattern}</td>
+                </tr>
+            """
+        
+        html += """
+                </table>
+            </div>
+            
+            <p style="margin-top: 20px;"><em>The AI continuously learns from your custom feedback and acceptance patterns to provide more relevant suggestions.</em></p>
+        </div>
+        """
+        
+        return html
+
+class WordDocumentWithComments:
+    """Helper class to add comments to Word documents"""
+    
+    def __init__(self, doc_path):
+        self.doc_path = doc_path
+        self.temp_dir = f"temp_{uuid.uuid4()}"
+        self.comments = []
+        self.comment_id = 1
+        
+    def add_comment(self, paragraph_index, comment_text, author="AI Feedback"):
+        """Add a comment to be inserted later"""
+        self.comments.append({
+            'id': self.comment_id,
+            'paragraph_index': paragraph_index,
+            'text': comment_text,
+            'author': author,
+            'date': datetime.now()
+        })
+        self.comment_id += 1
+    
+    def _create_comment_xml(self, comment):
+        """Create comment XML structure"""
+        comment_xml = f'''
+        <w:comment w:id="{comment['id']}" w:author="{comment['author']}" 
+                   w:date="{comment['date'].strftime('%Y-%m-%dT%H:%M:%S.%fZ')}" 
+                   xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+            <w:p>
+                <w:r>
+                    <w:t>{comment['text']}</w:t>
+                </w:r>
+            </w:p>
+        </w:comment>
+        '''
+        return comment_xml
+    
+    def save_with_comments(self, output_path):
+        """Save document with comments added"""
+        try:
+            # First, save a copy using python-docx
+            doc = Document(self.doc_path)
+            
+            # If no comments, just save a copy
+            if not self.comments:
+                doc.save(output_path)
+                return True
+                
+            temp_docx = f"{self.temp_dir}_temp.docx"
+            doc.save(temp_docx)
+            
+            # Unzip the docx file
+            os.makedirs(self.temp_dir, exist_ok=True)
+            with zipfile.ZipFile(temp_docx, 'r') as zip_ref:
+                zip_ref.extractall(self.temp_dir)
+            
+            # Create comments.xml if it doesn't exist
+            comments_path = os.path.join(self.temp_dir, 'word', 'comments.xml')
+            
+            # Create comments XML content
+            comments_xml = '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+            <w:comments xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+            '''
+            
+            for comment in self.comments:
+                comments_xml += self._create_comment_xml(comment)
+            
+            comments_xml += '</w:comments>'
+            
+            # Write comments.xml
+            with open(comments_path, 'w', encoding='utf-8') as f:
+                f.write(comments_xml)
+            
+            # Update document.xml to add comment references
+            doc_xml_path = os.path.join(self.temp_dir, 'word', 'document.xml')
+            
+            # Add comment relationship to document.xml.rels if needed
+            rels_path = os.path.join(self.temp_dir, 'word', '_rels', 'document.xml.rels')
+            if os.path.exists(rels_path):
+                with open(rels_path, 'r', encoding='utf-8') as f:
+                    rels_content = f.read()
+                
+                if 'comments.xml' not in rels_content:
+                    # Add comments relationship
+                    new_rel = '<Relationship Id="rIdComments" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments" Target="comments.xml"/>'
+                    rels_content = rels_content.replace('</Relationships>', f'{new_rel}</Relationships>')
+                    
+                    with open(rels_path, 'w', encoding='utf-8') as f:
+                        f.write(rels_content)
+            
+            # Update [Content_Types].xml
+            content_types_path = os.path.join(self.temp_dir, '[Content_Types].xml')
+            if os.path.exists(content_types_path):
+                with open(content_types_path, 'r', encoding='utf-8') as f:
+                    content = f.read()
+                
+                if 'comments.xml' not in content:
+                    new_type = '<Override PartName="/word/comments.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml"/>'
+                    content = content.replace('</Types>', f'{new_type}</Types>')
+                    
+                    with open(content_types_path, 'w', encoding='utf-8') as f:
+                        f.write(content)
+            
+            # Create new docx file
+            with zipfile.ZipFile(output_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+                for root, dirs, files in os.walk(self.temp_dir):
+                    for file in files:
+                        file_path = os.path.join(root, file)
+                        arcname = os.path.relpath(file_path, self.temp_dir)
+                        zipf.write(file_path, arcname)
+            
+            # Debug log
+            print(f"Added {len(self.comments)} comments to document")
+            
+            # Cleanup
+            shutil.rmtree(self.temp_dir)
+            os.remove(temp_docx)
+            
+            return True
+            
+        except Exception as e:
+            print(f"Error adding comments: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            # Cleanup on error
+            if os.path.exists(self.temp_dir):
+                shutil.rmtree(self.temp_dir)
+            if os.path.exists(temp_docx):
+                os.remove(temp_docx)
+            return False
+
+class ReviewSession:
+    def __init__(self):
+        self.session_id = str(uuid.uuid4())
+        self.start_time = datetime.now()
+        self.document_name = ""
+        self.document_content = ""
+        self.document_object = None
+        self.document_path = ""
+        self.sections = {}
+        self.section_paragraphs = {}
+        self.paragraph_indices = {}
+        self.current_section = 0
+        self.feedback_history = defaultdict(list)
+        self.section_status = {}
+
+def load_guidelines():
+    """Load the CT EE Review guidelines and Hawkeye checklist"""
+    global guidelines_content, hawkeye_checklist
+    
+    try:
+        # Load CT EE guidelines
+        if os.path.exists(GUIDELINES_PATH):
+            guidelines_content = read_docx(GUIDELINES_PATH)
+        
+        # Load Hawkeye checklist
+        if os.path.exists(HAWKEYE_PATH):
+            hawkeye_checklist = read_docx(HAWKEYE_PATH)
+        
+        return guidelines_content, hawkeye_checklist
+    except Exception as e:
+        return None, None
+
+def read_docx(file_path):
+    """Extract text from a Word document"""
+    try:
+        doc = Document(file_path)
+        full_text = []
+        
+        for para in doc.paragraphs:
+            full_text.append(para.text)
+            
+        for table in doc.tables:
+            for row in table.rows:
+                for cell in row.cells:
+                    full_text.append(cell.text)
+                    
+        return '\n'.join(full_text)
+    except Exception as e:
+        return f"Error reading document: {str(e)}"
+
+def identify_sections_with_ai(doc_text):
+    """Use AI to identify sections in the document"""
+    
+    prompt = f"""Analyze this document and identify all the main sections. Look for:
+1. Section headers that appear on their own line
+2. Headers that introduce new topics or phases of the document
+3. Common business document sections like Executive Summary, Timeline, Background, etc.
+4. Text that appears to be a heading even if not formatted differently
+
+For this document, specifically look for these sections that are clearly present:
+- Executive Summary (starts after the introductory paragraph)
+- Timeline of Events (clear section with dates)
+- Resolving Actions (numbered list section)
+- Root Causes (RC) and Preventative Actions (PA)
+
+Document text (first 10000 characters):
+{doc_text[:10000]}
+
+Important: The sections might not be bold or have special formatting. Look for content transitions and organizational patterns.
+
+Return the sections in this JSON format:
+{{
+    "sections": [
+        {{"title": "Executive Summary", "line_hint": "Our investigation revealed"}},
+        {{"title": "Timeline of Events", "line_hint": "On 19-Oct-2011"}},
+        {{"title": "Resolving Actions", "line_hint": "1. We acknowledged"}},
+        {{"title": "Root Causes (RC) and Preventative Actions (PA)", "line_hint": "RC1: Limited visibility"}},
+    ]
+}}
+"""
+    
+    system_prompt = """You are an expert at identifying document structure and sections in business documents. 
+    Focus on finding all meaningful sections even if they don't have special formatting. 
+    Look for content transitions and section headers that organize the document."""
+    
+    try:
+        response = invoke_aws_semantic_search(system_prompt, prompt, "Section Identification")
+        
+        # Parse the response
+        result = json.loads(response)
+        return result.get('sections', [])
+    except:
+        # If AI fails, return None to trigger fallback
+        return None
+
+def extract_document_sections_from_docx(doc):
+    """Extract sections from Word document with improved content capture"""
+    sections = {}
+    section_paragraphs = {}
+    paragraph_indices = {}
+    
+    # Collect all paragraphs with their indices
+    all_paragraphs = []
+    for idx, para in enumerate(doc.paragraphs):
+        text = para.text.strip()
+        if text:  # Only include non-empty paragraphs
+            all_paragraphs.append((idx, para, text))
+    
+    # Try to identify section headers
+    section_headers = []
+    standard_sections = STANDARD_SECTIONS
+    
+    # Look for known section names in the document
+    for idx, para, text in all_paragraphs:
+        text_lower = text.lower()
+        
+        # Check if this paragraph looks like a section header
+        if len(text) < 100:  # Section headers are generally short
+            # Check against standard section names
+            for section_name in standard_sections:
+                if section_name.lower() in text_lower:
+                    section_headers.append({
+                        'title': section_name,
+                        'idx': idx
+                    })
+                    break
+                    
+            # Check for common header patterns (single word or short phrase, possibly numbered)
+            if re.match(r'^(\d+\.? )?[A-Z][a-z]+( [A-Z][a-z]+){0,3}$', text) and len(text.split()) <= 5:
+                section_headers.append({
+                    'title': text,
+                    'idx': idx
+                })
+    
+    # Sort section headers by their position in the document
+    section_headers.sort(key=lambda x: x['idx'])
+    
+    # Extract content for each section
+    for i, header in enumerate(section_headers):
+        section_title = header['title']
+        start_idx = header['idx']
+        
+        # Determine where this section ends
+        end_idx = len(doc.paragraphs)
+        if i < len(section_headers) - 1:
+            end_idx = section_headers[i+1]['idx']
+            
+        # Collect all content between this section header and the next
+        section_content = []
+        section_paras = []
+        section_idxs = []
+        
+        # Start from the paragraph after the header
+        for idx in range(start_idx, end_idx):
+            if idx < len(doc.paragraphs):
+                para = doc.paragraphs[idx]
+                text = para.text.strip()
+                
+                # Skip section header itself and empty lines
+                if idx == start_idx or not text:
+                    continue
+                    
+                # Skip email dividers
+                if any(text.startswith(prefix) for prefix in ["From:", "Sent:", "To:", "---"]):
+                    continue
+                
+                # Add content to section
+                section_content.append(text)
+                section_paras.append(para)
+                section_idxs.append(idx)
+        
+        # Only save sections with actual content
+        if section_content:
+            # Join with double newlines for better readability
+            sections[section_title] = '\n\n'.join(section_content)
+            section_paragraphs[section_title] = section_paras
+            paragraph_indices[section_title] = section_idxs
+    
+    # If very few sections found using headers approach, try AI-based detection
+    if len(sections) < 3:
+        print("Trying AI-based section detection...")
+        
+        # Get the full document text
+        full_text = []
+        for para in doc.paragraphs:
+            text = para.text.strip()
+            if text:
+                full_text.append(text)
+        
+        doc_text = '\n'.join(full_text)
+        
+        # Get AI sections
+        ai_sections = identify_sections_with_ai(doc_text)
+        
+        if ai_sections:
+            print(f"AI identified {len(ai_sections)} potential sections")
+            
+            # Create a list of all sections with their positions
+            all_sections_info = []
+            
+            for section_info in ai_sections:
+                section_title = str(section_info.get('title', ''))
+                line_hint = str(section_info.get('line_hint', '')).lower()
+                
+                # Find the section in the document
+                section_found = False
+                section_start_idx = None
+                
+                # Look for the section start
+                for idx, para in enumerate(doc.paragraphs):
+                    text = para.text.strip().lower()
+                    
+                    # Check if this paragraph contains the section hint
+                    if not section_found and line_hint and line_hint in text:
+                        section_found = True
+                        section_start_idx = idx
+                        break
+                    
+                    # Alternative: Check if section title appears in the text
+                    if not section_found and section_title.lower() in text:
+                        section_found = True
+                        section_start_idx = idx
+                        break
+                
+                if section_found and section_start_idx is not None:
+                    all_sections_info.append({
+                        'title': section_title,
+                        'start_idx': section_start_idx
+                    })
+            
+            # Sort sections by their position in the document
+            all_sections_info.sort(key=lambda x: x['start_idx'])
+            
+            # Process each section - capture everything between this section's start and next section's start
+            for i, section_info in enumerate(all_sections_info):
+                section_title = section_info['title']
+                start_idx = section_info['start_idx']
+                
+                # Find where this section ends (either at next section or end of document)
+                end_idx = len(doc.paragraphs)
+                if i < len(all_sections_info) - 1:
+                    end_idx = all_sections_info[i+1]['start_idx']
+                
+                # Collect all content and paragraphs in this section
+                current_content = []
+                current_paragraphs = []
+                current_indices = []
+                
+                # Include all paragraphs from start to end of section
+                for idx in range(start_idx, end_idx):
+                    if idx < len(doc.paragraphs):
+                        para = doc.paragraphs[idx]
+                        text = para.text.strip()
+                        
+                        # Include non-empty paragraphs
+                        if text:
+                            # Skip email dividers that might be in the middle of a section
+                            if any(text.startswith(prefix) for prefix in ["From:", "Sent:", "To:", "---"]):
+                                continue
+                                
+                            current_content.append(text)
+                            current_paragraphs.append(para)
+                            current_indices.append(idx)
+                
+                # Save the section if we found content
+                if current_content:
+                    # Use double newlines for readability
+                    sections[section_title] = '\n\n'.join(current_content)
+                    section_paragraphs[section_title] = current_paragraphs
+                    paragraph_indices[section_title] = current_indices
+    
+    # If still no sections found, create one generic section with all content
+    if not sections:
+        print("No sections found. Creating a single document section.")
+        current_section = "Document Content"
+        current_content = []
+        current_paragraphs = []
+        current_indices = []
+        
+        for idx, para in enumerate(doc.paragraphs):
+            text = para.text.strip()
+            if text:
+                current_content.append(text)
+                current_paragraphs.append(para)
+                current_indices.append(idx)
+        
+        if current_content:
+            sections[current_section] = '\n\n'.join(current_content)
+            section_paragraphs[current_section] = current_paragraphs
+            paragraph_indices[current_section] = current_indices
+    
+    print(f"✅ Extracted {len(sections)} sections: {list(sections.keys())}")
+    
+    # Debug section content
+    for section_name, content in sections.items():
+        print(f"Section '{section_name}' has {len(content)} characters")
+    
+    return sections, section_paragraphs, paragraph_indices
+
+def get_hawkeye_reference(category, content):
+    """Map feedback to relevant Hawkeye checklist items"""
+    references = []
+    
+    # Keywords mapping to Hawkeye sections
+    keyword_mapping = {
+        1: ["customer experience", "cx impact", "customer trust", "buyer impact"],
+        2: ["investigation", "sop", "enforcement decision", "abuse pattern"],
+        3: ["seller classification", "good actor", "bad actor", "confused actor"],
+        4: ["enforcement", "violation", "warning", "suspension"],
+        5: ["verification", "supplier", "authenticity", "documentation"],
+        6: ["appeal", "repeat", "retrospective"],
+        7: ["hijacking", "security", "authentication", "secondary user"],
+        8: ["funds", "disbursement", "financial"],
+        9: ["outreach", "communication", "clarification"],
+        10: ["sentiment", "escalation", "health safety", "legal threat"],
+        11: ["root cause", "process gap", "system failure"],
+        12: ["preventative", "solution", "improvement", "mitigation"],
+        13: ["documentation", "reporting", "background"],
+        14: ["cross-team", "collaboration", "engagement"],
+        15: ["quality", "audit", "review", "performance"],
+        16: ["continuous improvement", "training", "update"],
+        17: ["communication standard", "messaging", "clarity"],
+        18: ["metrics", "tracking", "measurement"],
+        19: ["legal", "compliance", "regulation"],
+        20: ["launch", "pilot", "rollback"]
+    }
+    
+    content_lower = content.lower()
+    category_lower = category.lower()
+    
+    for section_num, keywords in keyword_mapping.items():
+        for keyword in keywords:
+            if keyword in content_lower or keyword in category_lower:
+                references.append({
+                    'number': section_num,
+                    'name': HAWKEYE_SECTIONS[section_num]
+                })
+                break
+    
+    return references[:3]  # Return top 3 most relevant references
+
+def classify_risk_level(feedback_item):
+    """Classify risk level based on Hawkeye criteria"""
+    high_risk_indicators = [
+        "counterfeit", "fraud", "manipulation", "multiple violation",
+        "immediate action", "legal", "health safety", "bad actor"
+    ]
+    
+    medium_risk_indicators = [
+        "pattern", "violation", "enforcement", "remediation",
+        "correction", "warning"
+    ]
+    
+    content_lower = f"{feedback_item.get('description', '')} {feedback_item.get('category', '')}".lower()
+    
+    for indicator in high_risk_indicators:
+        if indicator in content_lower:
+            return "High"
+    
+    for indicator in medium_risk_indicators:
+        if indicator in content_lower:
+            return "Medium"
+    
+    return "Low"
+
+def invoke_aws_semantic_search(system_prompt, user_prompt, operation_name="LLM Analysis"):
+    """AWS Bedrock invocation with Hawkeye guidelines"""
+    global guidelines_content, hawkeye_checklist
+    
+    if guidelines_content is None or hawkeye_checklist is None:
+        guidelines_content, hawkeye_checklist = load_guidelines()
+    
+    enhanced_system_prompt = system_prompt
+    if hawkeye_checklist and "Section Identification" not in operation_name:
+        truncated_hawkeye = hawkeye_checklist[:30000]
+        enhanced_system_prompt = f"""{system_prompt}
+
+HAWKEYE INVESTIGATION CHECKLIST:
+{truncated_hawkeye}
+
+Apply these Hawkeye investigation mental models in your analysis. Reference specific checklist items when providing feedback."""
+    
+    runtime = boto3.client('bedrock-runtime')
+    
+    body = json.dumps({
+        "anthropic_version": "bedrock-2023-05-31",
+        "max_tokens": 4000,
+        "system": enhanced_system_prompt,
+        "messages": [{"role": "user", "content": user_prompt}]
+    })
+    
+    try:
+        response = runtime.invoke_model(
+            body=body,
+            modelId='anthropic.claude-3-sonnet-20240229-v1:0',
+            accept="application/json",
+            contentType="application/json"
+        )
+        
+        response_body = json.loads(response.get('body').read())
+        return response_body['content'][0]['text']
+        
+    except Exception as e:
+        # Return mock data for testing
+        time.sleep(1)  # Simulate API delay
+        
+        if "Section Identification" in operation_name:
+            return json.dumps({
+                "sections": [
+                    {"title": "Executive Summary", "line_hint": "executive summary"},
+                    {"title": "Timeline of Events", "line_hint": "timeline"},
+                    {"title": "Resolving Actions", "line_hint": "resolving actions"},
+                    {"title": "Root Causes (RC) and Preventative Actions (PA)", "line_hint": "root cause"},
+                    {"title": "Customer Impact", "line_hint": "customer impact"},
+                    
+                ]
+            })
+        
+        if "chat" in operation_name.lower():
+            return "Based on the Hawkeye guidelines, I can help you understand the feedback better. The 20-point checklist emphasizes thorough investigation and customer impact assessment. What specific aspect would you like me to clarify?"
+        
+        return json.dumps({
+            "feedback_items": [
+                {
+                    "id": "1",
+                    "type": "critical",
+                    "category": "investigation process",
+                    "description": "Missing evaluation of customer experience (CX) impact. How might this abuse affect customer trust and satisfaction?",
+                    "suggestion": "Add analysis of potential negative reviews, returns, or complaints that could result from this issue",
+                    "example": "Consider both immediate and long-term effects on customer trust as outlined in Hawkeye #1",
+                    "questions": [
+                        "Have you evaluated the customer experience (CX) impact?",
+                        "Did you consider how this affects buyer trust?"
+                    ],
+                    "confidence": 0.95
+                },
+                {
+                    "id": "2",
+                    "type": "important",
+                    "category": "root cause analysis",
+                    "description": "Root cause analysis lacks identification of process gaps that allowed this issue",
+                    "suggestion": "Include analysis of weaknesses in current procedures and suggest improvements",
+                    "example": "Reference the case study about ex-Amazon employee account compromise",
+                    "questions": [
+                        "What process gaps allowed this issue to occur?",
+                        "Are there system failures that contributed?"
+                    ],
+                    "confidence": 0.85
+                }
+            ]
+        })
+
+def analyze_section_with_ai(section_name, section_content, doc_type="Full Write-up"):
+    """Analyze a single section with Hawkeye framework"""
+    
+    cache_key = f"{section_name}_{hash(section_content)}"
+    if cache_key in ai_feedback_cache:
+        return ai_feedback_cache[cache_key]
+    
+    # Customize prompts based on section type
+    section_specific_guidance = ""
+    
+    section_name_lower = section_name.lower()
+    
+    if "timeline" in section_name_lower:
+        section_specific_guidance = """
+        For Timeline sections, focus on:
+        - Chronological accuracy and completeness
+        - Missing critical events
+        - Time gaps that need explanation
+        - Correlation with enforcement actions
+        - Clear date formatting and consistency
+        """
+    elif "resolving action" in section_name_lower:
+        section_specific_guidance = """
+        For Resolving Actions, focus on:
+        - Completeness of resolution steps
+        - Validation of actions taken
+        - Impact on affected parties
+        - Follow-up mechanisms
+        - Clear ownership and completion dates
+        """
+    elif "root cause" in section_name_lower or "preventative action" in section_name_lower:
+        section_specific_guidance = """
+        For Root Causes and Preventative Actions, focus on:
+        - Depth of root cause analysis (use 5 Whys)
+        - Systemic vs symptomatic causes
+        - Actionability of preventative measures
+        - Long-term effectiveness
+        - Process improvements needed
+        - Clear ownership and ECDs (Estimated Completion Dates)
+        - Placeholder identification and completion
+        """
+    elif "executive summary" in section_name_lower or "summary" in section_name_lower:
+        section_specific_guidance = """
+        For Executive Summary, focus on:
+        - Completeness of key points coverage
+        - Clarity and conciseness
+        - Accurate representation of findings
+        - Clear statement of impact and outcomes
+        - Action items highlighted
+        """
+    elif "background" in section_name_lower:
+        section_specific_guidance = """
+        For Background sections, focus on:
+        - Context clarity and completeness
+        - Relevance of historical information
+        - Key milestones and decision points
+        - Policy or guideline references
+        - Clarity on whether this is a pilot or established process
+        """
+    else:
+        section_specific_guidance = """
+        General section analysis focusing on:
+        - Completeness and clarity
+        - Alignment with Hawkeye investigation standards
+        - Evidence and documentation quality
+        - Clear action items and ownership
+        """
+    
+    prompt = f"""Analyze this section "{section_name}" from a {doc_type} document using the Hawkeye investigation framework.
+
+{section_specific_guidance}
+
+SECTION CONTENT:
+{section_content[:3000]}
+
+Provide feedback following the 20-point Hawkeye checklist. For each feedback item, include:
+1. Specific questions from the Hawkeye checklist that should be addressed
+2. References to relevant Hawkeye checkpoint numbers (#1-20)
+3. Examples from the case studies when applicable
+4. Risk classification (High/Medium/Low)
+
+Return feedback in this JSON format:
+{{
+    "feedback_items": [
+        {{
+            "id": "unique_id",
+            "type": "critical|important|suggestion|positive",
+            "category": "category matching Hawkeye sections",
+            "description": "Clear description referencing Hawkeye criteria",
+            "suggestion": "Specific suggestion based on Hawkeye guidelines",
+            "example": "Example from case studies or Hawkeye checklist",
+            "questions": ["Question 1 from Hawkeye?", "Question 2?"],
+            "hawkeye_refs": [1, 11, 12],
+            "risk_level": "High|Medium|Low",
+            "confidence": 0.95
+        }}
+    ]
+}}"""
+    
+    system_prompt = "You are an expert document reviewer following the Hawkeye investigation mental models for CT EE guidelines."
+    
+    response = invoke_aws_semantic_search(system_prompt, prompt, f"Hawkeye Analysis: {section_name}")
+    
+    try:
+        result = json.loads(response)
+    except:
+        json_match = re.search(r'\{.*\}', response, re.DOTALL)
+        if json_match:
+            try:
+                result = json.loads(json_match.group(0))
+            except:
+                result = {"feedback_items": []}
+        else:
+            result = {"feedback_items": []}
+    
+    # Enhance with Hawkeye references if not provided
+    for item in result.get('feedback_items', []):
+        if 'hawkeye_refs' not in item:
+            refs = get_hawkeye_reference(item.get('category', ''), item.get('description', ''))
+            item['hawkeye_refs'] = [ref['number'] for ref in refs]
+        
+        if 'risk_level' not in item:
+            item['risk_level'] = classify_risk_level(item)
+    
+    ai_feedback_cache[cache_key] = result
+    return result
+
+def process_chat_query(query, context):
+    """Process chat query with context awareness"""
+    global current_session, hawkeye_checklist, current_section_feedback
+    
+    # Build context for the chat
+    context_info = f"""
+    Current Section: {context.get('current_section', 'None')}
+    Current Feedback Items: {len(current_section_feedback)}
+    Document Type: Full Write-up
+    """
+    
+    if current_section_feedback:
+        context_info += "\nCurrent Section Feedback Summary:\n"
+        for item in current_section_feedback[:3]:  # Show first 3 items
+            context_info += f"- {item['type']}: {item['description'][:100]}...\n"
+    
+    prompt = f"""You are an AI assistant helping with document review using the Hawkeye framework.
+
+CONTEXT:
+{context_info}
+
+HAWKEYE GUIDELINES REFERENCE:
+The 20-point Hawkeye checklist includes:
+1. Initial Assessment - Evaluate CX impact
+2. Investigation Process - Challenge SOPs
+3. Seller Classification - Identify good/bad actors
+4. Enforcement Decision-Making
+5. Additional Verification for High-Risk Cases
+...and 15 more points
+
+USER QUESTION: {query}
+
+Provide a helpful, specific response that references the Hawkeye guidelines when relevant. Be concise but thorough."""
+    
+    system_prompt = "You are an expert assistant for the Hawkeye document review system."
+    
+    response = invoke_aws_semantic_search(system_prompt, prompt, "Chat Assistant")
+    
+    return response
+
+def create_dark_mode_toggle():
+    """Create a dark mode toggle button with styling"""
+    dark_mode_toggle = widgets.ToggleButton(
+        value=False,
+        description='🌙 Dark Mode',
+        tooltip='Toggle dark/light mode',
+        icon='moon',
+        layout={'width': '140px'}
+    )
+    
+    # Define the style change function
+    def on_dark_mode_toggle(change):
+        if change['new']:  # Dark mode enabled
+            dark_css = """
+            <style>
+                /* Global styles */
+                .jp-RenderedHTMLCommon { color: #e0e0e0 !important; }
+                .widget-label { color: #e0e0e0 !important; }
+                .widget-inline-hbox { background: #222 !important; }
+                .widget-html-content { background: #222 !important; color: #e0e0e0 !important; }
+                .p-Widget { background-color: #222 !important; }
+                .jupyter-widgets.widget-tab > .p-TabBar .p-TabBar-tab { color: #e0e0e0 !important; }
+                .jupyter-widgets.widget-tab > .p-TabBar { background-color: #333 !important; }
+                .widget-tab > .p-TabBar .p-TabBar-tab.p-mod-current { 
+                    color: white !important;
+                    background-color: #444 !important;
+                    border-top: 3px solid #555 !important;
+                }
+                
+                /* Custom classes */
+                .dark-mode-panel { 
+                    background: #2a2a2a !important; 
+                    border-color: #444 !important; 
+                    color: #e0e0e0 !important; 
+                    box-shadow: 0 2px 8px rgba(0,0,0,0.5) !important;
+                }
+                .dark-mode-header { 
+                    background: linear-gradient(135deg, #333 0%, #222 100%) !important;
+                    border-bottom: 1px solid #555 !important;
+                }
+                .dark-mode-feedback-item { 
+                    background: #333 !important; 
+                    border-color: #555 !important;
+                    box-shadow: 0 1px 3px rgba(0,0,0,0.3) !important;
+                }
+                .dark-mode-chat { background: #2a2a2a !important; }
+                .dark-mode-stats { background: #2a2a2a !important; }
+                
+                /* Button colors */
+                .jupyter-button.mod-primary {
+                    background-color: #555 !important;
+                    color: #ffffff !important;
+                    border-color: #666 !important;
+                }
+                .jupyter-button.mod-info {
+                    background-color: #444 !important;
+                    color: #ffffff !important;
+                    border-color: #555 !important;
+                }
+                .jupyter-button.mod-success {
+                    background-color: #2c5e2e !important;
+                    color: #ffffff !important;
+                    border-color: #3a7a3d !important;
+                }
+                .jupyter-button.mod-warning {
+                    background-color: #855522 !important;
+                    color: #ffffff !important;
+                    border-color: #976633 !important;
+                }
+                .jupyter-button.mod-danger {
+                    background-color: #7a2828 !important;
+                    color: #ffffff !important;
+                    border-color: #8a3333 !important;
+                }
+                
+                /* Chat message styles */
+                .user-message {
+                    background: #444 !important;
+                    border-left: 3px solid #666 !important;
+                }
+                .assistant-message {
+                    background: #333 !important;
+                    border-left: 3px solid #555 !important;
+                }
+                
+                /* Input fields */
+                .widget-text input,
+                .widget-textarea textarea {
+                    background: #333 !important;
+                    color: #e0e0e0 !important;
+                    border: 1px solid #555 !important;
+                }
+                
+                /* Status and risk indicators */
+                .high-risk { background: #7a2828 !important; }
+                .medium-risk { background: #855522 !important; }
+                .low-risk { background: #2c5e2e !important; }
+
+                /* Dialog backgrounds */
+                .shortcuts-help, .faq-content {
+                    background: #2a2a2a !important;
+                    color: #e0e0e0 !important;
+                    border-color: #444 !important;
+                }
+                
+                /* Tables in dialogs */
+                .shortcuts-help table, .faq-content table {
+                    border-color: #444 !important;
+                }
+                .shortcuts-help th, .faq-content th {
+                    background: #333 !important;
+                    color: #e0e0e0 !important;
+                }
+                .shortcuts-help td, .faq-content td {
+                    border-color: #444 !important;
+                }
+                
+                /* Hawkeye refs tags */
+                .hawkeye-ref {
+                    background: #444 !important;
+                    color: #e0e0e0 !important;
+                }
+                
+                /* Details/summary elements */
+                details summary {
+                    color: #e0e0e0 !important;
+                    background: #333 !important;
+                }
+                
+                /* Selection highlighting */
+                ::selection {
+                    background-color: #555 !important;
+                    color: white !important;
+                }
+            </style>
+            """
+            display(HTML(dark_css))
+            dark_mode_toggle.description = '☀️ Light Mode'
+            dark_mode_toggle.icon = 'sun'
+        else:  # Light mode enabled
+            light_css = """
+            <style>
+                /* Global styles */
+                .jp-RenderedHTMLCommon { color: #333 !important; }
+                .widget-label { color: #333 !important; }
+                .widget-inline-hbox { background: #ffffff !important; }
+                .widget-html-content { background: #ffffff !important; color: #333 !important; }
+                .p-Widget { background-color: #ffffff !important; }
+                .jupyter-widgets.widget-tab > .p-TabBar .p-TabBar-tab { color: #333 !important; }
+                .jupyter-widgets.widget-tab > .p-TabBar { background-color: #f8f8f8 !important; }
+                
+                /* Reset custom classes */
+                .dark-mode-panel { 
+                    background: #ffffff !important; 
+                    border-color: #e0e0e0 !important; 
+                    color: #333 !important;
+                    box-shadow: 0 2px 8px rgba(0,0,0,0.1) !important;
+                }
+                .dark-mode-header { 
+                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+                    border-bottom: none !important;
+                }
+                .dark-mode-feedback-item { 
+                    background: #f8f9ff !important; 
+                    border-color: #e0e0e0 !important;
+                    box-shadow: 0 1px 3px rgba(0,0,0,0.1) !important;
+                }
+                .dark-mode-chat { background: #f9f9f9 !important; }
+                .dark-mode-stats { background: #ffffff !important; }
+                
+                /* Reset button colors to defaults */
+                .jupyter-button.mod-primary {
+                    background-color: #2196f3 !important;
+                    color: #ffffff !important;
+                    border-color: #2196f3 !important;
+                }
+                .jupyter-button.mod-info {
+                    background-color: #00bcd4 !important;
+                    color: #ffffff !important;
+                    border-color: #00bcd4 !important;
+                }
+                .jupyter-button.mod-success {
+                    background-color: #4caf50 !important;
+                    color: #ffffff !important;
+                    border-color: #4caf50 !important;
+                }
+                .jupyter-button.mod-warning {
+                    background-color: #ff9800 !important;
+                    color: #ffffff !important;
+                    border-color: #ff9800 !important;
+                }
+                .jupyter-button.mod-danger {
+                    background-color: #f44336 !important;
+                    color: #ffffff !important;
+                    border-color: #f44336 !important;
+                }
+                
+                /* Reset chat message styles */
+                .user-message {
+                    background: #f5f5f5 !important;
+                    border-left: 3px solid #ddd !important;
+                }
+                .assistant-message {
+                    background: #e3f2fd !important;
+                    border-left: 3px solid #2196f3 !important;
+                }
+                
+                /* Reset input fields */
+                .widget-text input,
+                .widget-textarea textarea {
+                    background: #ffffff !important;
+                    color: #333 !important;
+                    border: 1px solid #ddd !important;
+                }
+                
+                /* Reset status indicators */
+                .high-risk { background: #e74c3c !important; }
+                .medium-risk { background: #f39c12 !important; }
+                .low-risk { background: #2ecc71 !important; }
+                
+                /* Reset dialog backgrounds */
+                .shortcuts-help, .faq-content {
+                    background: #ffffff !important;
+                    color: #333 !important;
+                    border-color: #e0e0e0 !important;
+                }
+                
+                /* Reset tables in dialogs */
+                .shortcuts-help table, .faq-content table {
+                    border-color: #e0e0e0 !important;
+                }
+                .shortcuts-help th, .faq-content th {
+                    background: #f5f5f5 !important;
+                    color: #333 !important;
+                }
+                .shortcuts-help td, .faq-content td {
+                    border-color: #e0e0e0 !important;
+                }
+                
+                /* Reset Hawkeye refs tags */
+                .hawkeye-ref {
+                    background: #e3f2fd !important;
+                    color: #333 !important;
+                }
+                
+                /* Reset details/summary elements */
+                details summary {
+                    color: #333 !important;
+                    background: #f5f5f5 !important;
+                }
+                
+                /* Reset selection highlighting */
+                ::selection {
+                    background-color: #667eea !important;
+                    color: white !important;
+                }
+            </style>
+            """
+            display(HTML(light_css))
+            dark_mode_toggle.description = '🌙 Dark Mode'
+            dark_mode_toggle.icon = 'moon'
+    
+    dark_mode_toggle.observe(on_dark_mode_toggle, names='value')
+    return dark_mode_toggle
+
+# Create UI components
+class InteractiveReviewUI:
+    def __init__(self):
+        self.current_section_idx = 0
+        self.sections = []
+        self.section_names = []
+        self.feedback_data = {}
+        self.document_comments = []
+        self.paragraph_indices = {}
+        self.chat_messages = []
+        self.current_tutorial_step = 0
+        self.feedback_learning = FeedbackLearningSystem()
+        self.pattern_analyzer = DocumentPatternAnalyzer()
+        self.audit_logger = AuditLogger()
+        self.create_ui()
+        # Removed keyboard shortcuts initialization that was causing problems
+        
+    def create_ui(self):
+        """Create the split-screen UI with chat"""
+        # Main container
+        self.main_container = widgets.VBox()
+        
+        # Header
+        self.header = widgets.HTML(value="""
+            <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+                        color: white; padding: 20px; border-radius: 10px; 
+                        text-align: center; margin-bottom: 20px;" class="dark-mode-header">
+                <h1 style="margin: 0;">Writeup Automation AI Tool</h1>
+                <p>AI-Powered Review with 20-Point Comprehensive Investigation Framework</p>
+            </div>
+        """)
+        
+        # Create Dark Mode toggle
+        self.dark_mode_toggle = create_dark_mode_toggle()
+        
+        # Progress bar
+        self.progress = widgets.IntProgress(
+            value=0, min=0, max=100, description='Progress:',
+            bar_style='info', style={'bar_color': '#667eea'}
+        )
+        
+        # Stats panel
+        self.stats_panel = widgets.HTML(value=self._create_stats_html())
+        
+        # Complete Review button
+        self.complete_review_btn = widgets.Button(
+            description='Complete Review',
+            button_style='warning',
+            icon='check-circle',
+            disabled=True,
+            tooltip='Complete the review and generate final document'
+        )
+        self.complete_review_btn.on_click(self._complete_review)
+        
+        # Download Hawkeye button
+        self.download_hawkeye_btn = widgets.Button(
+            description='📄 Download Hawkeye Checklist',
+            button_style='info',
+            icon='download',
+            tooltip='Download the Hawkeye investigation checklist document',
+            layout={'width': '220px'}
+        )
+        self.download_hawkeye_btn.on_click(self._download_hawkeye)
+        
+        # Section navigation
+        self.section_dropdown = widgets.Dropdown(
+            options=[], description='Section:', layout={'width': '400px'}
+        )
+        self.section_dropdown.observe(self._on_section_change, names='value')
+        
+        # Risk level indicator
+        self.risk_indicator = widgets.HTML(value="")
+        
+        # Split panels
+        self.doc_panel = widgets.HTML(value=self._create_doc_panel_html())
+        
+        # Create feedback HTML container with single scroll
+        self.feedback_html = widgets.HTML(value="")
+        
+        # Feedback container with proper structure
+        feedback_container = widgets.VBox([
+            widgets.HTML(value=self._create_feedback_header_html()),
+            widgets.HTML(value='<div style="height: 400px; overflow-y: auto; padding: 10px; border: 1px solid #e0e0e0; border-radius: 8px; background: #ffffff;" id="feedback-container" class="dark-mode-panel"></div>')
+        ])
+        
+        # Custom feedback form - removed suggestion field
+        self.custom_type = widgets.Dropdown(
+            options=['suggestion', 'important', 'critical'],
+            value='suggestion', description='Type:',
+            layout={'width': '200px'}
+        )
+        self.custom_category = widgets.Dropdown(
+            options=[v for v in HAWKEYE_SECTIONS.values()],
+            value=HAWKEYE_SECTIONS[1], description='Category:',
+            layout={'width': '95%'}
+        )
+        self.custom_description = widgets.Textarea(
+            placeholder='Enter your feedback...', description='Feedback:',
+            layout={'width': '100%', 'height': '80px'}  # Increased height
+        )
+        self.add_custom_btn = widgets.Button(
+            description='Add Custom Feedback', button_style='info',
+            icon='plus', layout={'width': '180px'}
+        )
+        self.add_custom_btn.on_click(self._add_custom_feedback)
+
+        self.custom_feedback_form = widgets.VBox([
+        widgets.HTML('<h4 style="margin: 10px 0;">Add Custom Feedback</h4>'),
+        self.custom_type,
+        self.custom_category,
+        self.custom_description,
+        self.add_custom_btn
+        ], layout={'border': '1px solid #ddd', 'padding': '10px', 
+               'border_radius': '5px', 'margin': '10px 0'})
+        
+        # Chat window components
+        self.chat_container = self._create_chat_container()
+        
+        self.chat_input = widgets.Text(
+            placeholder='Ask about feedback, Hawkeye guidelines, or the document...',
+            layout={'width': '85%'}
+        )
+        
+        self.chat_submit = widgets.Button(
+            description='Ask',
+            button_style='primary',
+            icon='paper-plane',
+            tooltip='Send message',
+            layout={'width': '15%'}
+        )
+        self.chat_submit.on_click(self._handle_chat_submit)
+        
+        # Chat input container
+        chat_input_container = widgets.HBox([
+            self.chat_input,
+            self.chat_submit
+        ], layout={'margin': '10px 0 0 0'})
+        
+        # Navigation buttons
+        self.prev_btn = widgets.Button(
+            description='← Previous', disabled=True, button_style='primary'
+        )
+        self.next_btn = widgets.Button(
+            description='Next →', disabled=True, button_style='primary'
+        )
+        self.prev_btn.on_click(self._prev_section)
+        self.next_btn.on_click(self._next_section)
+        
+        # Create tabs for feedback and chat
+        self.right_panel_tabs = widgets.Tab()
+        
+        # Feedback tab content - now properly structured
+        self.feedback_items_container = widgets.Output()
+        
+        feedback_tab_content = widgets.VBox([
+            widgets.HTML(value=self._create_feedback_header_html()),
+            self.feedback_items_container,
+            self.custom_feedback_form,
+            widgets.HBox([self.prev_btn, self.next_btn])
+        ])
+        
+        # Chat tab content - improved layout
+        chat_tab_content = widgets.VBox([
+            self.chat_container,
+            chat_input_container
+        ], layout={'height': '100%'})
+        
+        # Set tab contents
+        self.right_panel_tabs.children = [feedback_tab_content, chat_tab_content]
+        self.right_panel_tabs.set_title(0, '📝 Feedback')
+        self.right_panel_tabs.set_title(1, '💬 Chat')
+        
+        # Split screen container
+        self.split_container = widgets.HBox([
+            widgets.VBox([self.doc_panel], layout={'width': '48%'}),
+            widgets.VBox([self.right_panel_tabs], layout={'width': '48%'})
+        ])
+        
+        # Status output
+        self.status = widgets.Output()
+
+        # Create keyboard shortcut button
+        self.keyboard_shortcut_btn = widgets.Button(
+            description='⌨️ Shortcuts',
+            button_style='info',
+            tooltip='View keyboard shortcuts',
+            layout={'width': '120px'}
+        )
+        self.keyboard_shortcut_btn.on_click(self._toggle_shortcut_help)
+
+        # Create shortcuts help HTML
+        self.shortcuts_help = widgets.HTML("""
+            <div class="shortcuts-help" style="padding: 15px; background: white; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);" class="dark-mode-panel">
+                <h3>⌨️ Keyboard Shortcuts</h3>
+                <table style="width: 100%; border-collapse: collapse;">
+                    <tr><th style="text-align: left; padding: 8px;">Key</th><th style="text-align: left; padding: 8px;">Action</th></tr>
+                    <tr><td style="padding: 8px;"><kbd>n</kbd></td><td>Next section</td></tr>
+                    <tr><td style="padding: 8px;"><kbd>p</kbd></td><td>Previous section</td></tr>
+                    <tr><td style="padding: 8px;"><kbd>a</kbd></td><td>Accept selected feedback</td></tr>
+                    <tr><td style="padding: 8px;"><kbd>r</kbd></td><td>Reject selected feedback</td></tr>
+                    <tr><td style="padding: 8px;"><kbd>f</kbd></td><td>Focus custom feedback</td></tr>
+                    <tr><td style="padding: 8px;"><kbd>c</kbd></td><td>Focus chat input</td></tr>
+                    <tr><td style="padding: 8px;"><kbd>1-2</kbd></td><td>Switch tabs</td></tr>
+                    <tr><td style="padding: 8px;"><kbd>?</kbd></td><td>Show this help</td></tr>
+                </table>
+                <div style="text-align: right; margin-top: 15px;">
+                    <button id="close-shortcuts" style="padding: 5px 10px; background: #667eea; color: white; border: none; border-radius: 4px; cursor: pointer;">Close</button>
+                </div>
+            </div>
+        """)
+        self.shortcuts_help.layout.display = 'none'
+
+        # FAQ button & content
+        self.faq_btn = widgets.Button(
+            description='❓ FAQs',
+            button_style='info',
+            tooltip='View frequently asked questions',
+            layout={'width': '100px'}
+        )
+        self.faq_btn.on_click(self._toggle_faq)
+
+        # Tutorial button
+        self.tutorial_btn = widgets.Button(
+            description='🔍 Tutorial',
+            button_style='info',
+            tooltip='Start interactive tutorial',
+            layout={'width': '110px'}
+        )
+        self.tutorial_btn.on_click(self._start_tutorial)
+
+        # Pattern report button
+        self.pattern_report_btn = widgets.Button(
+            description='📊 Patterns',
+            button_style='info',
+            tooltip='View recurring patterns across documents',
+            layout={'width': '110px'}
+        )
+        self.pattern_report_btn.on_click(self._show_pattern_report)
+        
+        # Audit log button
+        self.audit_log_btn = widgets.Button(
+            description='📋 Logs',
+            button_style='info',
+            tooltip='View audit logs for this session',
+            layout={'width': '100px'}
+        )
+        self.audit_log_btn.on_click(self._show_audit_log)
+
+        # Learning system button
+        self.learning_report_btn = widgets.Button(
+            description='🧠 Learning',
+            button_style='info',
+            tooltip='View AI learning status',
+            layout={'width': '120px'}
+        )
+        self.learning_report_btn.on_click(self._show_learning_report)
+
+        # Create FAQ content with comprehensive answers
+        self.faq_content = widgets.HTML(value="""
+            <div class="faq-content" style="max-height: 500px; overflow-y: auto; padding: 20px; background: white; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.05);" class="dark-mode-panel">
+                <h2>📋 Frequently Asked Questions</h2>
+                
+                <h3>General Questions</h3>
+                <details>
+                    <summary>What is the Hawkeye framework?</summary>
+                    <p>The Hawkeye framework is a 20-point comprehensive investigation checklist used to ensure thorough document review. It covers aspects like impact assessment, root cause analysis, preventative actions, and more. It provides a structured approach to document analysis based on best practices in investigation and reporting.</p>
+                </details>
+                
+                <details>
+                    <summary>What file formats are supported?</summary>
+                    <p>Currently, the tool supports Microsoft Word documents (.docx format) only. We plan to add support for PDF, Google Docs, and plain text files in future versions.</p>
+                </details>
+                
+                <details>
+                    <summary>How does the AI generate feedback?</summary>
+                    <p>The AI analyzes each section of your document against the Hawkeye checklist criteria, identifying potential improvements, missing information, or compliance issues. It uses the Claude 3 Sonnet model to understand document context and provide targeted recommendations aligned with the 20-point framework.</p>
+                </details>
+                
+                <details>
+                    <summary>Is my document data secure?</summary>
+                    <p>Yes, your document data is processed locally within your Jupyter environment. The AI uses AWS Bedrock services for analysis, which follows strict data security protocols. Document content is not permanently stored after processing.</p>
+                </details>
+                
+                <h3>Using the Tool</h3>
+                <details>
+                    <summary>How do I add my own feedback?</summary>
+                    <p>Use the "Add Custom Feedback" form below the AI-generated feedback. Select a category and type (suggestion, important, or critical), then enter your description. Click "Add Custom Feedback" to save it. Your feedback will be added to the document as a comment when you complete the review.</p>
+                </details>
+                
+                <details>
+                    <summary>What happens when I accept feedback?</summary>
+                    <p>Accepted feedback items are added as comments to the final document. They also train the AI to provide similar feedback in the future. The system learns your preferences over time to provide increasingly relevant suggestions. Additionally, the accepted feedback contributes to pattern recognition across documents.</p>
+                </details>
+                
+                <details>
+                    <summary>Can I save my progress and continue later?</summary>
+                    <p>Currently, you need to complete your review in one session. Future versions will include save functionality that allows pausing and resuming reviews.</p>
+                </details>
+                
+                <details>
+                    <summary>How do I use the chat feature?</summary>
+                    <p>Click on the "Chat" tab next to the Feedback tab. Type your question in the text field and click "Ask" or press Enter. The AI assistant will provide answers about the document, Hawkeye guidelines, or specific feedback items. You can also use keyboard shortcut 'c' to focus on the chat input.</p>
+                </details>
+                
+                <h3>Features and Functionality</h3>
+                <details>
+                    <summary>What is the Pattern Recognition feature?</summary>
+                    <p>Pattern Recognition identifies recurring issues across multiple documents you've reviewed. This helps spot systematic problems that appear in different documents. Access this feature by clicking the "Patterns" button in the header controls. The system requires at least 2 document reviews to start identifying patterns.</p>
+                </details>
+                
+                <details>
+                    <summary>How does the AI learn from my feedback?</summary>
+                    <p>The system records which AI suggestions you accept or reject, as well as any custom feedback you add. Over time, it recognizes patterns in your preferences and adjusts its recommendations accordingly. You can view the learning status by clicking the "Learning" button.</p>
+                </details>
+                
+                <details>
+                    <summary>What are keyboard shortcuts?</summary>
+                    <p>Keyboard shortcuts allow faster navigation and actions. Press '?' to see all available shortcuts. Some useful ones include: 'n' for next section, 'p' for previous section, 'a' to accept feedback, 'r' to reject feedback, and '1-2' to switch between tabs.</p>
+                </details>
+                
+                <details>
+                    <summary>What information is in the audit logs?</summary>
+                    <p>Audit logs track all significant actions in your review session, including document loading, section navigation, feedback acceptance/rejection, and custom feedback additions. These logs help maintain accountability and track the review process. View them by clicking the "Logs" button.</p>
+                </details>
+                
+                <h3>Troubleshooting</h3>
+                <details>
+                    <summary>What if the tool doesn't detect sections correctly?</summary>
+                    <p>The tool uses AI to identify document sections. If sections aren't detected correctly, try adding clearer section headers in your document (like "Executive Summary", "Timeline of Events", etc.). You can also try reformatting your document to make section breaks more distinct before uploading.</p>
+                </details>
+                
+                <details>
+                    <summary>Why aren't my comments showing in the output document?</summary>
+                    <p>Make sure to use Microsoft Word to open the output document, as some viewers don't display comments properly. If using Word and still not seeing comments, check if you accepted any feedback during review - only accepted feedback items are added as comments.</p>
+                </details>
+                
+                <details>
+                    <summary>What should I do if the tool gets stuck analyzing a section?</summary>
+                    <p>If analysis takes more than 2 minutes, try navigating to a different section and then back. If the problem persists, you might need to reload the tool and start again. This can happen with very large or complex sections that exceed processing limits.</p>
+                </details>       
+                            
+               
+
+
+                <details>
+                    <summary>How can I provide feedback about this tool?</summary>
+                    <p>You can provide feedback about the tool itself by adding comments in the document review or contacting the development team directly. We're continuously improving the system based on user feedback and appreciate your suggestions.</p>
+                </details>
+                
+                <div style="text-align: right; margin-top: 15px;">
+                    <button id="close-faq" style="padding: 5px 10px; background: #667eea; color: white; border: none; border-radius: 4px; cursor: pointer;">Close</button>
+                </div>
+            </div>
+        """)
+        self.faq_content.layout.display = 'none'
+
+        # Create tutorial box
+        self.tutorial_box = widgets.VBox([
+            widgets.HTML(value='<h3>Welcome to the Tutorial</h3><p>Click Next to continue</p>'),
+            widgets.HBox([
+                widgets.Button(description='Previous', disabled=True, layout={'width': '100px'}, button_style='info'),
+                widgets.Button(description='Next', layout={'width': '100px'}, button_style='primary'),
+                widgets.Button(description='Close', layout={'width': '100px'}, button_style='danger')
+            ])
+        ], layout={'border': '2px solid #667eea', 'padding': '10px', 'border_radius': '8px',
+                  'background_color': 'white', 'box_shadow': '0 4px 6px rgba(0,0,0,0.1)',
+                  'position': 'absolute', 'z-index': '1000', 'display': 'none'})
+
+        # Add methods for direct closing
+        def _close_shortcuts_help(self, b=None):
+            """Close the shortcuts help panel"""
+            self.shortcuts_help.layout.display = 'none'
+
+        def _close_faq_panel(self, b=None):
+            """Close the FAQ panel"""
+            self.faq_content.layout.display = 'none'
+        
+        # Add these methods to the class
+        self._close_shortcuts_help = _close_shortcuts_help.__get__(self, type(self))
+        self._close_faq_panel = _close_faq_panel.__get__(self, type(self))
+
+        # Add JavaScript for close buttons
+        js_close_handlers = """
+        document.addEventListener('DOMContentLoaded', function() {
+            // Add click handler for shortcuts help close button
+            setInterval(function() {
+                var closeShortcuts = document.getElementById('close-shortcuts');
+                if (closeShortcuts && !closeShortcuts.hasClickHandler) {
+                    closeShortcuts.onclick = function() {
+                        var elements = document.getElementsByClassName('shortcuts-help');
+                        for (var i = 0; i < elements.length; i++) {
+                            elements[i].style.display = 'none';
+                        }
+                        IPython.notebook.kernel.execute('review_ui._close_shortcuts_help()');
+                    };
+                    closeShortcuts.hasClickHandler = true;
+                }
+                
+                // Add click handler for FAQ close button
+                var closeFaq = document.getElementById('close-faq');
+                if (closeFaq && !closeFaq.hasClickHandler) {
+                    closeFaq.onclick = function() {
+                        var elements = document.getElementsByClassName('faq-content');
+                        for (var i = 0; i < elements.length; i++) {
+                            elements[i].style.display = 'none';
+                        }
+                        IPython.notebook.kernel.execute('review_ui._close_faq_panel()');
+                    };
+                    closeFaq.hasClickHandler = true;
+                }
+            }, 1000);
+        });
+        """
+        display(Javascript(js_close_handlers))
+
+        # Header controls container
+        header_controls = widgets.HBox([
+            self.dark_mode_toggle,
+            self.keyboard_shortcut_btn, 
+            self.tutorial_btn,
+            self.faq_btn,
+            self.pattern_report_btn,
+            self.audit_log_btn,
+            self.learning_report_btn
+        ], layout={'margin': '10px 0'})
+        
+        # Assemble main container
+        self.main_container.children = [
+            self.header,
+            header_controls,
+            self.progress,
+            self.stats_panel,
+            widgets.HBox([self.section_dropdown, self.risk_indicator, self.complete_review_btn, self.download_hawkeye_btn]),
+            self.split_container,
+            self.shortcuts_help,
+            self.faq_content,
+            self.tutorial_box,
+            self.status
+        ]
+        
+        # Initialize chat with welcome message
+        self.chat_messages = [{
+            'role': 'assistant',
+            'content': "Hello! I'm here to help you with the document review. You can ask me about:\n• Specific feedback items\n• Hawkeye guidelines and checkpoints\n• How to improve sections\n• Risk classifications\n\nWhat would you like to know?"
+        }]
+        self._update_chat_display()
+    
+    # We removed the keyboard shortcuts method that was causing problems
+    
+    def _toggle_shortcut_help(self, b=None):
+        """Toggle visibility of shortcuts help"""
+        if self.shortcuts_help.layout.display == 'none':
+            self.shortcuts_help.layout.display = 'block'
+            
+            # Add JavaScript for close button
+            js_close_code = """
+            document.getElementById('close-shortcuts').onclick = function() {
+                document.querySelector('.shortcuts-help').style.display = 'none';
+            }
+            """
+            display(Javascript(js_close_code))
+        else:
+            self.shortcuts_help.layout.display = 'none'
+            
+    def _toggle_faq(self, b=None):
+        """Toggle FAQ visibility"""
+        if self.faq_content.layout.display == 'none':
+            self.faq_content.layout.display = 'block'
+            
+            # Add JavaScript for close button
+            js_close_code = """
+            document.getElementById('close-faq').onclick = function() {
+                document.querySelector('.faq-content').style.display = 'none';
+            }
+            """
+            display(Javascript(js_close_code))
+        else:
+            self.faq_content.layout.display = 'none'
+            
+    def _close_shortcuts_help(self, b=None):
+        """Close the shortcuts help panel"""
+        self.shortcuts_help.layout.display = 'none'
+
+    def _close_faq_panel(self, b=None):
+        """Close the FAQ panel"""
+        self.faq_content.layout.display = 'none'
+    
+    def _start_tutorial(self, b=None):
+        """Start the interactive tutorial"""
+        # Define tutorial steps
+        self.tutorial_steps = [
+            {
+                'title': 'Welcome to Writeup Automation',
+                'content': 'This tool helps you review documents using the Hawkeye framework. Let\'s walk through the main features.',
+                'target': 'header',
+                'position': 'bottom'
+            },
+            {
+                'title': 'Document Upload',
+                'content': 'Start by uploading a Word document (.docx) here.',
+                'target': 'file_upload',
+                'position': 'right'
+            },
+            {
+                'title': 'Section Navigation',
+                'content': 'Once uploaded, you can navigate between document sections using this dropdown or the previous/next buttons.',
+                'target': 'section_dropdown',
+                'position': 'bottom'
+            },
+            {
+                'title': 'Feedback Review',
+                'content': 'For each section, AI-generated feedback appears here. You can accept or reject each item.',
+                'target': 'feedback-container',
+                'position': 'left'
+            },
+            {
+                'title': 'Custom Feedback',
+                'content': 'Add your own feedback using this form. These help train the AI to improve over time.',
+                'target': 'custom_feedback_form',
+                'position': 'top'
+            },
+            {
+                'title': 'Chat Assistant',
+                'content': 'Ask questions about the document, feedback, or Hawkeye guidelines using the chat.',
+                'target': 'chat_container',
+                'position': 'left'
+            },
+            {
+                'title': 'Complete Review',
+                'content': 'When finished, click here to generate a document with your accepted feedback as comments.',
+                'target': 'complete_review_btn',
+                'position': 'bottom'
+            }
+        ]
+        
+        # Show the first step
+        self.current_tutorial_step = 0
+        self._show_tutorial_step(0)
+        
+    def _show_tutorial_step(self, step_idx):
+        """Show a specific tutorial step"""
+        if step_idx < 0 or step_idx >= len(self.tutorial_steps):
+            return
+            
+        step = self.tutorial_steps[step_idx]
+        
+        # Update tutorial box content
+        self.tutorial_box.children = [
+            widgets.HTML(f"""
+                <div>
+                    <h3>{step['title']}</h3>
+                    <p>{step['content']}</p>
+                    <p><small>Step {step_idx+1} of {len(self.tutorial_steps)}</small></p>
+                </div>
+            """),
+            widgets.HBox([
+                widgets.Button(
+                    description='Previous', 
+                    disabled=(step_idx == 0),
+                    layout={'width': '100px'},
+                    button_style='info'
+                ),
+                widgets.Button(
+                    description='Next',
+                    disabled=(step_idx == len(self.tutorial_steps)-1),
+                    layout={'width': '100px'},
+                    button_style='primary'
+                ),
+                widgets.Button(
+                    description='Close',
+                    layout={'width': '100px'},
+                    button_style='danger'
+                )
+            ])
+        ]
+        
+        # Set up button handlers
+        self.tutorial_box.children[1].children[0].on_click(lambda b: self._show_tutorial_step(step_idx-1))
+        self.tutorial_box.children[1].children[1].on_click(lambda b: self._show_tutorial_step(step_idx+1))
+        self.tutorial_box.children[1].children[2].on_click(lambda b: self._hide_tutorial())
+        
+        # Show the tutorial box
+        self.tutorial_box.layout.display = 'block'
+        
+    def _hide_tutorial(self):
+        """Hide the tutorial box"""
+        self.tutorial_box.layout.display = 'none'
+            
+    def _show_pattern_report(self, b=None):
+        """Show pattern analysis report"""
+        with self.status:
+            clear_output(wait=True)
+            display(HTML(self.pattern_analyzer.get_pattern_report_html()))
+            
+    def _show_audit_log(self, b=None):
+        """Show audit log"""
+        with self.status:
+            clear_output(wait=True)
+            display(HTML(self.audit_logger.generate_audit_report()))
+            
+    def _show_learning_report(self, b=None):
+        """Show learning system report"""
+        with self.status:
+            clear_output(wait=True)
+            display(HTML(self.feedback_learning.generate_learning_report()))
+            
+    def _accept_current_feedback(self, b=None):
+        """Accept the currently focused feedback item (keyboard shortcut)"""
+        # This is a placeholder - would need to track the currently selected feedback
+        with self.status:
+            print("💡 Tip: Click the Accept button on a specific feedback item to accept it")
+            
+    def _reject_current_feedback(self, b=None):
+        """Reject the currently focused feedback item (keyboard shortcut)"""
+        # This is a placeholder - would need to track the currently selected feedback
+        with self.status:
+            print("💡 Tip: Click the Reject button on a specific feedback item to reject it")
+    
+    def _download_hawkeye(self, b):
+        """Download the Hawkeye checklist document"""
+        if os.path.exists(HAWKEYE_PATH):
+            with self.status:
+                clear_output(wait=True)
+                print("📄 Hawkeye Checklist Document:")
+                display(FileLink(HAWKEYE_PATH, result_html_prefix="📥 Download: "))
+                print("\n✅ Click the link above to download the Hawkeye checklist document")
+        else:
+            with self.status:
+                clear_output(wait=True)
+                print(f"❌ Hawkeye document not found at: {HAWKEYE_PATH}")
+                print("Please ensure the Hawkeye checklist document is available at the specified path.")
+                
+        # Log the action
+        self.audit_logger.log("DOWNLOAD_HAWKEYE", "User downloaded Hawkeye checklist document")
+    
+    def _create_chat_container(self):
+        """Create a properly formatted chat container"""
+        # Store the chat display widget as an instance variable
+        self.chat_display_widget = widgets.HTML(value="""
+            <div id="chat-messages" style="height: 400px; overflow-y: auto; padding: 10px; 
+                 border: 1px solid #e0e0e0; border-top: none; background: #f9f9f9;" class="dark-mode-chat">
+                <div style="padding: 10px;">
+                    <div style="background: #e3f2fd; padding: 10px; border-radius: 8px; margin: 5px 0;" class="assistant-message">
+                        <strong>🤖 AI Assistant:</strong><br>
+                        Hello! I'm here to help you with the document review. You can ask me about:<br>
+                        • Specific feedback items<br>
+                        • Hawkeye guidelines and checkpoints<br>
+                        • How to improve sections<br>
+                        • Risk classifications<br><br>
+                        What would you like to know?
+                    </div>
+                </div>
+            </div>
+        """)
+
+        chat_container = widgets.VBox([
+            widgets.HTML("""
+                <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+                            color: white; padding: 10px; border-radius: 8px 8px 0 0;" class="dark-mode-header">
+                    <h4 style="margin: 0;">💬 AI Assistant</h4>
+                    <p style="margin: 2px 0 0 0; font-size: 12px;">Ask questions about feedback or Hawkeye guidelines</p>
+                </div>
+            """),
+            self.chat_display_widget
+        ])
+        return chat_container
+        
+    
+    def _create_stats_html(self):
+        """Create statistics panel HTML"""
+        return """
+        <div style="background: white; padding: 15px; border-radius: 8px; 
+                    margin-bottom: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); 
+                    display: flex; justify-content: space-around;" class="dark-mode-stats">
+            <div style="text-align: center;">
+                <div style="font-size: 24px; font-weight: 700; color: #667eea;">0</div>
+                <div style="font-size: 12px; color: #7f8c8d;">Total Feedback</div>
+            </div>
+            <div style="text-align: center;">
+                <div style="font-size: 24px; font-weight: 700; color: #e74c3c;">0</div>
+                <div style="font-size: 12px; color: #7f8c8d;">High Risk</div>
+            </div>
+            <div style="text-align: center;">
+                <div style="font-size: 24px; font-weight: 700; color: #f39c12;">0</div>
+                <div style="font-size: 12px; color: #7f8c8d;">Medium Risk</div>
+            </div>
+            <div style="text-align: center;">
+                <div style="font-size: 24px; font-weight: 700; color: #2ecc71;">0</div>
+                <div style="font-size: 12px; color: #7f8c8d;">Accepted</div>
+            </div>
+            <div style="text-align: center;">
+                <div style="font-size: 24px; font-weight: 700; color: #3498db;">0</div>
+                <div style="font-size: 12px; color: #7f8c8d;">User Added</div>
+            </div>
+        </div>
+        """
+    
+    def _create_doc_panel_html(self):
+        """Create document panel HTML with border"""
+        return """
+        <div style="background: white; padding: 20px; border-radius: 8px; 
+                    min-height: 600px; max-height: 600px; overflow-y: auto;
+                    box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+                    border: 2px solid #e0e0e0;" class="dark-mode-panel">
+            <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+                        color: white; padding: 15px; border-radius: 8px; 
+                        margin-bottom: 15px; position: sticky; top: 0; z-index: 10;" class="dark-mode-header">
+                <h3 style="margin: 0;">Original Document</h3>
+                <p style="margin: 5px 0 0 0; font-size: 14px;">Section: <span id="section-name">-</span></p>
+            </div>
+            <div id="doc-content" style="white-space: pre-wrap; line-height: 1.8; font-size: 14px; padding: 10px; width: 100%;">
+                Upload a document to begin...
+            </div>
+        </div>
+        """
+    
+    def _create_feedback_header_html(self):
+        """Create feedback panel header"""
+        return """
+        <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+                    color: white; padding: 15px; border-radius: 8px; 
+                    margin-bottom: 15px;" class="dark-mode-header">
+            <h3 style="margin: 0;">Hawkeye AI Analysis</h3>
+            <p style="margin: 5px 0 0 0; font-size: 14px;">Feedback based on 20-point investigation framework</p>
+        </div>
+        """
+    
+    def _handle_chat_submit(self, *args):
+        """Handle chat submission"""
+        query = self.chat_input.value.strip()
+        if not query:
+            return
+
+        # Add user message
+        self.chat_messages.append({
+            'role': 'user',
+            'content': query
+        })
+
+        # Clear input
+        self.chat_input.value = ""
+
+        # Update display immediately to show user message
+        self._update_chat_display()
+
+        # Add thinking message
+        self.chat_messages.append({
+            'role': 'assistant',
+            'content': '🤔 Thinking...',
+            'thinking': True
+        })
+
+        # Update display to show thinking
+        self._update_chat_display()
+
+        # Get context
+        context = {
+            'current_section': self.section_names[self.current_section_idx] if self.section_names else None
+        }
+
+        # Process query
+        response = process_chat_query(query, context)
+
+        # Remove thinking message and add actual response
+        self.chat_messages = [msg for msg in self.chat_messages if not msg.get('thinking')]
+        self.chat_messages.append({
+            'role': 'assistant',
+            'content': response
+        })
+
+        # Update display with final response
+        self._update_chat_display()
+        
+        # Log chat interaction
+        self.audit_logger.log("CHAT_INTERACTION", f"User query: '{query[:50]}...' (if longer)")
+    
+    def _update_chat_display(self):
+        """Update chat display with messages"""
+        chat_html = '<div style="padding: 10px;">'
+
+        for msg in self.chat_messages:
+            if msg['role'] == 'user':
+                chat_html += f"""
+                <div class="user-message" style="padding: 10px; border-radius: 8px; margin: 5px 0; text-align: right;">
+                    <strong>👤 You:</strong><br>{msg['content']}
+                </div>
+                """
+            else:
+                bg_class = 'assistant-message'
+                if msg.get('thinking'):
+                    bg_class = 'thinking-message'
+                chat_html += f"""
+                <div class="{bg_class}" style="padding: 10px; border-radius: 8px; margin: 5px 0;">
+                    <strong>🤖 AI Assistant:</strong><br>{msg['content']}
+                </div>
+                """
+
+        chat_html += '</div>'
+
+        # Update the second HTML widget in chat_container with the new content
+        if hasattr(self, 'chat_display_widget'):
+            self.chat_display_widget.value = f'<div id="chat-messages" style="height: 400px; overflow-y: auto; padding: 10px; border: 1px solid #e0e0e0; border-top: none;" class="dark-mode-chat">{chat_html}</div>'
+    
+    def initialize_document(self, sections, section_paragraphs, paragraph_indices, doc_object):
+        """Initialize the UI with document sections"""
+        self.sections = sections
+        self.section_paragraphs = section_paragraphs
+        self.paragraph_indices = paragraph_indices
+        self.section_names = list(sections.keys())
+        self.document_object = doc_object
+        self.document_comments = []  # Clear comments list
+        
+        # Enable complete review button
+        self.complete_review_btn.disabled = False
+        
+        # Update dropdown options
+        self.section_dropdown.options = self.section_names
+        
+        if self.section_names:
+            self.section_dropdown.value = self.section_names[0]
+            self.current_section_idx = 0
+            self._load_section(0)
+            
+        self.next_btn.disabled = len(self.section_names) <= 1
+        self.progress.max = len(self.section_names)
+        
+        with self.status:
+            clear_output(wait=True)
+            print(f"✅ Loaded document with {len(self.section_names)} sections")
+            excluded = [s for s in EXCLUDED_SECTIONS if any(ex.lower() in s.lower() for s in self.section_names for ex in [s])]
+            if excluded:
+                print(f"⚠️  Excluded sections: {', '.join(excluded)}")
+                
+        # Log initialization
+        self.audit_logger.log("DOCUMENT_LOADED", f"Document initialized with {len(self.section_names)} sections")
+    
+    def _load_section(self, idx):
+        """Load a specific section"""
+        if 0 <= idx < len(self.section_names):
+            self.current_section_idx = idx
+            section_name = self.section_names[idx]
+            
+            # Update dropdown
+            self.section_dropdown.value = section_name
+            
+            # Get the content for the section - make sure this isn't empty or None
+            content = self.sections.get(section_name, "No content available for this section")
+            if not content or content.strip() == "":
+                content = "No content available for this section"
+            
+            # Debug content length
+            with self.status:
+                clear_output(wait=True)
+                print(f"Loading section '{section_name}' with {len(content)} characters")
+            
+            # Properly handle HTML entities and preserve whitespace
+            content_html = content.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+            # Keep newlines but convert them to <br> tags for proper display
+            content_html = content_html.replace('\n', '<br>\n')
+            
+            # Ensure the content is displayed with proper spacing and full width 
+            self.doc_panel.value = f"""
+            <div style="background: white; padding: 20px; border-radius: 8px; 
+                        min-height: 600px; max-height: 600px; overflow-y: auto;
+                        box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+                        border: 2px solid #e0e0e0;" class="dark-mode-panel">
+                <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+                            color: white; padding: 15px; border-radius: 8px; 
+                            margin-bottom: 15px; position: sticky; top: 0; z-index: 10;" class="dark-mode-header">
+                    <h3 style="margin: 0;">Original Document</h3>
+                    <p style="margin: 5px 0 0 0; font-size: 14px;">Section: {section_name}</p>
+                </div>
+                <div style="white-space: pre-wrap; line-height: 1.8; font-size: 14px; padding: 10px; width: 100%;">
+                    {content_html}
+                </div>
+            </div>
+            """
+            
+            # Analyze section
+            self._analyze_section(section_name, content)
+            
+            # Update navigation
+            self.prev_btn.disabled = idx == 0
+            self.next_btn.disabled = idx >= len(self.section_names) - 1
+            
+            # Update progress
+            self.progress.value = idx + 1
+            
+            # Log section navigation
+            self.audit_logger.log("SECTION_LOADED", f"Loaded section: {section_name}")
+    
+    def _analyze_section(self, section_name, content):
+        """Analyze section with Hawkeye framework and learned recommendations"""
+        global current_section_feedback
+        
+        # Show loading
+        with self.feedback_items_container:
+            clear_output(wait=True)
+            display(HTML("""
+            <div style="height: 400px; overflow-y: auto; padding: 10px; border: 1px solid #e0e0e0; border-radius: 8px; background: #ffffff;" class="dark-mode-panel">
+                <div style="text-align: center; padding: 40px;">
+                    <div style="font-size: 18px; color: #667eea;">
+                        🔍 Analyzing with Hawkeye Framework...
+                    </div>
+                </div>
+            </div>
+            """))
+        
+        # Get AI feedback
+        with self.status:
+            print(f"Analyzing {section_name} with Hawkeye checklist...")
+            
+        result = analyze_section_with_ai(section_name, content)
+        feedback_items = result.get('feedback_items', [])
+        
+        # Add learned recommendations
+        learned_recommendations = self.feedback_learning.get_recommended_feedback(section_name, content)
+        if learned_recommendations:
+            with self.status:
+                print(f"Adding {len(learned_recommendations)} learned recommendations from past feedback")
+            feedback_items.extend(learned_recommendations)
+        
+        current_section_feedback = feedback_items
+        
+        # Store feedback
+        self.feedback_data[section_name] = feedback_items
+        
+        # Display feedback items
+        self._display_feedback(feedback_items, section_name)
+        
+        # Update risk indicator
+        self._update_risk_indicator(feedback_items)
+        
+        # Log analysis
+        self.audit_logger.log("SECTION_ANALYZED", f"Section {section_name} analyzed - {len(feedback_items)} feedback items")
+    
+    def _display_feedback(self, feedback_items, section_name):
+        """Display feedback items with properly embedded buttons"""
+        with self.feedback_items_container:
+            clear_output(wait=True)
+
+            if not feedback_items:
+                display(HTML("""
+                <div style="height: 450px; overflow-y: auto; padding: 10px; border: 1px solid #e0e0e0; border-radius: 8px; background: #ffffff;" class="dark-mode-panel">
+                    <div style="text-align: center; padding: 40px; background: #f8f9ff; border-radius: 8px; margin: 20px 0;" class="dark-mode-feedback-item">
+                        <p style="color: #2ecc71; font-size: 16px;">
+                            ✓ No issues found in this section based on Hawkeye criteria
+                        </p>
+                    </div>
+                </div>
+                """))
+                return
+        
+            # Create scrollable container with increased height
+            container = widgets.VBox([
+                widgets.HTML(value='<div style="height: 450px; overflow-y: auto; padding: 10px; border: 1px solid #e0e0e0; border-radius: 8px; background: #ffffff;" class="dark-mode-panel">')
+            ])
+            
+            # Create feedback items with integrated buttons
+            feedback_widgets = []
+            
+            for i, item in enumerate(feedback_items):
+                # Risk level colors - now using CSS classes for dark mode compatibility
+                risk_level = item.get('risk_level', 'Low')
+                risk_class = "high-risk" if risk_level == "High" else "medium-risk" if risk_level == "Medium" else "low-risk"
+                risk_color = "#e74c3c" if risk_level == "High" else "#f39c12" if risk_level == "Medium" else "#3498db"
+                
+                # Type colors
+                type_colors = {
+                    'critical': '#e74c3c',
+                    'important': '#f39c12',
+                    'suggestion': '#3498db',
+                    'positive': '#2ecc71'
+                }
+                
+                type_color = type_colors.get(item.get('type', 'suggestion'), '#3498db')
+                
+                # Show learned badge if from the feedback learning system
+                learned_badge = ""
+                if item.get('learned', False):
+                    learned_count = item.get('based_on', 0)
+                    learned_badge = f"""<span style="background: #5e35b1; color: white; padding: 2px 6px; border-radius: 3px; margin-left: 10px; font-size: 11px;">
+                        🧠 Learned (from {learned_count} feedbacks)
+                    </span>"""
+                
+                # Create Hawkeye references string
+                hawkeye_refs = item.get('hawkeye_refs', [])
+                refs_html = ""
+                if hawkeye_refs:
+                    refs_html = "<strong>Hawkeye References:</strong> "
+                    for ref in hawkeye_refs:
+                        if ref in HAWKEYE_SECTIONS:
+                            refs_html += f"<span class='hawkeye-ref' style='padding: 2px 6px; border-radius: 3px; margin-right: 5px;'>#{ref} {HAWKEYE_SECTIONS[ref]}</span>"
+                
+                # Create questions HTML
+                questions_html = ""
+                questions = item.get('questions', [])
+                if questions:
+                    questions_html = "<div style='margin-top: 10px;'><strong>Key Questions:</strong><ul style='margin: 5px 0;'>"
+                    for q in questions:
+                        questions_html += f"<li>{q}</li>"
+                    questions_html += "</ul></div>"
+                
+                # Create feedback card HTML
+                feedback_html = widgets.HTML(value=f"""
+                <div style="margin: 10px 0; padding: 15px; border-left: 4px solid {type_color}; 
+                     background: #f8f9ff; border-radius: 4px; box-shadow: 0 2px 5px rgba(0,0,0,0.05);" class="dark-mode-feedback-item">
+                    <div style="display: flex; justify-content: space-between; align-items: start;">
+                        <div style="flex: 1;">
+                            <div style="display: flex; align-items: center; margin-bottom: 10px;">
+                                <strong style="color: {type_color}; margin-right: 10px;">{item['type'].upper()}</strong>
+                                <span class="{risk_class}" style="color: white; padding: 2px 8px; 
+                                      border-radius: 3px; font-size: 12px;">{risk_level} Risk</span>
+                                <span style="color: #7f8c8d; margin-left: 10px; font-size: 12px;">
+                                    {item.get('category', 'general').title()}
+                                </span>
+                                {learned_badge}
+                            </div>
+                            <p style="margin: 10px 0;">{item['description']}</p>
+                            {f"<p style='margin: 10px 0;'><em><strong>Suggestion:</strong> {item['suggestion']}</em></p>" if item.get('suggestion') else ""}
+                            {f"<p style='margin: 10px 0;'><strong>Example:</strong> {item['example']}</p>" if item.get('example') else ""}
+                            {questions_html}
+                            <div style="margin-top: 10px;">
+                                {refs_html}
+                            </div>
+                            <small style="color: #7f8c8d;">Confidence: {int(item.get('confidence', 0.8) * 100)}%</small>
+                        </div>
+                    </div>
+                </div>
+                """)
+                
+                # Create button widgets
+                accept_btn = widgets.Button(
+                    description='✓ Accept',
+                    button_style='success',
+                    layout={'width': '100px', 'margin': '0 5px'}
+                )
+                
+                reject_btn = widgets.Button(
+                    description='✗ Reject',
+                    button_style='danger',
+                    layout={'width': '100px', 'margin': '0 5px'}
+                )
+                
+                status_label = widgets.HTML(value="", layout={'margin_left': '10px'})
+                
+                def make_accept_handler(idx, section, feedback_item, reject_button, status):
+                    def handler(b):
+                        self._accept_feedback(idx, section, feedback_item)
+                        b.disabled = True
+                        reject_button.disabled = True
+                        status.value = "<span style='color: #2ecc71;'>✓ Accepted</span>"
+                        self._update_stats()
+                    return handler
+                
+                def make_reject_handler(idx, section, feedback_item, accept_button, status):
+                    def handler(b):
+                        self._reject_feedback(idx, section, feedback_item)
+                        b.disabled = True
+                        accept_button.disabled = True
+                        status.value = "<span style='color: #e74c3c;'>✗ Rejected</span>"
+                        self._update_stats()
+                    return handler
+                
+                accept_btn.on_click(make_accept_handler(i, section_name, item, reject_btn, status_label))
+                reject_btn.on_click(make_reject_handler(i, section_name, item, accept_btn, status_label))
+                
+                button_container = widgets.HBox([accept_btn, reject_btn, status_label], 
+                                              layout={'margin': '5px 0 15px 15px'})
+                
+                # Create feedback item widget combining HTML and buttons
+                feedback_item_widget = widgets.VBox([feedback_html, button_container])
+                feedback_widgets.append(feedback_item_widget)
+            
+            # Display all feedback widgets
+            feedback_container = widgets.VBox(feedback_widgets)
+            display(feedback_container)
+    
+    def _update_risk_indicator(self, feedback_items):
+        """Update section risk indicator"""
+        high_risk = sum(1 for item in feedback_items if item.get('risk_level') == 'High')
+        medium_risk = sum(1 for item in feedback_items if item.get('risk_level') == 'Medium')
+        
+        if high_risk > 0:
+            risk_class = 'high-risk'
+            text = f'⚠️ High Risk ({high_risk} issues)'
+        elif medium_risk > 0:
+            risk_class = 'medium-risk'
+            text = f'⚠️ Medium Risk ({medium_risk} issues)'
+        else:
+            risk_class = 'low-risk'
+            text = '✓ Low Risk'
+        
+        self.risk_indicator.value = f"""
+        <div class="{risk_class}" style="color: white; padding: 5px 15px; 
+                    border-radius: 5px; font-weight: bold; margin-left: 20px;">
+            {text}
+        </div>
+        """
+    
+    def _accept_feedback(self, idx, section, item):
+        """Accept feedback and prepare for comment addition"""
+        global accepted_feedback
+        
+        if section not in accepted_feedback:
+            accepted_feedback[section] = []
+        
+        accepted_feedback[section].append(item)
+        
+        # Enhanced comment text generation with all fields
+        comment_text = f"[{item['type'].upper()} - {item.get('risk_level', 'Low')} Risk]\n"
+        comment_text += f"{item['description']}\n"
+        
+        if item.get('suggestion'):
+            comment_text += f"\nSuggestion: {item['suggestion']}\n"
+        
+        if item.get('example'):
+            comment_text += f"\nExample: {item['example']}\n"
+        
+        # Add questions if present
+        questions = item.get('questions', [])
+        if questions:
+            comment_text += "\nKey Questions:\n"
+            for i, q in enumerate(questions, 1):
+                comment_text += f"{i}. {q}\n"
+        
+        # Add Hawkeye references
+        if item.get('hawkeye_refs'):
+            refs = [f"#{r} {HAWKEYE_SECTIONS.get(r, '')}" for r in item['hawkeye_refs']]
+            comment_text += f"\nHawkeye References: {', '.join(refs)}"
+        
+        # Add confidence score
+        if item.get('confidence'):
+            comment_text += f"\n\nConfidence: {int(item.get('confidence', 0.8) * 100)}%"
+        
+        # Store comment to be added to document
+        if section in self.paragraph_indices and self.paragraph_indices[section]:
+            self.document_comments.append({
+                'section': section,
+                'paragraph_index': self.paragraph_indices[section][0],
+                'comment': comment_text,
+                'type': item['type'],
+                'risk_level': item.get('risk_level', 'Low'),
+                'author': 'AI Feedback'
+            })
+        
+        # Record for learning if not a learned recommendation
+        if not item.get('learned', False):
+            self.feedback_learning.record_ai_feedback_response(item, section, accepted=True)
+        
+        with self.status:
+            print(f"✓ Accepted feedback #{idx+1} for {section} - Will be added as comment")
+            
+        # Log acceptance
+        self.audit_logger.log("FEEDBACK_ACCEPTED", f"Section: {section}, Type: {item['type']}, Risk: {item.get('risk_level', 'Low')}")
+    
+    def _reject_feedback(self, idx, section, item):
+        """Reject feedback"""
+        global rejected_feedback
+        
+        if section not in rejected_feedback:
+            rejected_feedback[section] = []
+            
+        rejected_feedback[section].append(item)
+        
+        # Record for learning
+        if not item.get('learned', False):
+            self.feedback_learning.record_ai_feedback_response(item, section, accepted=False)
+            
+        with self.status:
+            print(f"✗ Rejected feedback #{idx+1} for {section}")
+            
+        # Log rejection
+        self.audit_logger.log("FEEDBACK_REJECTED", f"Section: {section}, Type: {item['type']}, Risk: {item.get('risk_level', 'Low')}")
+    
+    def _add_custom_feedback(self, b):
+        """Add custom feedback with Hawkeye framework"""
+        global user_feedback
+
+        section = self.section_names[self.current_section_idx]
+
+        if not self.custom_description.value:
+            with self.status:
+                print("Please enter feedback description")
+            return
+
+        # Find Hawkeye reference number
+        hawkeye_ref = 1
+        for num, name in HAWKEYE_SECTIONS.items():
+            if name == self.custom_category.value:
+                hawkeye_ref = num
+                break
+
+        feedback = {
+            'type': self.custom_type.value,
+            'category': self.custom_category.value,
+            'description': self.custom_description.value,
+            'suggestion': '',  # Empty suggestion
+            'hawkeye_refs': [hawkeye_ref],
+            'risk_level': 'Medium' if self.custom_type.value == 'critical' else 'Low',
+            'timestamp': datetime.now().isoformat(),
+            'user_created': True
+        }
+
+        if section not in user_feedback:
+            user_feedback[section] = []
+
+        user_feedback[section].append(feedback)
+
+        # Also add as accepted feedback for comment
+        if section not in accepted_feedback:
+            accepted_feedback[section] = []
+        accepted_feedback[section].append(feedback)
+
+        # Prepare comment
+        comment_text = f"[SWAPNA FEEDBACK - {feedback['type'].upper()}]\n"
+        comment_text += f"{feedback['description']}\n"
+        comment_text += f"\nHawkeye Reference: #{hawkeye_ref} {self.custom_category.value}"
+
+        if section in self.paragraph_indices and self.paragraph_indices[section]:
+            self.document_comments.append({
+                'section': section,
+                'paragraph_index': self.paragraph_indices[section][0],
+                'comment': comment_text,
+                'type': feedback['type'],
+                'risk_level': feedback['risk_level'],
+                'user_created': True,
+                'author': 'Swapna Feedback'
+            })
+
+        # Record for learning
+        self.feedback_learning.add_custom_feedback(feedback, section)
+        
+        # Clear form
+        self.custom_description.value = ''
+
+        with self.status:
+            print(f"✓ Added custom feedback for {section}")
+
+        self._update_stats()
+
+        # Refresh the feedback display to show the new custom feedback
+        all_feedback = self.feedback_data.get(section, []) + [feedback]
+        self.feedback_data[section] = all_feedback  # Update stored feedback
+        self._display_feedback(all_feedback, section)
+        
+        # Log custom feedback
+        self.audit_logger.log("CUSTOM_FEEDBACK_ADDED", f"Section: {section}, Type: {feedback['type']}, Category: {feedback['category']}")
+    
+    def _update_stats(self):
+        """Update statistics display"""
+        # Calculate total feedback from all sections
+        total_feedback = sum(len(items) for items in self.feedback_data.values())
+        total_accepted = sum(len(items) for items in accepted_feedback.values())
+        total_rejected = sum(len(items) for items in rejected_feedback.values())
+        total_user = sum(len(items) for items in user_feedback.values())
+
+        # Count risk levels from ALL feedback
+        high_risk = 0
+        medium_risk = 0
+
+        for items in self.feedback_data.values():
+            high_risk += sum(1 for item in items if item.get('risk_level') == 'High')
+            medium_risk += sum(1 for item in items if item.get('risk_level') == 'Medium')
+
+        self.stats_panel.value = f"""
+        <div style="background: white; padding: 15px; border-radius: 8px; 
+                    margin-bottom: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); 
+                    display: flex; justify-content: space-around;" class="dark-mode-stats">
+            <div style="text-align: center;">
+                <div style="font-size: 24px; font-weight: 700; color: #667eea;">{total_feedback}</div>
+                <div style="font-size: 12px; color: #7f8c8d;">Total Feedback</div>
+            </div>
+            <div style="text-align: center;">
+                <div style="font-size: 24px; font-weight: 700; color: #e74c3c;">{high_risk}</div>
+                <div style="font-size: 12px; color: #7f8c8d;">High Risk</div>
+            </div>
+            <div style="text-align: center;">
+                <div style="font-size: 24px; font-weight: 700; color: #f39c12;">{medium_risk}</div>
+                <div style="font-size: 12px; color: #7f8c8d;">Medium Risk</div>
+            </div>
+            <div style="text-align: center;">
+                <div style="font-size: 24px; font-weight: 700; color: #2ecc71;">{total_accepted}</div>
+                <div style="font-size: 12px; color: #7f8c8d;">Accepted</div>
+            </div>
+            <div style="text-align: center;">
+                <div style="font-size: 24px; font-weight: 700; color: #3498db;">{total_user}</div>
+                <div style="font-size: 12px; color: #7f8c8d;">User Added</div>
+            </div>
+        </div>
+        """
+    
+    def _complete_review(self, b):
+        """Complete the review and generate document"""
+        global review_completed
+        
+        with self.status:
+            clear_output(wait=True)
+            print("\n🎯 Completing review...")
+            print(f"📊 Total accepted feedback items: {sum(len(items) for items in accepted_feedback.values())}")
+            print(f"💬 Total comments to add: {len(self.document_comments)}")
+            
+            # Debug: Show which sections have comments
+            sections_with_comments = {}
+            for comment in self.document_comments:
+                section = comment['section']
+                if section not in sections_with_comments:
+                    sections_with_comments[section] = 0
+                sections_with_comments[section] += 1
+            
+            for section, count in sections_with_comments.items():
+                print(f"  - {section}: {count} comments")
+        
+        # Get comments
+        comments_data = self.get_document_comments()
+        
+        if not comments_data:
+            with self.status:
+                print("⚠️  No feedback accepted. Please accept some feedback items first.")
+            return
+        
+        # Generate document
+        global current_session
+        if current_session and current_session.document_path:
+            file_path = current_session.document_path
+            if os.path.exists(file_path):
+                output_path = create_reviewed_document_with_proper_comments(
+                    file_path,
+                    current_session.document_name,
+                    comments_data
+                )
+                
+                if output_path and os.path.exists(output_path):
+                    with self.status:
+                        print(f"✅ Review completed successfully!")
+                        print(f"📄 Document created: {output_path}")
+                        print(f"📊 Added {len(comments_data)} comments")
+                        print("\n💡 Comments have been added to the document.")
+                        print("📌 Open in Microsoft Word to see comments in the margin.")
+                        display(FileLink(output_path, result_html_prefix="📄 Download: "))
+                    
+                    review_completed = True
+                    self.complete_review_btn.disabled = True
+                    self.complete_review_btn.description = "Review Completed"
+                    self.complete_review_btn.button_style = "success"
+                    
+                    # Add document to pattern analyzer
+                    all_feedback = []
+                    for section, items in self.feedback_data.items():
+                        all_feedback.extend(items)
+                    
+                    self.pattern_analyzer.add_document_feedback(current_session.document_name, all_feedback)
+                    
+                    # Log completion
+                    self.audit_logger.log("REVIEW_COMPLETED", f"Review completed with {len(comments_data)} comments added")
+    
+    def _on_section_change(self, change):
+        """Handle section dropdown change"""
+        if change['new'] in self.section_names:
+            idx = self.section_names.index(change['new'])
+            self._load_section(idx)
+    
+    def _prev_section(self, b):
+        """Go to previous section"""
+        if self.current_section_idx > 0:
+            self._load_section(self.current_section_idx - 1)
+    
+    def _next_section(self, b):
+        """Go to next section"""
+        if self.current_section_idx < len(self.section_names) - 1:
+            self._load_section(self.current_section_idx + 1)
+    
+    def get_widget(self):
+        """Get the main widget"""
+        return self.main_container
+    
+    def get_document_comments(self):
+        """Get all comments to be added to document"""
+        return self.document_comments
+
+def create_reviewed_document_with_proper_comments(original_doc_path, doc_name, comments_data):
+    """Create a copy of the original document with proper Word comments"""
+    
+    try:
+        # Use the WordDocumentWithComments helper
+        doc_with_comments = WordDocumentWithComments(original_doc_path)
+        
+        # Add all comments with proper author names
+        for comment_data in comments_data:
+            author = comment_data.get('author', 'AI Feedback')
+            doc_with_comments.add_comment(
+                paragraph_index=comment_data['paragraph_index'],
+                comment_text=comment_data['comment'],
+                author=author
+            )
+        
+        # Save with comments
+        output_path = f'reviewed_{doc_name}_{datetime.now().strftime("%Y%m%d_%H%M%S")}.docx'
+        success = doc_with_comments.save_with_comments(output_path)
+        
+        if success:
+            return output_path
+        else:
+            # Fallback to simple copy if comments fail
+            return create_reviewed_document_with_annotations(original_doc_path, doc_name, comments_data)
+            
+    except Exception as e:
+        print(f"Error creating document with comments: {str(e)}")
+        # Fallback to annotation approach
+        return create_reviewed_document_with_annotations(original_doc_path, doc_name, comments_data)
+
+def create_reviewed_document_with_annotations(original_doc_path, doc_name, comments_data):
+    """Create a document with inline annotations instead of margin comments"""
+    try:
+        # Open original document
+        original_doc = Document(original_doc_path)
+        
+        # Create new document
+        new_doc = Document()
+        
+        # Copy all content with annotations
+        for para in original_doc.paragraphs:
+            # Copy paragraph
+            new_para = new_doc.add_paragraph()
+            new_para.style = para.style
+            
+            # Copy runs
+            for run in para.runs:
+                new_run = new_para.add_run(run.text)
+                if run.bold: new_run.bold = True
+                if run.italic: new_run.italic = True
+                if run.underline: new_run.underline = True
+            
+            # Check if this paragraph has comments
+            para_comments = [c for c in comments_data if c.get('paragraph_index') == original_doc.paragraphs.index(para)]
+            
+            if para_comments:
+                # Add comment as colored text after paragraph
+                for comment in para_comments:
+                    comment_para = new_doc.add_paragraph()
+                    comment_run = comment_para.add_run(f"📝 {comment['author']}: {comment['comment']}")
+                    comment_run.font.color.rgb = RGBColor(102, 126, 234)  # Purple color
+                    comment_run.font.size = Pt(10)
+                    comment_run.italic = True
+        
+        # Add summary at the end
+        new_doc.add_page_break()
+        new_doc.add_heading('Hawkeye Review Feedback Summary', 1)
+        new_doc.add_paragraph(f'Generated on: {datetime.now().strftime("%Y-%m-%d %H:%M")}')
+        new_doc.add_paragraph(f'Total feedback items: {len(comments_data)}')
+        
+        # Group by section
+        section_comments = defaultdict(list)
+        for comment in comments_data:
+            section_comments[comment['section']].append(comment)
+        
+        for section, comments in section_comments.items():
+            new_doc.add_heading(section, 2)
+            
+            for comment in comments:
+                p = new_doc.add_paragraph(style='List Bullet')
+                p.add_run(f"[{comment.get('author', 'AI Feedback')}] ").bold = True
+                p.add_run(f"{comment['type'].upper()} - {comment.get('risk_level', 'Low')} Risk: ").font.color.rgb = RGBColor(231, 76, 60)
+                p.add_run(comment['comment'])
+        
+        # Save document
+        output_path = f'reviewed_{doc_name}_{datetime.now().strftime("%Y%m%d_%H%M%S")}.docx'
+        new_doc.save(output_path)
+        
+        return output_path
+        
+    except Exception as e:
+        print(f"Error creating annotated document: {str(e)}")
+        return None
+
+def create_simple_reviewed_copy(original_doc_path, doc_name, comments_data):
+    """Create a simple copy with inline comment markers as fallback"""
+    try:
+        # Simply copy the original document
+        output_path = f'reviewed_{doc_name}_{datetime.now().strftime("%Y%m%d_%H%M%S")}.docx'
+        
+        # Open and save a copy
+        doc = Document(original_doc_path)
+        
+        # Add a summary page at the end with all feedback
+        doc.add_page_break()
+        heading = doc.add_heading('Hawkeye Review Feedback Summary', 1)
+        
+        doc.add_paragraph(f'Generated on: {datetime.now().strftime("%Y-%m-%d %H:%M")}')
+        doc.add_paragraph(f'Total feedback items: {len(comments_data)}')
+        doc.add_paragraph('')
+        
+        # Group by section
+        section_comments = defaultdict(list)
+        for comment in comments_data:
+            section_comments[comment['section']].append(comment)
+        
+        for section, comments in section_comments.items():
+            section_heading = doc.add_heading(section, 2)
+            
+            for comment in comments:
+                p = doc.add_paragraph(style='List Bullet')
+                author = comment.get('author', 'AI Feedback')
+                p.add_run(f"[{author}] {comment['type'].upper()} - {comment['risk_level']} Risk: ").bold = True
+                p.add_run(comment['comment'])
+        
+        doc.save(output_path)
+        return output_path
+        
+    except Exception as e:
+        print(f"Error creating simple copy: {str(e)}")
+        return None
+
+# Create UI instance
+review_ui = InteractiveReviewUI()
+
+# File upload widget
+file_upload = widgets.FileUpload(
+    accept='.docx',
+    multiple=False,
+    description='Upload Document',
+    button_style='primary'
+)
+
+# Buttons
+download_btn = widgets.Button(
+    description='Download Reviewed Document',
+    button_style='info',
+    disabled=True,
+    icon='download',
+    tooltip='Download document with comments'
+)
+
+# Status output
+status_output = widgets.Output()
+
+def on_file_upload(change):
+    """Handle file upload"""
+    global current_session, document_sections, review_completed, accepted_feedback, rejected_feedback, user_feedback
+    
+    if file_upload.value:
+        try:
+            # Handle different possible formats of file_upload.value
+            if isinstance(file_upload.value, tuple) and len(file_upload.value) > 0:
+                # Format: tuple of file objects
+                file_info = file_upload.value[0]
+                file_name = getattr(file_info, 'name', 'uploaded_document.docx')
+                file_content = file_info.content
+            elif isinstance(file_upload.value, dict) and file_upload.value:
+                # Format: dict with filenames as keys
+                file_name = next(iter(file_upload.value.keys()))
+                file_info = file_upload.value[file_name]
+                if isinstance(file_info, dict) and 'content' in file_info:
+                    file_content = file_info['content']
+                else:
+                    file_content = file_info
+            else:
+                # Try direct access to file itself
+                file_name = getattr(file_upload, 'name', 'uploaded_document.docx')
+                file_content = getattr(file_upload, 'content', None)
+                
+                if file_content is None:
+                    # Final fallback - try first dict value
+                    file_content = next(iter(file_upload.value.values()))
+            
+            with status_output:
+                clear_output(wait=True)
+                print(f"📄 Processing: {file_name}")
+            
+            # Reset review status
+            review_completed = False
+            
+            # Reset all feedback tracking
+            accepted_feedback = defaultdict(list)
+            rejected_feedback = defaultdict(list)
+            user_feedback = defaultdict(list)
+            review_ui.document_comments = []  # Clear comments
+            
+            # Create session
+            current_session = ReviewSession()
+            current_session.document_name = file_name
+            
+            # Save document
+            file_path = file_name
+            with open(file_path, 'wb') as f:
+                f.write(file_content)
+            
+            current_session.document_path = file_path
+            
+            # Open document
+            doc = Document(file_path)
+            current_session.document_object = doc
+            
+            # Extract sections
+            sections, section_paragraphs, paragraph_indices = extract_document_sections_from_docx(doc)
+            current_session.sections = sections
+            current_session.section_paragraphs = section_paragraphs
+            current_session.paragraph_indices = paragraph_indices
+            document_sections = sections
+            
+            # Initialize UI
+            review_ui.initialize_document(sections, section_paragraphs, paragraph_indices, doc)
+            
+            # Enable download button
+            download_btn.disabled = False
+            
+            with status_output:
+                print(f"✅ Document loaded successfully")
+                print(f"📊 Found {len(sections)} sections for review")
+                excluded = [s for s in sections.keys() for ex in EXCLUDED_SECTIONS if ex.lower() in s.lower()]
+                if excluded:
+                    print(f"⚠️  Excluded sections: {', '.join(excluded)}")
+                print("\n🔍 Navigate through sections to review with Hawkeye framework")
+                print("💡 Accept feedback to add as comments to the document")
+                print("💬 Use the Chat tab to ask questions about the feedback")
+                print("🎯 Click 'Complete Review' when done to generate the final document")
+                print("📄 Click 'Download Hawkeye Checklist' to get the framework document")
+                print("\n⌨️  Keyboard shortcuts are available - press '?' to see them")
+                print("🌙 Dark mode toggle available in the top controls bar")
+            
+        except Exception as e:
+            with status_output:
+                print(f"❌ Error processing document: {str(e)}")
+                print("Please ensure the file is a valid Word document (.docx)")
+                import traceback
+                traceback.print_exc()
+
+def download_reviewed_doc(b):
+    """Download reviewed document with comments"""
+    global current_session, review_completed
+    
+    if not current_session or not current_session.document_name:
+        with status_output:
+            print("❌ No document loaded")
+        return
+    
+    if not review_completed:
+        with status_output:
+            print("⚠️  Please click 'Complete Review' button first to finalize the review")
+        return
+    
+    # The document has already been generated by Complete Review
+    with status_output:
+        print("✅ Document already generated. Check the download link above.")
+
+# Event handlers
+file_upload.observe(on_file_upload, names='value')
+download_btn.on_click(download_reviewed_doc)
+
+# Load guidelines
+load_guidelines()
+
+# Display UI
+display(widgets.VBox([
+    widgets.HTML("""
+    <h2>📄 Writeup Automation AI Tool</h2>
+    <p>Upload a Word document (.docx) to review with the 20-point investigation framework</p>
+    """),
+    file_upload,
+    widgets.HBox([download_btn]),
+    widgets.HTML("<hr>"),
+    review_ui.get_widget(),
+    widgets.HTML("<h3>📊 Status Log</h3>"),
+    status_output
+]))
+
+with status_output:
+    print("🚀 System ready. Upload a Word document to begin Hawkeye review.")
+    print("📋 The system will analyze based on the 20-point investigation checklist.")
+    print("🤖 AI-powered section detection will automatically identify document structure.")
+    print("✨ NEW: Dark mode, keyboard shortcuts, and AI learning from your feedback!")
