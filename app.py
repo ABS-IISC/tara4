@@ -21,11 +21,17 @@ app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 os.makedirs('data', exist_ok=True)
 
-# Global components
-document_analyzer = DocumentAnalyzer()
-ai_engine = AIFeedbackEngine()
-stats_manager = StatisticsManager()
-doc_processor = DocumentProcessor()
+# Global components - with error handling
+try:
+    document_analyzer = DocumentAnalyzer()
+    ai_engine = AIFeedbackEngine()
+    stats_manager = StatisticsManager()
+    doc_processor = DocumentProcessor()
+    print("All components initialized successfully")
+except Exception as e:
+    print(f"Error initializing components: {e}")
+    import traceback
+    traceback.print_exc()
 
 # Session storage
 sessions = {}
@@ -1248,5 +1254,11 @@ def download_statistics():
         return jsonify({'error': f'Download statistics failed: {str(e)}'}), 500
 
 if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 8000))
-    app.run(debug=False, host='0.0.0.0', port=port)
+    try:
+        port = int(os.environ.get('PORT', 8000))
+        print(f"Starting Flask app on port {port}")
+        app.run(debug=False, host='0.0.0.0', port=port, threaded=True, use_reloader=False)
+    except Exception as e:
+        print(f"Flask startup error: {e}")
+        import traceback
+        traceback.print_exc()

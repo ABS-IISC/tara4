@@ -31,41 +31,32 @@ from app import app
 
 def main():
     """Main entry point for the application"""
-    # Get port from environment or use 8000 as default
-    port = int(os.environ.get('PORT', 8000))
-    
-    # Always use 0.0.0.0 for deployment compatibility
-    host = '0.0.0.0'
-    
-    # Determine if running in production
-    is_production = os.environ.get('FLASK_ENV') == 'production'
-    
-    print("Starting Enhanced Document Analysis Tool...")
-    print("Features: AI Analysis, Chat Assistant, Pattern Recognition, Learning System")
-    print(f"Server will start on http://{host}:{port}")
-    print("Upload .docx files for comprehensive Hawkeye framework analysis")
-    print("Press Ctrl+C to stop the server")
-    print("-" * 60)
-    
     try:
+        # Get port from environment or use 8000 as default
+        port = int(os.environ.get('PORT', 8000))
+        
+        # Always use 0.0.0.0 for deployment compatibility
+        host = '0.0.0.0'
+        
+        print(f"Starting Flask app on {host}:{port}")
+        
         # Ensure required directories exist
         os.makedirs('uploads', exist_ok=True)
         os.makedirs('data', exist_ok=True)
-        os.makedirs('templates', exist_ok=True)
         
         # Start the Flask application
         app.run(
-            debug=not is_production,
+            debug=False,
             host=host,
             port=port,
-            threaded=True
+            threaded=True,
+            use_reloader=False
         )
         
-    except KeyboardInterrupt:
-        print("\nServer stopped by user")
-        sys.exit(0)
     except Exception as e:
         print(f"Error starting server: {e}")
+        import traceback
+        traceback.print_exc()
         sys.exit(1)
 
 if __name__ == '__main__':
