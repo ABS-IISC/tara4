@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Button Test</title>
+    <style>
+        .btn { padding: 10px 20px; margin: 5px; border: none; border-radius: 5px; cursor: pointer; }
+        .btn-primary { background: #007bff; color: white; }
+        .btn-success { background: #28a745; color: white; }
+        .btn-warning { background: #ffc107; color: black; }
+        .notification { position: fixed; top: 20px; right: 20px; padding: 15px; border-radius: 5px; color: white; z-index: 1000; }
+        .notification.success { background: #28a745; }
+        .notification.error { background: #dc3545; }
+        .notification.info { background: #17a2b8; }
+    </style>
+</head>
+<body>
+    <h1>AI-Prism Button Test</h1>
+    
+    <div>
+        <button class="btn btn-primary" id="testBtn1">Test Button 1</button>
+        <button class="btn btn-success" id="testBtn2">Test Button 2</button>
+        <button class="btn btn-warning" id="testBtn3">Test Button 3</button>
+    </div>
+    
+    <div id="output" style="margin-top: 20px; padding: 10px; border: 1px solid #ccc;"></div>
+
+    <script>
+        function showNotification(message, type) {
+            const notification = document.createElement('div');
+            notification.className = `notification ${type}`;
+            notification.textContent = message;
+            document.body.appendChild(notification);
+            
+            setTimeout(() => {
+                if (notification.parentNode) {
+                    document.body.removeChild(notification);
+                }
+            }, 3000);
+        }
+        
+        function logOutput(message) {
+            const output = document.getElementById('output');
+            output.innerHTML += '<div>' + new Date().toLocaleTimeString() + ': ' + message + '</div>';
+        }
+        
+        // Test functions
+        function testFunction1() {
+            logOutput('Button 1 clicked successfully!');
+            showNotification('Button 1 works!', 'success');
+        }
+        
+        function testFunction2() {
+            logOutput('Button 2 clicked successfully!');
+            showNotification('Button 2 works!', 'info');
+        }
+        
+        function testFunction3() {
+            logOutput('Button 3 clicked successfully!');
+            showNotification('Button 3 works!', 'success');
+        }
+        
+        // Setup event listeners
+        document.addEventListener('DOMContentLoaded', function() {
+            const buttonMappings = {
+                'testBtn1': testFunction1,
+                'testBtn2': testFunction2,
+                'testBtn3': testFunction3
+            };
+            
+            Object.entries(buttonMappings).forEach(([buttonId, handler]) => {
+                const button = document.getElementById(buttonId);
+                if (button && handler) {
+                    button.addEventListener('click', function(e) {
+                        e.preventDefault();
+                        try {
+                            handler();
+                        } catch (error) {
+                            console.error(`Button ${buttonId} error:`, error);
+                            showNotification(`Button error: ${error.message}`, 'error');
+                        }
+                    });
+                    logOutput(`Event listener attached to ${buttonId}`);
+                }
+            });
+            
+            logOutput('Button test page loaded successfully');
+            showNotification('Test page ready - click buttons to test', 'info');
+        });
+    </script>
+</body>
+</html>

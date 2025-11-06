@@ -1602,28 +1602,11 @@
 
     <script src="/static/js/app.js"></script>
     <script>
-        // Global variables
-        let currentSession = null;
-        let sections = [];
-        let currentSectionIndex = 0;
-        let selectedFeedbackId = null;
-        let feedbackStates = {};
-        let analysisFile = null;
-        let guidelinesFile = null;
-        let chatHistory = [];
-        let userFeedbackHistory = [];
-        let finalDocumentData = null;
-        let isDarkMode = false;
-        let documentZoom = 100;
-        let dashboardData = {
-            totalFeedback: 0,
-            acceptedFeedback: 0,
-            rejectedFeedback: 0,
-            userFeedback: 0
-        };
+        // Minimal inline code for immediate functionality
         
-        // Loading media array
-        const loadingMediaWithContent = [
+        // Loading media handled in external JS
+            
+        // Core functionality loaded from external JavaScript file
             {
                 gif: 'https://media.giphy.com/media/26tn33aiTi1jkl6H6/giphy.gif',
                 joke: "What's Iron Man's favorite type of music? Heavy metal! 🎵",
@@ -1711,7 +1694,7 @@
         let currentAnalysisStep = 0;
         let totalSections = 0;
         let currentAIModel = 'ai-prism-model';
-        window.availableModels = window.availableModels || {
+        let availableModels = {
             'ai-prism-model': 'AI-Prism Model (Primary)',
             'ai-prism-backup': 'AI-Prism Backup Model',
             'ai-prism-fast': 'AI-Prism Fast Model',
@@ -1720,205 +1703,6 @@
         };
         let modelFallbackOrder = ['ai-prism-model', 'ai-prism-backup', 'ai-prism-fast', 'ai-prism-precise', 'ai-prism-comprehensive'];
         let currentModelIndex = 0;
-        
-        // Notification function
-        function showNotification(message, type) {
-            const existingNotifications = document.querySelectorAll('.notification');
-            existingNotifications.forEach(n => n.remove());
-            
-            const notification = document.createElement('div');
-            notification.className = `notification ${type}`;
-            notification.textContent = message;
-            notification.style.cssText = `
-                position: fixed;
-                top: 20px;
-                right: 20px;
-                padding: 15px 20px;
-                border-radius: 8px;
-                color: white;
-                font-weight: 500;
-                z-index: 1001;
-                transform: translateX(400px);
-                transition: transform 0.3s ease;
-                max-width: 300px;
-                word-wrap: break-word;
-            `;
-            
-            if (type === 'success') notification.style.background = '#2ecc71';
-            else if (type === 'error') notification.style.background = '#e74c3c';
-            else if (type === 'info') notification.style.background = '#3498db';
-            else notification.style.background = '#95a5a6';
-            
-            document.body.appendChild(notification);
-            
-            setTimeout(() => {
-                notification.style.transform = 'translateX(0)';
-            }, 100);
-            
-            setTimeout(() => {
-                notification.style.transform = 'translateX(400px)';
-                setTimeout(() => {
-                    if (notification.parentNode) {
-                        document.body.removeChild(notification);
-                    }
-                }, 300);
-            }, 3000);
-        }
-        
-        // Initialize the application
-        document.addEventListener('DOMContentLoaded', function() {
-            console.log('AI-Prism initializing...');
-            try {
-                setupEventListeners();
-                setupKeyboardShortcuts();
-                setupDragAndDrop();
-                loadDarkModePreference();
-                showNotification('AI-Prism loaded successfully! Upload a document to begin.', 'success');
-            } catch (error) {
-                console.error('Initialization error:', error);
-                showNotification('Initialization error: ' + error.message, 'error');
-            }
-        });
-        
-        function setupEventListeners() {
-            // File input changes
-            const fileInput = document.getElementById('fileInput');
-            const guidelinesInput = document.getElementById('guidelinesInput');
-            const sectionSelect = document.getElementById('sectionSelect');
-            
-            if (fileInput) fileInput.addEventListener('change', handleAnalysisFileUpload);
-            if (guidelinesInput) guidelinesInput.addEventListener('change', handleGuidelinesFileUpload);
-            
-            if (sectionSelect) {
-                sectionSelect.addEventListener('change', function() {
-                    const selectedIndex = this.selectedIndex - 1;
-                    if (selectedIndex >= 0) {
-                        loadSection(selectedIndex);
-                    }
-                });
-            }
-        }
-        
-        function setupKeyboardShortcuts() {
-            document.addEventListener('keydown', function(e) {
-                if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
-                    return;
-                }
-                
-                switch(e.key.toLowerCase()) {
-                    case 'n':
-                        e.preventDefault();
-                        nextSection();
-                        break;
-                    case 'p':
-                        e.preventDefault();
-                        previousSection();
-                        break;
-                    case 'd':
-                        e.preventDefault();
-                        toggleDarkMode();
-                        break;
-                    case '?':
-                        e.preventDefault();
-                        showShortcuts();
-                        break;
-                }
-            });
-        }
-        
-        function setupDragAndDrop() {
-            const uploadArea = document.getElementById('uploadArea');
-            if (!uploadArea) return;
-            
-            uploadArea.addEventListener('dragover', function(e) {
-                e.preventDefault();
-                uploadArea.classList.add('dragover');
-            });
-            
-            uploadArea.addEventListener('dragleave', function(e) {
-                e.preventDefault();
-                uploadArea.classList.remove('dragover');
-            });
-            
-            uploadArea.addEventListener('drop', function(e) {
-                e.preventDefault();
-                uploadArea.classList.remove('dragover');
-                
-                const files = e.dataTransfer.files;
-                if (files.length > 0 && files[0].name.toLowerCase().endsWith('.docx')) {
-                    analysisFile = files[0];
-                    document.getElementById('analysisFileName').textContent = files[0].name;
-                    document.getElementById('startAnalysisBtn').disabled = false;
-                    showNotification('Analysis document ready!', 'success');
-                } else {
-                    showNotification('Please drop a .docx file', 'error');
-                }
-            });
-        }
-        
-        function loadDarkModePreference() {
-            const savedDarkMode = localStorage.getItem('darkMode');
-            if (savedDarkMode === 'true') {
-                isDarkMode = true;
-                document.body.classList.add('dark-mode');
-                const button = document.getElementById('darkModeToggle');
-                if (button) {
-                    button.textContent = '☀️ Light Mode';
-                    button.className = 'btn btn-warning';
-                }
-            }
-        }
-        
-        function toggleDarkMode() {
-            isDarkMode = !isDarkMode;
-            document.body.classList.toggle('dark-mode', isDarkMode);
-            
-            const button = document.getElementById('darkModeToggle');
-            if (button) {
-                button.textContent = isDarkMode ? '☀️ Light Mode' : '🌙 Dark Mode';
-                button.className = isDarkMode ? 'btn btn-warning' : 'btn btn-secondary';
-            }
-            
-            localStorage.setItem('darkMode', isDarkMode.toString());
-        }
-        
-        function showShortcuts() {
-            const modal = document.getElementById('shortcutsModal');
-            if (modal) modal.style.display = 'block';
-        }
-        
-        function closeModal(modalId) {
-            const modal = document.getElementById(modalId);
-            if (modal) modal.style.display = 'none';
-        }
-        
-        function handleAnalysisFileUpload(event) {
-            const file = event.target.files[0];
-            if (file && file.name.toLowerCase().endsWith('.docx')) {
-                analysisFile = file;
-                document.getElementById('analysisFileName').textContent = file.name;
-                document.getElementById('startAnalysisBtn').disabled = false;
-                showNotification('Analysis document ready!', 'success');
-            } else {
-                showNotification('Please select a .docx file', 'error');
-            }
-        }
-        
-        function handleGuidelinesFileUpload(event) {
-            const file = event.target.files[0];
-            if (file && file.name.toLowerCase().endsWith('.docx')) {
-                guidelinesFile = file;
-                document.getElementById('guidelinesFileName').textContent = file.name;
-                showNotification('Guidelines document ready!', 'info');
-            } else {
-                showNotification('Please select a .docx file for guidelines', 'error');
-            }
-        }
-        
-        // Placeholder functions for missing functionality
-        function nextSection() { showNotification('Next section functionality not implemented', 'info'); }
-        function previousSection() { showNotification('Previous section functionality not implemented', 'info'); }
-        function loadSection(index) { showNotification('Load section functionality not implemented', 'info'); }
 
         // Initialize the application
         document.addEventListener('DOMContentLoaded', function() {
@@ -5210,9 +4994,7 @@
         </div>
 </body>
 </html>
-<body>
-<html>
-    <script>
+
         // Function to show auto-suggestions for custom feedback
         function showAutoSuggestions(value) {
             const dropdown = document.getElementById('suggestionDropdown');

@@ -1,11 +1,11 @@
-# TARA - Document Analysis and Review Tool
+# AI-Prism - Document Analysis and Review Tool
 
 A professional AI-powered document analysis tool with Hawkeye investigation framework, modular architecture, and responsive UI.
 
 ## ✅ FIXED ISSUES
 
 ### Core Features:
-- **TARA AI Assistant**: Professional document analysis with contextual responses
+- **AI-Prism AI Assistant**: Professional document analysis with contextual responses
 - **Interactive Statistics**: Clickable numbers with detailed breakdowns
 - **Hawkeye Framework Analysis**: Comprehensive 20-point investigation checklist
 - **Real-time Notifications**: Immediate feedback on accept/reject actions
@@ -53,7 +53,7 @@ A professional AI-powered document analysis tool with Hawkeye investigation fram
 ## 📁 Project Structure - MODULAR ARCHITECTURE
 
 ```
-CL_TOOL_TARA_3/
+CL_TOOL_AI_PRISM_3/
 ├── core/                      # Core analysis modules
 │   ├── __init__.py
 │   ├── document_analyzer.py   # Deep document section analysis
@@ -87,6 +87,7 @@ CL_TOOL_TARA_3/
 - pip package manager
 - Docker (for deployment)
 - AWS CLI (for cloud deployment)
+- AWS Bedrock access to Claude 3.7 Sonnet model
 
 ### Quick Start (Local Development)
 1. **Install Dependencies**:
@@ -110,36 +111,57 @@ For production deployment to AWS App Runner via ECR:
 1. **Setup ECR Repository**:
    ```bash
    chmod +x setup-ecr.sh
-   ./setup-ecr.sh us-east-1 tara-app
+   ./setup-ecr.sh us-east-1 ai-prism-app
    ```
 
 2. **Deploy to AWS**:
    ```bash
    chmod +x deploy.sh
-   ./deploy.sh us-east-1 tara-app latest
+   ./deploy.sh us-east-1 ai-prism-app latest
    ```
 
 3. **Create App Runner Service**:
    - Follow the detailed guide in [DEPLOYMENT.md](DEPLOYMENT.md)
    - Configure IAM roles for Bedrock access
-   - Set environment variables for production
+   - Set environment variables from [APP_RUNNER_CONFIG.md](APP_RUNNER_CONFIG.md)
+
+4. **Test Configuration**:
+   ```bash
+   python test_config.py
+   ```
 
 ### 📦 Docker Deployment
 
 ```bash
 # Build Docker image
-docker build -t tara-app .
+docker build -t ai-prism-app .
 
 # Run container
-docker run -p 8000:8000 -e PORT=8000 tara-app
+docker run -p 8000:8000 -e PORT=8000 ai-prism-app
 ```
 
 ### Alternative Methods
 - **Direct Flask run**: `python app.py`
 - **Development mode**: Set `FLASK_ENV=development` for auto-reload
 
-### AWS Configuration (Optional)
-For AI functionality, configure AWS credentials:
+### AWS Configuration
+
+#### For App Runner (Production)
+Configure these environment variables in App Runner:
+```
+AWS_REGION=us-east-1
+AWS_DEFAULT_REGION=us-east-1
+BEDROCK_MODEL_ID=anthropic.claude-3-7-sonnet-20250219-v1:0
+FLASK_ENV=production
+PORT=8080
+BEDROCK_MAX_TOKENS=8192
+BEDROCK_TEMPERATURE=0.7
+REASONING_ENABLED=true
+REASONING_BUDGET_TOKENS=2000
+```
+
+#### For Local Development
+Configure AWS credentials:
 ```bash
 aws configure
 ```

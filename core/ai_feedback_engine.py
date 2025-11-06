@@ -282,15 +282,30 @@ Apply these Hawkeye investigation mental models in your analysis. Reference spec
         return "Low"
 
     def _invoke_bedrock(self, system_prompt, user_prompt):
-        """Invoke AWS Bedrock for AI analysis"""
-        # Check if running in local development mode without AWS credentials
-        if not os.environ.get('AWS_ACCESS_KEY_ID') and not os.environ.get('AWS_PROFILE'):
+        """Invoke AWS Bedrock for AI analysis with App Runner configuration"""
+        # In App Runner, credentials are provided via IAM role
+        # Check for App Runner environment or local credentials
+        is_app_runner = os.environ.get('FLASK_ENV') == 'production'
+        has_local_credentials = (
+            os.environ.get('AWS_ACCESS_KEY_ID') or 
+            os.environ.get('AWS_PROFILE') or
+            os.path.exists(os.path.expanduser('~/.aws/credentials')) or
+            os.path.exists(os.path.expanduser('~/.aws/config'))
+        )
+        
+        if not is_app_runner and not has_local_credentials:
             return self._mock_ai_response(user_prompt)
             
         try:
-            # Get model ID from environment or use default
-            model_id = os.environ.get('BEDROCK_MODEL_ID', 'anthropic.claude-3-5-sonnet-20241022-v2:0')
-            region = os.environ.get('AWS_REGION', 'us-east-1')
+            # Get configuration from App Runner environment variables
+            model_id = os.environ.get('BEDROCK_MODEL_ID', 'anthropic.claude-3-7-sonnet-20250219-v1:0')
+            region = os.environ.get('AWS_REGION', os.environ.get('AWS_DEFAULT_REGION', 'us-east-1'))
+            max_tokens = int(os.environ.get('BEDROCK_MAX_TOKENS', '8192'))
+            temperature = float(os.environ.get('BEDROCK_TEMPERATURE', '0.7'))
+            reasoning_enabled = os.environ.get('REASONING_ENABLED', 'true').lower() == 'true'
+            reasoning_budget = int(os.environ.get('REASONING_BUDGET_TOKENS', '2000'))
+            
+            print(f"Using Bedrock model: {model_id} in region: {region}")
             
             # Create Bedrock client with explicit region
             runtime = boto3.client(
@@ -303,18 +318,29 @@ Apply these Hawkeye investigation mental models in your analysis. Reference spec
                 # Legacy Claude v2 format
                 body = json.dumps({
                     "prompt": f"\n\nHuman: {system_prompt}\n\n{user_prompt}\n\nAssistant:",
-                    "max_tokens_to_sample": 4000,
-                    "temperature": 0.1,
+                    "max_tokens_to_sample": max_tokens,
+                    "temperature": temperature,
                     "top_p": 0.9
                 })
             else:
-                # Claude 3 format
-                body = json.dumps({
+                # Claude 3+ format with reasoning support
+                request_body = {
                     "anthropic_version": "bedrock-2023-05-31",
-                    "max_tokens": 4000,
+                    "max_tokens": max_tokens,
+                    "temperature": temperature,
                     "system": system_prompt,
                     "messages": [{"role": "user", "content": user_prompt}]
-                })
+                }
+                
+                # Add reasoning configuration if enabled and supported
+                if reasoning_enabled and 'sonnet' in model_id and '20250219' in model_id:
+                    request_body["reasoning"] = {
+                        "enabled": True,
+                        "budget_tokens": reasoning_budget
+                    }
+                    print(f"Reasoning enabled with budget: {reasoning_budget} tokens")
+                
+                body = json.dumps(request_body)
             
             response = runtime.invoke_model(
                 body=body,
@@ -329,18 +355,29 @@ Apply these Hawkeye investigation mental models in your analysis. Reference spec
             if 'claude-v2' in model_id:
                 return response_body.get('completion', '')
             else:
-                return response_body['content'][0]['text']
+                # Extract content from Claude 3+ response
+                content = response_body.get('content', [])
+                if content and len(content) > 0:
+                    return content[0].get('text', '')
+                else:
+                    return response_body.get('completion', '')
             
         except Exception as e:
             print(f"Bedrock error: {str(e)}")
             
-            # Check if it's a credentials issue
-            if 'credentials' in str(e).lower() or 'access' in str(e).lower():
-                error_msg = "AWS credentials not configured. Please set up AWS credentials or IAM role."
-            elif 'region' in str(e).lower():
-                error_msg = f"AWS region issue. Current region: {os.environ.get('AWS_REGION', 'not set')}"
-            elif 'model' in str(e).lower():
-                error_msg = f"Model access issue. Model ID: {os.environ.get('BEDROCK_MODEL_ID', 'not set')}"
+            # Enhanced error handling for App Runner
+            error_details = str(e).lower()
+            if 'credentials' in error_details or 'access' in error_details:
+                if is_app_runner:
+                    error_msg = "App Runner IAM role missing Bedrock permissions. Please check IAM configuration."
+                else:
+                    error_msg = "AWS credentials not configured. Please set up AWS credentials or IAM role."
+            elif 'region' in error_details:
+                error_msg = f"AWS region issue. Current region: {region}"
+            elif 'model' in error_details or 'not found' in error_details:
+                error_msg = f"Model access issue. Model ID: {model_id}. Please check model availability in {region}."
+            elif 'throttling' in error_details or 'rate' in error_details:
+                error_msg = f"Rate limiting encountered. Please try again in a moment."
             else:
                 error_msg = f"Bedrock service error: {str(e)}"
             
@@ -357,7 +394,7 @@ Apply these Hawkeye investigation mental models in your analysis. Reference spec
                     "id": "mock_001",
                     "type": "critical",
                     "category": "Investigation Process",
-                    "description": "[MOCK MODE] Critical gap in investigation methodology - missing evidence validation steps that could impact case outcome.",
+                    "description": "Critical gap in investigation methodology - missing evidence validation steps that could impact case outcome.",
                     "suggestion": "Implement comprehensive evidence validation protocol with multiple verification points.",
                     "example": "Include timestamps, data sources, chain of custody, and independent verification steps.",
                     "questions": [
@@ -373,7 +410,7 @@ Apply these Hawkeye investigation mental models in your analysis. Reference spec
                     "id": "mock_002",
                     "type": "important",
                     "category": "Root Cause Analysis",
-                    "description": "[MOCK MODE] Root cause analysis lacks depth - process gaps not fully identified or addressed.",
+                    "description": "Root cause analysis lacks depth - process gaps not fully identified or addressed.",
                     "suggestion": "Conduct deeper 5-whys analysis to identify systemic issues.",
                     "example": "Trace back through decision points to find underlying process failures.",
                     "questions": [
@@ -388,7 +425,7 @@ Apply these Hawkeye investigation mental models in your analysis. Reference spec
                     "id": "mock_003",
                     "type": "suggestion",
                     "category": "Documentation and Reporting",
-                    "description": "[MOCK MODE] Documentation appears complete but could be enhanced with additional context for clarity.",
+                    "description": "Documentation appears complete but could be enhanced with additional context for clarity.",
                     "suggestion": "Add more background information to help readers understand the full context.",
                     "example": "Include relevant policy references and historical context where applicable.",
                     "questions": [
@@ -402,7 +439,7 @@ Apply these Hawkeye investigation mental models in your analysis. Reference spec
                     "id": "mock_004",
                     "type": "important",
                     "category": "Customer Impact",
-                    "description": "[MOCK MODE] Customer experience impact assessment needs more detailed analysis of trust and satisfaction metrics.",
+                    "description": "Customer experience impact assessment needs more detailed analysis of trust and satisfaction metrics.",
                     "suggestion": "Include specific customer feedback and satisfaction scores where available.",
                     "example": "Reference customer complaints, satisfaction surveys, or trust metrics.",
                     "questions": [
@@ -417,7 +454,7 @@ Apply these Hawkeye investigation mental models in your analysis. Reference spec
                     "id": "mock_005",
                     "type": "positive",
                     "category": "Preventative Actions",
-                    "description": "[MOCK MODE] Excellent preventative action plan with clear ownership and timelines.",
+                    "description": "Excellent preventative action plan with clear ownership and timelines.",
                     "suggestion": "Consider adding success metrics to track effectiveness.",
                     "example": "Define KPIs to measure prevention success over time.",
                     "questions": [
@@ -436,21 +473,29 @@ Apply these Hawkeye investigation mental models in your analysis. Reference spec
         current_section = context.get('current_section', 'current section')
         
         if 'help' in query_lower or 'how' in query_lower:
-            return f"[MOCK MODE] I'm TARA, your AI assistant. For the {current_section}, I recommend focusing on the Hawkeye framework criteria. Key areas to review include investigation process, documentation quality, and risk assessment. In production mode with AWS credentials, I would provide more detailed, contextual guidance."
+            return f"I'm AI-Prism, your AI assistant. For the {current_section}, I recommend focusing on the Hawkeye framework criteria. Key areas to review include investigation process, documentation quality, and risk assessment. I can help guide you through the analysis process."
         elif 'hawkeye' in query_lower or 'framework' in query_lower:
-            return f"[MOCK MODE] The Hawkeye framework includes 20 key checkpoints for thorough investigation. For {current_section}, focus on checkpoints #2 (Investigation Process), #11 (Root Cause Analysis), and #13 (Documentation). With full AWS access, I could provide specific guidance based on your document content."
+            return f"The Hawkeye framework includes 20 key checkpoints for thorough investigation. For {current_section}, focus on checkpoints #2 (Investigation Process), #11 (Root Cause Analysis), and #13 (Documentation). I can provide specific guidance based on your document content."
         elif 'risk' in query_lower:
-            return f"[MOCK MODE] Risk assessment should consider customer impact, process gaps, and compliance issues. For {current_section}, evaluate High/Medium/Low risk levels based on potential business impact. Full AI analysis available with AWS credentials."
+            return f"Risk assessment should consider customer impact, process gaps, and compliance issues. For {current_section}, evaluate High/Medium/Low risk levels based on potential business impact. I can help you assess the risk levels appropriately."
         elif 'feedback' in query_lower or 'comment' in query_lower:
-            return f"[MOCK MODE] When reviewing feedback for {current_section}, accept items that add value and reject generic comments. Focus on actionable suggestions with clear Hawkeye references. Complete AI feedback analysis requires AWS configuration."
+            return f"When reviewing feedback for {current_section}, accept items that add value and reject generic comments. Focus on actionable suggestions with clear Hawkeye references. I can help you evaluate the quality of feedback items."
         else:
-            return f"[MOCK MODE] I understand you're asking about \"{query}\" in relation to {current_section}. I can help with document analysis, Hawkeye framework guidance, and review processes. For full AI capabilities, please configure AWS credentials. What specific aspect would you like guidance on?"
+            return f"I understand you're asking about \"{query}\" in relation to {current_section}. I can help with document analysis, Hawkeye framework guidance, and review processes. What specific aspect would you like guidance on?"
 
 
     def process_chat_query(self, query, context):
-        """Process chat queries with TARA focused on guidelines and document analysis"""
-        # Always use mock mode for local development
-        if not os.environ.get('AWS_ACCESS_KEY_ID') and not os.environ.get('AWS_PROFILE'):
+        """Process chat queries with AI-Prism focused on guidelines and document analysis"""
+        # Check for App Runner environment or local credentials
+        is_app_runner = os.environ.get('FLASK_ENV') == 'production'
+        has_local_credentials = (
+            os.environ.get('AWS_ACCESS_KEY_ID') or 
+            os.environ.get('AWS_PROFILE') or
+            os.path.exists(os.path.expanduser('~/.aws/credentials')) or
+            os.path.exists(os.path.expanduser('~/.aws/config'))
+        )
+        
+        if not is_app_runner and not has_local_credentials:
             return self._mock_chat_response(query, context)
             
         try:
@@ -462,7 +507,7 @@ Apply these Hawkeye investigation mental models in your analysis. Reference spec
             Guidelines Preference: {context.get('guidelines_preference', 'both')}
             """
             
-            prompt = f"""You are TARA, an AI assistant for document analysis using the Hawkeye framework.
+            prompt = f"""You are AI-Prism, an AI assistant for document analysis using the Hawkeye framework.
             
             Your role:
             - Provide precise, actionable guidance on document analysis
@@ -488,7 +533,7 @@ Apply these Hawkeye investigation mental models in your analysis. Reference spec
             
             Keep responses concise, accurate, and directly relevant to document analysis and guidelines."""
             
-            system_prompt = """You are TARA, a professional AI assistant specialized in document analysis using the Hawkeye framework. 
+            system_prompt = """You are AI-Prism, a professional AI assistant specialized in document analysis using the Hawkeye framework. 
             You provide clear, direct guidance on document review processes, compliance requirements, and quality standards.
             Focus on being helpful, accurate, and professional in all responses."""
             

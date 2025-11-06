@@ -12,7 +12,7 @@ from core.ai_feedback_engine import AIFeedbackEngine
 from utils.statistics_manager import StatisticsManager
 from utils.document_processor import DocumentProcessor
 
-app = Flask(__name__)
+app = Flask(__name__, static_folder='static')
 app.secret_key = 'your-secret-key-here'
 app.config['UPLOAD_FOLDER'] = 'uploads'
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
@@ -21,15 +21,47 @@ app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 os.makedirs('data', exist_ok=True)
 
+# Load environment variables from .env file if it exists
+env_file = os.path.join(os.path.dirname(__file__), '.env')
+if os.path.exists(env_file):
+    with open(env_file, 'r') as f:
+        for line in f:
+            if line.strip() and not line.startswith('#'):
+                key, value = line.strip().split('=', 1)
+                os.environ[key] = value
+
 # Global components - with error handling
 try:
     document_analyzer = DocumentAnalyzer()
     ai_engine = AIFeedbackEngine()
     stats_manager = StatisticsManager()
     doc_processor = DocumentProcessor()
-    print("All components initialized successfully")
+    
+    # Log environment configuration
+    flask_env = os.environ.get('FLASK_ENV', 'development')
+    aws_region = os.environ.get('AWS_REGION', os.environ.get('AWS_DEFAULT_REGION', 'not configured'))
+    model_id = os.environ.get('BEDROCK_MODEL_ID', 'not configured')
+    max_tokens = os.environ.get('BEDROCK_MAX_TOKENS', '8192')
+    temperature = os.environ.get('BEDROCK_TEMPERATURE', '0.7')
+    reasoning_enabled = os.environ.get('REASONING_ENABLED', 'false')
+    reasoning_budget = os.environ.get('REASONING_BUDGET_TOKENS', '2000')
+    
+    print("AI-Prism components initialized successfully")
+    print(f"Environment: {flask_env}")
+    print(f"AWS Region: {aws_region}")
+    print(f"Bedrock Model: {model_id}")
+    print(f"Max Tokens: {max_tokens}")
+    print(f"Temperature: {temperature}")
+    print(f"Reasoning Enabled: {reasoning_enabled}")
+    print(f"Reasoning Budget: {reasoning_budget}")
+    
+    if flask_env == 'production':
+        print("Running in App Runner production mode")
+    else:
+        print("Running in local development mode")
+        
 except Exception as e:
-    print(f"Error initializing components: {e}")
+    print(f"Error initializing AI-Prism components: {e}")
     import traceback
     traceback.print_exc()
 
@@ -1249,7 +1281,7 @@ def download_statistics():
             }
         
         elif format_type == 'txt':
-            output = f"TARA Statistics Report\n"
+            output = f"AI-Prism Statistics Report\n"
             output += f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
             output += f"Document: {review_session.document_name}\n"
             output += f"Session ID: {session_id}\n"
@@ -1279,11 +1311,58 @@ def download_statistics():
     except Exception as e:
         return jsonify({'error': f'Download statistics failed: {str(e)}'}), 500
 
+@app.route('/clear_all_user_feedback', methods=['POST'])
+def clear_all_user_feedback():
+    try:
+        data = request.get_json()
+        session_id = data.get('session_id') or session.get('session_id')
+        
+        if not session_id or session_id not in sessions:
+            return jsonify({'error': 'Invalid session'}), 400
+        
+        review_session = sessions[session_id]
+        
+        # Clear all user feedback
+        cleared_count = sum(len(items) for items in review_session.user_feedback.values())
+        review_session.user_feedback = defaultdict(list)
+        
+        # Also remove user feedback from accepted feedback
+        for section_name in review_session.accepted_feedback:
+            review_session.accepted_feedback[section_name] = [
+                item for item in review_session.accepted_feedback[section_name]
+                if not item.get('user_created', False)
+            ]
+        
+        # Log activity
+        review_session.activity_log.append({
+            'timestamp': datetime.now().isoformat(),
+            'action': 'ALL_USER_FEEDBACK_CLEARED',
+            'details': f'Cleared {cleared_count} user feedback items'
+        })
+        
+        return jsonify({'success': True, 'cleared_count': cleared_count})
+        
+    except Exception as e:
+        return jsonify({'error': f'Clear all user feedback failed: {str(e)}'}), 500
+
 if __name__ == '__main__':
     try:
         port = int(os.environ.get('PORT', 8080))
-        print(f"Starting Flask app on port {port}")
-        app.run(debug=False, host='0.0.0.0', port=port, threaded=True, use_reloader=False)
+        flask_env = os.environ.get('FLASK_ENV', 'development')
+        debug_mode = flask_env != 'production'
+        
+        print(f"Starting AI-Prism Flask app on port {port}")
+        print(f"Environment: {flask_env}")
+        print(f"Debug mode: {debug_mode}")
+        print("All routes and functionality loaded successfully")
+        
+        app.run(
+            debug=debug_mode, 
+            host='0.0.0.0', 
+            port=port, 
+            threaded=True, 
+            use_reloader=False
+        )
     except Exception as e:
         print(f"Flask startup error: {e}")
         import traceback

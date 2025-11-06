@@ -13,7 +13,7 @@ def test_backend():
     """Test the Flask backend"""
     base_url = "http://localhost:5000"
     
-    print("🧪 Testing TARA Backend...")
+    print("🧪 Testing AI-Prism Backend...")
     
     # Test 1: Check if server is running
     try:
@@ -35,7 +35,7 @@ def test_backend():
         Test Document
         
         Executive Summary
-        This is a test document for TARA analysis.
+        This is a test document for AI-Prism analysis.
         
         Timeline of Events
         - Event 1: Test event occurred

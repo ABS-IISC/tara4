@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Local Development Runner for TARA
+Local Development Runner for AI-Prism
 Forces mock mode for development without AWS credentials
 """
 
@@ -14,13 +14,13 @@ os.environ.pop('AWS_PROFILE', None)
 
 # Set development mode
 os.environ['FLASK_ENV'] = 'development'
-os.environ['TARA_MOCK_MODE'] = 'true'
+os.environ['AI_PRISM_MOCK_MODE'] = 'true'
 
 # Import and run the main application
 from main import main
 
 if __name__ == '__main__':
-    print("Starting TARA in LOCAL MOCK MODE")
+    print("Starting AI-Prism in LOCAL MOCK MODE")
     print("AWS credentials disabled - using mock AI responses")
     print("All features will work with sample data")
     print("-" * 50)
