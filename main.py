@@ -27,6 +27,7 @@ The application will start on http://localhost:5000
 
 import os
 import sys
+import random
 from app import app
 
 def main():
@@ -41,8 +42,11 @@ def main():
                         key, value = line.strip().split('=', 1)
                         os.environ[key] = value
         
-        # Get port from environment (App Runner uses PORT=8080)
-        port = int(os.environ.get('PORT', 8080))
+        # Get port from environment or generate random port
+        if 'PORT' in os.environ:
+            port = int(os.environ.get('PORT'))
+        else:
+            port = random.randint(5000, 9999)
         
         # Always use 0.0.0.0 for deployment compatibility
         host = '0.0.0.0'

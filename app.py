@@ -315,6 +315,8 @@ def add_custom_feedback():
         description = data.get('description')
         ai_reference = data.get('ai_reference')  # New field for AI-related feedback
         ai_id = data.get('ai_id')  # New field for AI feedback ID
+        highlight_id = data.get('highlight_id')  # New field for highlighted text
+        highlighted_text = data.get('highlighted_text')  # New field for highlighted text content
         
         if not session_id or session_id not in sessions:
             return jsonify({'error': 'Invalid session'}), 400
@@ -333,7 +335,9 @@ def add_custom_feedback():
             'hawkeye_refs': [1],  # Default reference
             'confidence': 1.0,
             'ai_reference': ai_reference,  # Store AI reference if provided
-            'ai_id': ai_id  # Store AI feedback ID if provided
+            'ai_id': ai_id,  # Store AI feedback ID if provided
+            'highlight_id': highlight_id,  # Store highlight ID if provided
+            'highlighted_text': highlighted_text  # Store highlighted text if provided
         }
         
         # Add to user feedback and accepted feedback
@@ -348,6 +352,8 @@ def add_custom_feedback():
         activity_detail = f'Added custom {feedback_type} feedback in {section_name}: {description[:50]}...'
         if ai_reference:
             activity_detail += f' (Related to AI: {ai_reference[:30]}...)'
+        if highlighted_text:
+            activity_detail += f' (Highlighted: "{highlighted_text[:30]}...")' if len(highlighted_text) > 30 else f' (Highlighted: "{highlighted_text}")'
         
         review_session.activity_log.append({
             'timestamp': datetime.now().isoformat(),
