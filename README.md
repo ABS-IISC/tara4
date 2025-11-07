@@ -23,6 +23,10 @@ A professional AI-powered document analysis tool with Hawkeye investigation fram
 - **Risk Assessment**: High/Medium/Low risk classification
 - **Progress Tracking**: Real-time analysis progress updates
 - **Error Handling**: Comprehensive error messages and recovery
+- **🎨 Text Highlighting & Commenting**: Select specific text and add targeted comments with color coding
+- **📝 Highlight Management**: Edit, remove, change colors, and manage multiple comments per highlight
+- **💾 Session Persistence**: Highlights saved per section and restored during navigation
+- **📄 Export Integration**: Highlighted comments included in final Word document with proper formatting
 
 ## 🚀 Core Features
 

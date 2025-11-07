@@ -245,45 +245,104 @@ class DocumentProcessor:
         doc.add_paragraph(f'Total feedback items: {len(comments_data)}')
         doc.add_paragraph('')
         
-        # Group comments by section
+        # Group comments by section and type
         from collections import defaultdict
         section_comments = defaultdict(list)
+        highlight_comments = defaultdict(list)
         
         for comment in comments_data:
             section = comment.get('section', 'Unknown Section')
-            section_comments[section].append(comment)
+            if comment.get('highlight_id') or comment.get('highlighted_text'):
+                highlight_comments[section].append(comment)
+            else:
+                section_comments[section].append(comment)
         
         # Add each section's feedback
-        for section_name, comments in section_comments.items():
+        for section_name in set(list(section_comments.keys()) + list(highlight_comments.keys())):
             section_heading = doc.add_heading(section_name, 2)
             
-            for i, comment in enumerate(comments, 1):
-                # Create feedback item
-                para = doc.add_paragraph(style='List Number')
-                
-                # Author and type
-                author_run = para.add_run(f"[{comment.get('author', 'AI Feedback')}] ")
-                author_run.bold = True
-                
-                # Risk level with color
-                risk_level = comment.get('risk_level', 'Low')
-                type_text = f"{comment.get('type', 'feedback').upper()} - {risk_level} Risk: "
-                type_run = para.add_run(type_text)
-                type_run.bold = True
-                
-                if risk_level == 'High':
-                    type_run.font.color.rgb = RGBColor(231, 76, 60)  # Red
-                elif risk_level == 'Medium':
-                    type_run.font.color.rgb = RGBColor(243, 156, 18)  # Orange
-                else:
-                    type_run.font.color.rgb = RGBColor(52, 152, 219)  # Blue
-                
-                # Comment text
-                para.add_run(comment.get('comment', ''))
-                
-                # Add spacing
-                if i < len(comments):
-                    doc.add_paragraph('')
+            # Regular feedback
+            regular_comments = section_comments.get(section_name, [])
+            if regular_comments:
+                doc.add_heading('General Feedback', 3)
+                for i, comment in enumerate(regular_comments, 1):
+                    self._add_comment_to_summary(doc, comment, i)
+            
+            # Highlighted text feedback
+            highlighted_comments = highlight_comments.get(section_name, [])
+            if highlighted_comments:
+                doc.add_heading('Text-Specific Comments', 3)
+                for i, comment in enumerate(highlighted_comments, 1):
+                    self._add_highlight_comment_to_summary(doc, comment, i)
+            
+            doc.add_paragraph('')  # Add spacing between sections
+    
+    def _add_comment_to_summary(self, doc, comment, index):
+        """Add a regular comment to the summary"""
+        # Create feedback item
+        para = doc.add_paragraph(style='List Number')
+        
+        # Author and type
+        author_run = para.add_run(f"[{comment.get('author', 'AI Feedback')}] ")
+        author_run.bold = True
+        
+        # Risk level with color
+        risk_level = comment.get('risk_level', 'Low')
+        type_text = f"{comment.get('type', 'feedback').upper()} - {risk_level} Risk: "
+        type_run = para.add_run(type_text)
+        type_run.bold = True
+        
+        if risk_level == 'High':
+            type_run.font.color.rgb = RGBColor(231, 76, 60)  # Red
+        elif risk_level == 'Medium':
+            type_run.font.color.rgb = RGBColor(243, 156, 18)  # Orange
+        else:
+            type_run.font.color.rgb = RGBColor(52, 152, 219)  # Blue
+        
+        # Comment text
+        para.add_run(comment.get('comment', ''))
+        
+        doc.add_paragraph('')  # Add spacing
+    
+    def _add_highlight_comment_to_summary(self, doc, comment, index):
+        """Add a highlighted text comment to the summary"""
+        # Create feedback item
+        para = doc.add_paragraph(style='List Number')
+        
+        # Author and type
+        author_run = para.add_run(f"[{comment.get('author', 'User Highlight')}] ")
+        author_run.bold = True
+        
+        # Highlight indicator
+        highlight_run = para.add_run("📝 HIGHLIGHTED TEXT: ")
+        highlight_run.bold = True
+        highlight_run.font.color.rgb = RGBColor(255, 165, 0)  # Orange
+        
+        # Risk level with color
+        risk_level = comment.get('risk_level', 'Low')
+        type_text = f"{comment.get('type', 'feedback').upper()} - {risk_level} Risk\n"
+        type_run = para.add_run(type_text)
+        type_run.bold = True
+        
+        if risk_level == 'High':
+            type_run.font.color.rgb = RGBColor(231, 76, 60)  # Red
+        elif risk_level == 'Medium':
+            type_run.font.color.rgb = RGBColor(243, 156, 18)  # Orange
+        else:
+            type_run.font.color.rgb = RGBColor(52, 152, 219)  # Blue
+        
+        # Highlighted text
+        if comment.get('highlighted_text'):
+            highlighted_para = doc.add_paragraph()
+            highlighted_run = highlighted_para.add_run(f'Highlighted Text: "{comment.get("highlighted_text")}"')
+            highlighted_run.italic = True
+            highlighted_run.font.color.rgb = RGBColor(128, 128, 128)  # Gray
+        
+        # Comment text
+        comment_para = doc.add_paragraph()
+        comment_para.add_run(f'Comment: {comment.get("comment", "")}')
+        
+        doc.add_paragraph('')  # Add spacing
 
     def cleanup_temp_files(self):
         """Clean up temporary directories"""
