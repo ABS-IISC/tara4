@@ -387,8 +387,39 @@
 
         .feedback-actions {
             display: flex;
-            gap: 10px;
+            gap: 8px;
             margin-top: 15px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+        
+        .feedback-actions .btn {
+            font-size: 12px;
+            padding: 6px 12px;
+            border-radius: 6px;
+            transition: all 0.2s ease;
+        }
+        
+        .feedback-actions .btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 3px 8px rgba(0,0,0,0.2);
+        }
+        
+        .ai-custom-feedback {
+            animation: slideDown 0.3s ease;
+        }
+        
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                max-height: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                max-height: 500px;
+                transform: translateY(0);
+            }
         }
 
         .tabs {
@@ -1511,6 +1542,536 @@
         .revert-btn:hover {
             background: #c0392b;
         }
+        
+        /* Enhanced Help System Styles */
+        .feature-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            padding: 15px;
+            background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+            color: white;
+            border-radius: 10px;
+            margin-bottom: 10px;
+            transition: all 0.3s ease;
+        }
+        
+        .feature-header:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(79, 70, 229, 0.3);
+        }
+        
+        .toggle-icon {
+            font-size: 1.2em;
+            transition: transform 0.3s ease;
+        }
+        
+        .feature-content {
+            display: block;
+            padding: 20px;
+            background: linear-gradient(135deg, #f8f9ff 0%, #e3f2fd 100%);
+            border-radius: 10px;
+            border: 2px solid #4f46e5;
+            margin-bottom: 20px;
+        }
+        
+        .feature-intro {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            border-left: 4px solid #4f46e5;
+        }
+        
+        .shortcuts-categories {
+            display: grid;
+            gap: 20px;
+        }
+        
+        .shortcut-category {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 3px 10px rgba(0,0,0,0.1);
+        }
+        
+        .shortcuts-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+        
+        .shortcut-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px;
+            background: #f8f9ff;
+            border-radius: 8px;
+            border-left: 3px solid #4f46e5;
+        }
+        
+        .shortcut-item kbd {
+            background: #4f46e5;
+            color: white;
+            padding: 5px 10px;
+            border-radius: 5px;
+            font-weight: bold;
+            min-width: 30px;
+            text-align: center;
+        }
+        
+        .shortcut-item small {
+            color: #666;
+            font-size: 0.8em;
+            display: block;
+            margin-top: 2px;
+        }
+        
+        .feature-tips {
+            background: rgba(79, 70, 229, 0.1);
+            padding: 20px;
+            border-radius: 10px;
+            margin-top: 20px;
+        }
+        
+        .tutorial-progress {
+            background: white;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: #ecf0f1;
+            border-radius: 4px;
+            overflow: hidden;
+            margin-bottom: 10px;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #4f46e5, #7c3aed);
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+        
+        .tutorial-steps {
+            display: grid;
+            gap: 15px;
+        }
+        
+        .tutorial-step {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            border-left: 4px solid #ddd;
+            transition: all 0.3s ease;
+        }
+        
+        .tutorial-step.active {
+            border-left-color: #4f46e5;
+            box-shadow: 0 3px 15px rgba(79, 70, 229, 0.2);
+        }
+        
+        .tutorial-step.completed {
+            border-left-color: #2ecc71;
+            opacity: 0.8;
+        }
+        
+        .step-header {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+        
+        .step-number {
+            background: #4f46e5;
+            color: white;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+        }
+        
+        .step-status {
+            margin-left: auto;
+            font-size: 0.9em;
+            font-weight: 600;
+        }
+        
+        .step-features, .step-options {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-top: 10px;
+        }
+        
+        .feature-badge, .option-tag {
+            background: #4f46e5;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 0.8em;
+            font-weight: 600;
+        }
+        
+        .step-shortcuts {
+            background: #f8f9ff;
+            padding: 10px;
+            border-radius: 8px;
+            text-align: center;
+            margin-top: 10px;
+            font-family: monospace;
+        }
+        
+        .chat-examples {
+            display: grid;
+            gap: 8px;
+            margin-top: 10px;
+        }
+        
+        .example-question {
+            background: #e3f2fd;
+            padding: 8px 12px;
+            border-radius: 15px;
+            font-style: italic;
+            color: #1976d2;
+        }
+        
+        .tutorial-navigation {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            margin-top: 20px;
+        }
+        
+        .tutorial-btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+        
+        .tutorial-btn.primary {
+            background: #4f46e5;
+            color: white;
+        }
+        
+        .tutorial-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 3px 10px rgba(0,0,0,0.2);
+        }
+        
+        .faq-search {
+            margin-bottom: 20px;
+        }
+        
+        .faq-search input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #4f46e5;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+        
+        .faq-categories {
+            display: grid;
+            gap: 20px;
+        }
+        
+        .faq-category {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 3px 10px rgba(0,0,0,0.1);
+        }
+        
+        .faq-list {
+            display: grid;
+            gap: 10px;
+            margin-top: 15px;
+        }
+        
+        .faq-item {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            overflow: hidden;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .faq-item:hover {
+            box-shadow: 0 3px 10px rgba(0,0,0,0.1);
+        }
+        
+        .faq-question {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px;
+            background: #f8f9ff;
+            font-weight: 600;
+        }
+        
+        .faq-toggle {
+            font-size: 1.2em;
+            color: #4f46e5;
+        }
+        
+        .faq-answer {
+            padding: 15px;
+            background: white;
+            display: none;
+        }
+        
+        .faq-tip {
+            background: rgba(79, 70, 229, 0.1);
+            padding: 10px;
+            border-radius: 5px;
+            margin-top: 10px;
+        }
+        
+        .analysis-features {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin: 10px 0;
+        }
+        
+        .faq-footer {
+            background: #e3f2fd;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+            margin-top: 20px;
+        }
+        
+        .pattern-dashboard, .logs-dashboard, .learning-dashboard {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+        
+        .pattern-stats, .logs-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+        }
+        
+        .pattern-stat, .log-stat {
+            text-align: center;
+            padding: 15px;
+            background: #f8f9ff;
+            border-radius: 8px;
+        }
+        
+        .stat-number, .stat-value {
+            font-size: 2em;
+            font-weight: bold;
+            color: #4f46e5;
+        }
+        
+        .stat-label {
+            font-size: 0.9em;
+            color: #666;
+            margin-top: 5px;
+        }
+        
+        .pattern-categories {
+            display: grid;
+            gap: 20px;
+        }
+        
+        .pattern-category {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 3px 10px rgba(0,0,0,0.1);
+        }
+        
+        .pattern-feature {
+            display: flex;
+            gap: 15px;
+            align-items: flex-start;
+        }
+        
+        .feature-icon {
+            font-size: 2em;
+            background: #f8f9ff;
+            padding: 10px;
+            border-radius: 50%;
+            min-width: 60px;
+            text-align: center;
+        }
+        
+        .feature-examples {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-top: 10px;
+        }
+        
+        .example-tag {
+            background: #e3f2fd;
+            color: #1976d2;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 0.8em;
+        }
+        
+        .trend-indicators {
+            margin-top: 10px;
+        }
+        
+        .trend-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 5px 0;
+        }
+        
+        .pattern-actions, .logs-actions, .learning-actions {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            margin: 20px 0;
+        }
+        
+        .pattern-btn, .logs-btn, .learning-btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            background: #4f46e5;
+            color: white;
+            transition: all 0.3s ease;
+        }
+        
+        .pattern-btn:hover, .logs-btn:hover, .learning-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 3px 10px rgba(79, 70, 229, 0.3);
+        }
+        
+        .logs-recent {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+        }
+        
+        .recent-logs {
+            margin-top: 15px;
+        }
+        
+        .log-entry {
+            display: flex;
+            gap: 15px;
+            padding: 10px;
+            background: #f8f9ff;
+            border-radius: 8px;
+            margin-bottom: 8px;
+        }
+        
+        .log-time {
+            font-family: monospace;
+            color: #666;
+            min-width: 80px;
+        }
+        
+        .log-action {
+            font-weight: 600;
+            color: #4f46e5;
+        }
+        
+        .log-details {
+            color: #666;
+            flex: 1;
+        }
+        
+        .learning-progress {
+            display: flex;
+            gap: 30px;
+            align-items: center;
+        }
+        
+        .progress-circle {
+            position: relative;
+            width: 120px;
+            height: 120px;
+        }
+        
+        .progress-ring {
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            background: conic-gradient(#4f46e5 0deg, #e3f2fd 0deg);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .progress-center {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+        }
+        
+        .progress-percent {
+            font-size: 1.5em;
+            font-weight: bold;
+            color: #4f46e5;
+            display: block;
+        }
+        
+        .progress-label {
+            font-size: 0.8em;
+            color: #666;
+        }
+        
+        .learning-stats {
+            flex: 1;
+            display: grid;
+            gap: 15px;
+        }
+        
+        .learning-stat {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px;
+            background: #f8f9ff;
+            border-radius: 8px;
+        }
+        
+        .learning-tips {
+            background: rgba(79, 70, 229, 0.1);
+            padding: 20px;
+            border-radius: 10px;
+            margin-top: 20px;
+        }
+        
+        .learning-tips ul {
+            margin-top: 10px;
+            padding-left: 20px;
+        }
+        
+        .learning-tips li {
+            margin-bottom: 8px;
+            line-height: 1.5;
+        }
     </style>
 </head>
 <body>
@@ -1536,6 +2097,7 @@
             <button class="btn btn-info" onclick="showLogs()">📋 Logs</button>
             <button class="btn btn-info" onclick="showLearning()">🧠 Learning</button>
             <button class="btn btn-primary" onclick="showTextHighlightingFeature()" title="Learn how to use text highlighting and commenting features">🎨 Text Highlighting Feature</button>
+            <button class="btn btn-info" onclick="showCustomFeedbackHelp()" title="Learn how to add custom feedback to AI suggestions">✨ Custom Feedback Help</button>
             <button class="btn btn-warning" onclick="resetSession()">🔄 Reset</button>
         </div>
 
@@ -1614,6 +2176,9 @@
                             <button class="btn btn-secondary" onclick="previousSection()">← Previous</button>
                             <button class="btn btn-secondary" onclick="nextSection()">Next →</button>
                             <div class="risk-indicator" id="riskIndicator"></div>
+                            <div id="customFeedbackCounter" style="background: #3498db; color: white; padding: 5px 10px; border-radius: 15px; font-size: 0.8em; font-weight: 600; display: none;">
+                                📝 Custom: <span id="customCount">0</span>
+                            </div>
                         </div>
                         <div class="zoom-controls" style="display: flex; gap: 10px; align-items: center; margin-top: 10px;">
                             <button class="btn btn-info" onclick="zoomOut()" style="padding: 5px 10px; font-size: 12px;">🔍− Zoom Out</button>
@@ -1623,15 +2188,16 @@
                         </div>
                         
                         <!-- Text Highlighting Tools -->
-                        <div class="highlight-tools" style="display: flex; gap: 8px; align-items: center; margin-top: 10px; padding: 10px; background: linear-gradient(135deg, #f8f9ff 0%, #e3f2fd 100%); border-radius: 8px; border: 2px solid #4f46e5;">
+                        <div class="highlight-tools" style="display: flex; gap: 8px; align-items: center; margin-top: 10px; padding: 10px; background: linear-gradient(135deg, #f8f9ff 0%, #e3f2fd 100%); border-radius: 8px; border: 2px solid #4f46e5; flex-wrap: wrap;">
                             <span style="font-weight: 600; color: #4f46e5; font-size: 12px;">🎨 Highlight Tools:</span>
-                            <button class="btn btn-warning" onclick="setHighlightColor('yellow')" style="padding: 4px 8px; font-size: 11px; background: #ffd700; color: #333; border: 1px solid #e6c200;">🟡 Yellow</button>
-                            <button class="btn btn-success" onclick="setHighlightColor('lightgreen')" style="padding: 4px 8px; font-size: 11px; background: #90ee90; color: #333; border: 1px solid #7dd87d;">🟢 Green</button>
-                            <button class="btn btn-info" onclick="setHighlightColor('lightblue')" style="padding: 4px 8px; font-size: 11px; background: #add8e6; color: #333; border: 1px solid #9ac5d3;">🔵 Blue</button>
-                            <button class="btn btn-danger" onclick="setHighlightColor('lightcoral')" style="padding: 4px 8px; font-size: 11px; background: #f08080; color: #333; border: 1px solid #dd6d6d;">🔴 Red</button>
-                            <button class="btn btn-secondary" onclick="setHighlightColor('lightgray')" style="padding: 4px 8px; font-size: 11px; background: #d3d3d3; color: #333; border: 1px solid #c0c0c0;">⚪ Gray</button>
-                            <button class="btn btn-secondary" onclick="clearHighlights()" style="padding: 4px 8px; font-size: 11px;">🧹 Clear All</button>
-                            <button class="btn btn-success" id="saveHighlightBtn" onclick="saveHighlightedText()" style="padding: 4px 8px; font-size: 11px; display: none;">💾 Save & Comment</button>
+                            <button class="btn btn-warning color-btn" onclick="setHighlightColor('yellow')" style="padding: 4px 8px; font-size: 11px; background: #ffd700; color: #333; border: 2px solid #e6c200;">🟡 Yellow</button>
+                            <button class="btn btn-success color-btn" onclick="setHighlightColor('lightgreen')" style="padding: 4px 8px; font-size: 11px; background: #90ee90; color: #333; border: 2px solid #7dd87d;">🟢 Green</button>
+                            <button class="btn btn-info color-btn" onclick="setHighlightColor('lightblue')" style="padding: 4px 8px; font-size: 11px; background: #add8e6; color: #333; border: 2px solid #9ac5d3;">🔵 Blue</button>
+                            <button class="btn btn-danger color-btn" onclick="setHighlightColor('lightcoral')" style="padding: 4px 8px; font-size: 11px; background: #f08080; color: #333; border: 2px solid #dd6d6d;">🔴 Red</button>
+                            <button class="btn btn-secondary color-btn" onclick="setHighlightColor('lightgray')" style="padding: 4px 8px; font-size: 11px; background: #d3d3d3; color: #333; border: 2px solid #c0c0c0;">⚪ Gray</button>
+                            <button class="btn btn-primary" onclick="showAddCommentDialog()" style="padding: 4px 8px; font-size: 11px;">💬 Add Comment</button>
+                            <button class="btn btn-info" onclick="showUpdateCommentsDialog()" style="padding: 4px 8px; font-size: 11px;">✏️ Update Comments</button>
+                            <button class="btn btn-secondary" onclick="clearAllHighlights()" style="padding: 4px 8px; font-size: 11px;">🧹 Clear All</button>
                         </div>
                     </div>
                     <div class="document-content-scroll">
@@ -1822,6 +2388,9 @@
             <button class="btn btn-warning" onclick="exportAllUserFeedback()" id="exportUserFeedbackBtn">
                 📄 Export My Feedback
             </button>
+            <button class="btn btn-secondary" onclick="clearAllSectionCustomFeedback()" id="clearSectionFeedbackBtn">
+                🧹 Clear Section Feedback
+            </button>
             <button class="btn btn-info" onclick="downloadStatistics()" id="downloadStatsBtn">
                 📊 Download Statistics
             </button>
@@ -1971,6 +2540,10 @@
     <script src="/static/js/button_fixes.js"></script>
     <script src="/static/js/missing_functions.js"></script>
     <script src="/static/js/text_highlighting.js"></script>
+    <script src="/static/js/custom_feedback_functions.js"></script>
+    <script src="/static/js/custom_feedback_help.js"></script>
+    <script src="/static/js/text_highlight_comments.js"></script>
+    <script src="/static/js/enhanced_help_system.js"></script>
     <script>
         // Global variables
         let currentSession = null;
@@ -1992,11 +2565,7 @@
             userFeedback: 0
         };
         
-        // Text highlighting variables
-        let currentHighlightColor = 'yellow';
-        let isEraseMode = false;
-        let highlightedTexts = [];
-        let highlightCounter = 0;
+        // Text highlighting variables moved to text_highlight_comments.js
         
         // Loading media array
         const loadingMediaWithContent = [
@@ -2380,17 +2949,35 @@
                                 
                                 <div style="background: white; padding: 15px; border-radius: 10px; border-left: 5px solid #10b981; box-shadow: 0 3px 10px rgba(0,0,0,0.1);">
                                     <h5 style="color: #10b981; margin-bottom: 10px;">📝 Step 2: Select Text in Document</h5>
-                                    <p style="margin: 0; color: #555;">Use your mouse to select any text in the document. You can highlight single words, phrases, or entire paragraphs.</p>
+                                    <p style="margin: 0; color: #555;">Use your mouse to select any text in the document. Text gets highlighted automatically with your chosen color.</p>
                                 </div>
                                 
                                 <div style="background: white; padding: 15px; border-radius: 10px; border-left: 5px solid #ec4899; box-shadow: 0 3px 10px rgba(0,0,0,0.1);">
-                                    <h5 style="color: #ec4899; margin-bottom: 10px;">💬 Step 3: Save & Add Comment</h5>
-                                    <p style="margin: 0; color: #555;">Click the "Save & Comment" button that appears. A dialog will open where you can add your specific feedback about the highlighted text.</p>
+                                    <h5 style="color: #ec4899; margin-bottom: 10px;">💬 Step 3: Add Comment</h5>
+                                    <p style="margin: 0; color: #555;">A comment dialog opens automatically. Add your feedback about the highlighted text and save it.</p>
                                 </div>
                                 
                                 <div style="background: white; padding: 15px; border-radius: 10px; border-left: 5px solid #f59e0b; box-shadow: 0 3px 10px rgba(0,0,0,0.1);">
-                                    <h5 style="color: #f59e0b; margin-bottom: 10px;">🔄 Step 4: Manage Highlights</h5>
-                                    <p style="margin: 0; color: #555;">Click existing highlights to view/edit comments. Use "Clear All" to remove all highlights, or remove individual ones as needed.</p>
+                                    <h5 style="color: #f59e0b; margin-bottom: 10px;">✏️ Step 4: Update Comments</h5>
+                                    <p style="margin: 0; color: #555;">Use "Update Comments" button to view and edit all existing highlighted comments in the section.</p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div style="background: white; padding: 20px; border-radius: 12px; border-left: 5px solid #10b981; margin-bottom: 20px;">
+                            <h4 style="color: #10b981; margin-bottom: 15px;">🔧 Button Functions:</h4>
+                            <div style="display: grid; grid-template-columns: 1fr; gap: 8px;">
+                                <div style="padding: 8px; background: #f0fff4; border-radius: 6px; font-size: 0.9em;">
+                                    <strong>🟡🟢🔵🔴⚪ Color Buttons:</strong> Select highlight color before selecting text
+                                </div>
+                                <div style="padding: 8px; background: #f0fff4; border-radius: 6px; font-size: 0.9em;">
+                                    <strong>💬 Add Comment:</strong> Add comment to currently selected text
+                                </div>
+                                <div style="padding: 8px; background: #f0fff4; border-radius: 6px; font-size: 0.9em;">
+                                    <strong>✏️ Update Comments:</strong> View and edit all existing highlighted comments
+                                </div>
+                                <div style="padding: 8px; background: #f0fff4; border-radius: 6px; font-size: 0.9em;">
+                                    <strong>🧹 Clear All:</strong> Remove all highlights and comments from section
                                 </div>
                             </div>
                         </div>
@@ -2407,13 +2994,25 @@
                             </div>
                         </div>
                         
+                        <div style="background: white; padding: 15px; border-radius: 10px; border: 2px solid #ec4899; margin-bottom: 20px;">
+                            <h4 style="color: #ec4899; margin-bottom: 10px;">💬 Comment Types Available:</h4>
+                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; font-size: 0.9em;">
+                                <div style="text-align: center; padding: 8px; background: #fdf2f8; border-radius: 5px;"><strong>Suggestion</strong></div>
+                                <div style="text-align: center; padding: 8px; background: #fdf2f8; border-radius: 5px;"><strong>Important</strong></div>
+                                <div style="text-align: center; padding: 8px; background: #fdf2f8; border-radius: 5px;"><strong>Critical</strong></div>
+                                <div style="text-align: center; padding: 8px; background: #fdf2f8; border-radius: 5px;"><strong>Question</strong></div>
+                                <div style="text-align: center; padding: 8px; background: #fdf2f8; border-radius: 5px;"><strong>Clarification</strong></div>
+                            </div>
+                        </div>
+                        
                         <div style="background: linear-gradient(135deg, #e8f5e8 0%, #d4edda 100%); padding: 15px; border-radius: 10px; border: 2px solid #28a745;">
                             <h5 style="color: #28a745; margin-bottom: 10px;">✨ Why Use Text Highlighting?</h5>
                             <div style="text-align: left; color: #155724; font-size: 0.95em; line-height: 1.6;">
                                 ✓ Provide precise, context-specific feedback<br>
                                 ✓ Visually organize your review comments<br>
                                 ✓ Create a clear audit trail of your analysis<br>
-                                ✓ Enhance collaboration with specific text references
+                                ✓ Enhance collaboration with specific text references<br>
+                                ✓ All comments automatically appear in "Custom Feedback" logs
                             </div>
                         </div>
                     </div>
@@ -2964,6 +3563,10 @@
                 // Restore highlights for this section
                 setTimeout(() => {
                     restoreSectionHighlights(sectionName);
+                    // Update custom feedback button states
+                    if (typeof updateAICustomButtonStates === 'function') {
+                        updateAICustomButtonStates();
+                    }
                 }, 200);
             } else {
                 // Fallback to API call if data not stored
@@ -2990,6 +3593,10 @@
                         // Restore highlights for this section
                         setTimeout(() => {
                             restoreSectionHighlights(sectionName);
+                            // Update custom feedback button states
+                            if (typeof updateAICustomButtonStates === 'function') {
+                                updateAICustomButtonStates();
+                            }
                         }, 200);
                     }
                     hideProgress();
@@ -3117,6 +3724,10 @@
             // Enable text selection for highlighting
             setTimeout(() => {
                 enableTextSelection();
+                // Initialize new text highlighting with comments
+                if (typeof initializeTextHighlighting === 'function') {
+                    initializeTextHighlighting();
+                }
             }, 100);
         }
         
@@ -3182,7 +3793,8 @@
                             <button class="btn btn-success" onclick="acceptFeedback('${item.id}', event)">✓ Accept</button>
                             <button class="btn btn-danger" onclick="rejectFeedback('${item.id}', event)">✗ Reject</button>
                             <button class="btn btn-warning" onclick="revertFeedback('${item.id}', event)" style="font-size: 12px; padding: 5px 10px;">🔄 Revert</button>
-                            <button class="btn btn-info" onclick="addCustomToAI('${item.id}', event)" style="font-size: 12px; padding: 5px 10px;">✨ Add My Feedback</button>
+                            <button class="btn btn-info" onclick="addCustomToAI('${item.id}', event)" style="font-size: 12px; padding: 5px 10px;">✨ Add Custom</button>
+                            <button class="btn btn-secondary" onclick="clearAICustomFeedback('${item.id}', event)" style="font-size: 12px; padding: 5px 10px;">🧹 Clear</button>
                         </div>
                         <div id="custom-${item.id}" class="ai-custom-feedback" style="display: none; margin-top: 15px; padding: 15px; background: linear-gradient(135deg, #f0f8ff 0%, #e8f4fd 100%); border-radius: 10px; border: 2px solid #3498db; box-shadow: 0 3px 10px rgba(52, 152, 219, 0.2);">
                             <h5 style="color: #3498db; margin-bottom: 15px; font-size: 1.1em;">✨ Add Your Custom Feedback to This AI Suggestion</h5>
@@ -3425,6 +4037,9 @@
                     displayUserFeedback(feedbackItem);
                     updateStatistics();
                     
+                    // Refresh the custom feedback section logs
+                    refreshUserFeedbackList();
+                    
                     // Update dashboard data
                     dashboardData.userFeedback++;
                     dashboardData.totalFeedback++;
@@ -3445,6 +4060,9 @@
             feedbackDiv.style.background = '#e8f5e8';
             feedbackDiv.style.borderLeft = '4px solid #2ecc71';
             feedbackDiv.id = `user-feedback-${feedbackItem.id}`;
+            if (feedbackItem.ai_id) {
+                feedbackDiv.setAttribute('data-ai-id', feedbackItem.ai_id);
+            }
             
             const typeClass = `type-${feedbackItem.type}`;
             const timestamp = new Date(feedbackItem.timestamp).toLocaleTimeString();
@@ -3476,77 +4094,16 @@
             
             // Scroll to show the new feedback
             feedbackDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-        }
-        
-        function addCustomToAI(aiId, event) {
-            if (event) event.stopPropagation();
             
-            const customDiv = document.getElementById(`custom-${aiId}`);
-            if (customDiv.style.display === 'none') {
-                // Hide all other custom forms
-                document.querySelectorAll('.ai-custom-feedback').forEach(div => {
-                    div.style.display = 'none';
-                });
-                customDiv.style.display = 'block';
-            } else {
-                customDiv.style.display = 'none';
+            // Update custom feedback counter
+            if (typeof updateSectionCustomFeedbackCounter === 'function') {
+                updateSectionCustomFeedbackCounter();
             }
         }
         
-        function cancelAICustom(aiId) {
-            document.getElementById(`custom-${aiId}`).style.display = 'none';
-            document.getElementById(`aiCustomDesc-${aiId}`).value = '';
-        }
+        // Custom feedback functions moved to custom_feedback_functions.js
         
-        function saveAICustomFeedback(aiId) {
-            const type = document.getElementById(`aiCustomType-${aiId}`).value;
-            const category = document.getElementById(`aiCustomCategory-${aiId}`).value;
-            const description = document.getElementById(`aiCustomDesc-${aiId}`).value.trim();
-            
-            if (!description) {
-                showNotification('Please enter your custom feedback', 'error');
-                return;
-            }
-            
-            // Find the AI feedback item for reference
-            const aiItem = window.sectionData?.[sections[currentSectionIndex]]?.feedback?.find(item => item.id === aiId);
-            const aiReference = aiItem ? `${aiItem.type}: ${aiItem.description.substring(0, 50)}...` : 'AI Suggestion';
-            
-            fetch('/add_custom_feedback', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    session_id: currentSession,
-                    section_name: sections[currentSectionIndex],
-                    type: type,
-                    category: category,
-                    description: description,
-                    ai_reference: aiReference,
-                    ai_id: aiId
-                })
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    showNotification('Custom feedback added to AI suggestion!', 'success');
-                    
-                    // Add to local history
-                    const feedbackItem = data.feedback_item;
-                    feedbackItem.section = sections[currentSectionIndex];
-                    userFeedbackHistory.push(feedbackItem);
-                    
-                    displayUserFeedback(feedbackItem);
-                    cancelAICustom(aiId);
-                    updateStatistics();
-                    updateAllCustomFeedbackList();
-                } else {
-                    showNotification(data.error || 'Add feedback failed', 'error');
-                }
-            })
-            .catch(error => {
-                showNotification('Add feedback failed: ' + error.message, 'error');
-            });
-        }
+        // saveAICustomFeedback function moved to custom_feedback_functions.js
         
         function updateAllCustomFeedbackList() {
             const container = document.getElementById('customFeedbackList');
@@ -3557,6 +4114,10 @@
             
             if (allFeedback.length === 0) {
                 container.innerHTML = '<div style="text-align: center; padding: 20px; background: #f8f9fa; border-radius: 8px; color: #666; border: 2px dashed #ddd;"><p style="margin: 0; font-style: italic;">No custom feedback for this section yet.</p><p style="margin: 5px 0 0 0; font-size: 0.9em;">Add your first feedback above!</p></div>';
+                // Update button states when no feedback
+                if (typeof updateAICustomButtonStates === 'function') {
+                    updateAICustomButtonStates();
+                }
                 return;
             }
             
@@ -3600,6 +4161,11 @@
                     </div>
                 `;
             }).join('');
+            
+            // Update button states after updating the list
+            if (typeof updateAICustomButtonStates === 'function') {
+                setTimeout(updateAICustomButtonStates, 100);
+            }
         }
         
         function editUserFeedback(feedbackId) {
@@ -4004,23 +4570,7 @@
             }
         }
         
-        // Text Highlighting Functions
-        function setHighlightColor(color) {
-            currentHighlightColor = color;
-            isEraseMode = false;
-            
-            // Update button states
-            document.querySelectorAll('.highlight-tools button').forEach(btn => {
-                btn.style.border = '1px solid #ddd';
-            });
-            
-            event.target.style.border = '3px solid #333';
-            
-            showNotification(`Highlight color set to ${color}. Select text to highlight.`, 'info');
-            
-            // Enable text selection mode
-            enableTextSelection();
-        }
+        // Text Highlighting Functions moved to text_highlight_comments.js
         
         let currentSelectedText = '';
         let currentSelectedRange = null;
@@ -4078,33 +4628,7 @@
             }
         }
         
-        function clearHighlights() {
-            if (confirm('Are you sure you want to clear all highlights and their comments?')) {
-                // Remove all highlight spans
-                const docContent = document.getElementById('documentContent');
-                const highlights = docContent.querySelectorAll('.text-highlight');
-                
-                highlights.forEach(highlight => {
-                    const parent = highlight.parentNode;
-                    parent.replaceChild(document.createTextNode(highlight.textContent), highlight);
-                    parent.normalize();
-                });
-                
-                // Clear highlight data
-                highlightedTexts = [];
-                
-                // Remove highlight-related user feedback
-                const currentSectionName = sections[currentSectionIndex];
-                if (userFeedbackHistory) {
-                    userFeedbackHistory = userFeedbackHistory.filter(item => 
-                        !(item.section === currentSectionName && item.highlight_id)
-                    );
-                }
-                
-                updateAllCustomFeedbackList();
-                showNotification('All highlights cleared!', 'success');
-            }
-        }
+        // clearHighlights function moved to text_highlight_comments.js
         
         function enableTextSelection() {
             const docContent = document.getElementById('documentContent');
