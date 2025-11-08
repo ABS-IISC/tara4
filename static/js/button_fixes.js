@@ -617,7 +617,31 @@ function showPatterns() {
         showNotification('No active session', 'error');
         return;
     }
-    showNotification('Pattern analysis available in main app', 'info');
+    
+    showProgress('Loading pattern analysis...');
+    
+    fetch(`/get_patterns?session_id=${currentSession}`)
+    .then(response => response.json())
+    .then(data => {
+        hideProgress();
+        if (data.success) {
+            const patterns = data.patterns;
+            
+            const modalContent = `
+                <div style="max-height: 70vh; overflow-y: auto;">
+                    ${patterns.pattern_report_html || '<p>No patterns found yet. Review more documents to identify patterns.</p>'}
+                </div>
+            `;
+            
+            showModal('genericModal', '📊 Pattern Analysis', modalContent);
+        } else {
+            showNotification('Failed to load patterns: ' + (data.error || 'Unknown error'), 'error');
+        }
+    })
+    .catch(error => {
+        hideProgress();
+        showNotification('Failed to load patterns: ' + error.message, 'error');
+    });
 }
 
 function showLogs() {
@@ -625,7 +649,33 @@ function showLogs() {
         showNotification('No active session', 'error');
         return;
     }
-    showNotification('Activity logs available in main app', 'info');
+    
+    showProgress('Loading activity logs...');
+    
+    fetch(`/get_logs?session_id=${currentSession}&format=html`)
+    .then(response => response.json())
+    .then(data => {
+        hideProgress();
+        if (data.success) {
+            const modalContent = `
+                <div style="max-height: 70vh; overflow-y: auto;">
+                    ${data.logs_html || '<p>No logs available.</p>'}
+                    <div style="text-align: center; margin-top: 20px;">
+                        <button class="btn btn-info" onclick="exportLogs()" style="margin: 5px;">📥 Export Logs</button>
+                        <button class="btn btn-secondary" onclick="refreshLogs()" style="margin: 5px;">🔄 Refresh</button>
+                    </div>
+                </div>
+            `;
+            
+            showModal('genericModal', '📋 Activity Logs', modalContent);
+        } else {
+            showNotification('Failed to load logs: ' + (data.error || 'Unknown error'), 'error');
+        }
+    })
+    .catch(error => {
+        hideProgress();
+        showNotification('Failed to load logs: ' + error.message, 'error');
+    });
 }
 
 function showLearning() {
@@ -633,7 +683,33 @@ function showLearning() {
         showNotification('No active session', 'error');
         return;
     }
-    showNotification('AI learning status available in main app', 'info');
+    
+    showProgress('Loading AI learning status...');
+    
+    fetch(`/get_learning_status?session_id=${currentSession}&format=html`)
+    .then(response => response.json())
+    .then(data => {
+        hideProgress();
+        if (data.success) {
+            const modalContent = `
+                <div style="max-height: 70vh; overflow-y: auto;">
+                    ${data.learning_html || '<p>No learning data available.</p>'}
+                    <div style="text-align: center; margin-top: 20px;">
+                        <button class="btn btn-info" onclick="exportLearningData()" style="margin: 5px;">📥 Export Learning Data</button>
+                        <button class="btn btn-secondary" onclick="refreshLearning()" style="margin: 5px;">🔄 Refresh</button>
+                    </div>
+                </div>
+            `;
+            
+            showModal('genericModal', '🧠 AI Learning System', modalContent);
+        } else {
+            showNotification('Failed to load learning status: ' + (data.error || 'Unknown error'), 'error');
+        }
+    })
+    .catch(error => {
+        hideProgress();
+        showNotification('Failed to load learning status: ' + error.message, 'error');
+    });
 }
 
 function resetSession() {
@@ -677,6 +753,128 @@ function resetSession() {
             showNotification('Reset failed: ' + error.message, 'error');
         });
     }
+}
+
+// Helper functions for new features
+function exportLogs() {
+    if (!currentSession) {
+        showNotification('No active session', 'error');
+        return;
+    }
+    
+    fetch(`/get_logs?session_id=${currentSession}&format=json`)
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            const exportData = {
+                export_timestamp: new Date().toISOString(),
+                session_id: currentSession,
+                logs: data.logs,
+                performance_metrics: data.performance_metrics,
+                summary: data.summary
+            };
+            
+            const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `activity_logs_${new Date().toISOString().split('T')[0]}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+            
+            showNotification('Activity logs exported successfully!', 'success');
+        } else {
+            showNotification('Export failed: ' + (data.error || 'Unknown error'), 'error');
+        }
+    })
+    .catch(error => {
+        showNotification('Export failed: ' + error.message, 'error');
+    });
+}
+
+function refreshLogs() {
+    closeModal('genericModal');
+    setTimeout(() => showLogs(), 100);
+}
+
+function exportLearningData() {
+    if (!currentSession) {
+        showNotification('No active session', 'error');
+        return;
+    }
+    
+    fetch(`/get_learning_status?session_id=${currentSession}&format=json`)
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            const exportData = {
+                export_timestamp: new Date().toISOString(),
+                session_id: currentSession,
+                learning_status: data.learning_status,
+                recommendations: data.recommendations
+            };
+            
+            const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `learning_data_${new Date().toISOString().split('T')[0]}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+            
+            showNotification('Learning data exported successfully!', 'success');
+        } else {
+            showNotification('Export failed: ' + (data.error || 'Unknown error'), 'error');
+        }
+    })
+    .catch(error => {
+        showNotification('Export failed: ' + error.message, 'error');
+    });
+}
+
+function refreshLearning() {
+    closeModal('genericModal');
+    setTimeout(() => showLearning(), 100);
+}
+
+function exportPatterns() {
+    if (!currentSession) {
+        showNotification('No active session', 'error');
+        return;
+    }
+    
+    fetch(`/get_patterns?session_id=${currentSession}`)
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            const exportData = {
+                export_timestamp: new Date().toISOString(),
+                session_id: currentSession,
+                patterns: data.patterns
+            };
+            
+            const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `patterns_${new Date().toISOString().split('T')[0]}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+            
+            showNotification('Patterns exported successfully!', 'success');
+        } else {
+            showNotification('Export failed: ' + (data.error || 'Unknown error'), 'error');
+        }
+    })
+    .catch(error => {
+        showNotification('Export failed: ' + error.message, 'error');
+    });
 }
 
 // Initialize when DOM is loaded

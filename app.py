@@ -11,6 +11,9 @@ from core.document_analyzer import DocumentAnalyzer
 from core.ai_feedback_engine import AIFeedbackEngine
 from utils.statistics_manager import StatisticsManager
 from utils.document_processor import DocumentProcessor
+from utils.pattern_analyzer import DocumentPatternAnalyzer
+from utils.audit_logger import AuditLogger
+from utils.learning_system import FeedbackLearningSystem
 
 app = Flask(__name__, static_folder='static')
 app.secret_key = 'your-secret-key-here'
@@ -36,6 +39,9 @@ try:
     ai_engine = AIFeedbackEngine()
     stats_manager = StatisticsManager()
     doc_processor = DocumentProcessor()
+    pattern_analyzer = DocumentPatternAnalyzer()
+    audit_logger = AuditLogger()
+    learning_system = FeedbackLearningSystem()
     
     # Log environment configuration
     flask_env = os.environ.get('FLASK_ENV', 'development')
@@ -88,6 +94,9 @@ class ReviewSession:
         self.activity_log = []
         self.patterns_data = {}
         self.learning_data = {}
+        self.audit_logger = AuditLogger()
+        self.pattern_analyzer = DocumentPatternAnalyzer()
+        self.learning_system = FeedbackLearningSystem()
 
 @app.route('/')
 def index():
@@ -166,6 +175,9 @@ def upload_document():
             'details': log_details
         })
         
+        # Log with audit logger
+        review_session.audit_logger.log('DOCUMENTS_UPLOADED', log_details)
+        
         return jsonify({
             'success': True,
             'session_id': session_id,
@@ -213,6 +225,9 @@ def analyze_section():
             'details': f'Section {section_name} analyzed - {len(feedback_items)} feedback items generated'
         })
         
+        # Log with audit logger
+        review_session.audit_logger.log('SECTION_ANALYZED', f'Section {section_name} analyzed - {len(feedback_items)} feedback items generated')
+        
         return jsonify({
             'success': True,
             'feedback_items': feedback_items,
@@ -258,6 +273,10 @@ def accept_feedback():
             'details': f'Accepted {feedback_item.get("type")} feedback in {section_name}'
         })
         
+        # Log with audit logger and learning system
+        review_session.audit_logger.log('FEEDBACK_ACCEPTED', f'Accepted {feedback_item.get("type")} feedback in {section_name}')
+        review_session.learning_system.record_ai_feedback_response(feedback_item, section_name, accepted=True)
+        
         return jsonify({'success': True})
         
     except Exception as e:
@@ -298,6 +317,10 @@ def reject_feedback():
             'action': 'FEEDBACK_REJECTED',
             'details': f'Rejected {feedback_item.get("type")} feedback in {section_name}'
         })
+        
+        # Log with audit logger and learning system
+        review_session.audit_logger.log('FEEDBACK_REJECTED', f'Rejected {feedback_item.get("type")} feedback in {section_name}')
+        review_session.learning_system.record_ai_feedback_response(feedback_item, section_name, accepted=False)
         
         return jsonify({'success': True})
         
@@ -360,6 +383,10 @@ def add_custom_feedback():
             'action': 'CUSTOM_FEEDBACK_ADDED',
             'details': activity_detail
         })
+        
+        # Log with audit logger and learning system
+        review_session.audit_logger.log('CUSTOM_FEEDBACK_ADDED', activity_detail)
+        review_session.learning_system.add_custom_feedback(custom_feedback, section_name)
         
         return jsonify({'success': True, 'feedback_item': custom_feedback})
         
@@ -600,8 +627,21 @@ def get_patterns():
         
         review_session = sessions[session_id]
         
-        # Analyze patterns from current session data
-        patterns = analyze_feedback_patterns(review_session)
+        # Add current session data to pattern analyzer
+        all_feedback = []
+        for section_name, feedback_items in review_session.feedback_data.items():
+            all_feedback.extend(feedback_items)
+        
+        if all_feedback:
+            review_session.pattern_analyzer.add_document_feedback(review_session.document_name, all_feedback)
+        
+        # Get patterns
+        patterns = {
+            'recurring_patterns': review_session.pattern_analyzer.find_recurring_patterns(),
+            'category_trends': review_session.pattern_analyzer.get_category_trends(),
+            'risk_patterns': review_session.pattern_analyzer.get_risk_patterns(),
+            'pattern_report_html': review_session.pattern_analyzer.get_pattern_report_html()
+        }
         
         return jsonify({'success': True, 'patterns': patterns})
         
@@ -698,13 +738,28 @@ def analyze_feedback_patterns(review_session):
 def get_logs():
     try:
         session_id = request.args.get('session_id') or session.get('session_id')
+        format_type = request.args.get('format', 'json')
         
         if not session_id or session_id not in sessions:
             return jsonify({'error': 'Invalid session'}), 400
         
         review_session = sessions[session_id]
         
-        return jsonify({'success': True, 'logs': review_session.activity_log})
+        if format_type == 'html':
+            logs_html = review_session.audit_logger.generate_audit_report_html()
+            return jsonify({'success': True, 'logs_html': logs_html})
+        else:
+            logs = review_session.audit_logger.get_session_logs()
+            performance_metrics = review_session.audit_logger.get_performance_metrics()
+            activity_timeline = review_session.audit_logger.get_activity_timeline()
+            
+            return jsonify({
+                'success': True, 
+                'logs': logs,
+                'performance_metrics': performance_metrics,
+                'activity_timeline': activity_timeline,
+                'summary': review_session.audit_logger.generate_summary_report()
+            })
         
     except Exception as e:
         return jsonify({'error': f'Get logs failed: {str(e)}'}), 500
@@ -713,36 +768,32 @@ def get_logs():
 def get_learning_status():
     try:
         session_id = request.args.get('session_id') or session.get('session_id')
+        format_type = request.args.get('format', 'json')
         
         if not session_id or session_id not in sessions:
             return jsonify({'error': 'Invalid session'}), 400
         
         review_session = sessions[session_id]
         
-        # Calculate learning metrics
-        custom_feedback_count = sum(len(items) for items in review_session.user_feedback.values())
-        accepted_count = sum(len(items) for items in review_session.accepted_feedback.values())
-        rejected_count = sum(len(items) for items in review_session.rejected_feedback.values())
-        total_ai_feedback = sum(len(items) for items in review_session.feedback_data.values())
-        
-        # Calculate learning effectiveness
-        acceptance_rate = (accepted_count / max(accepted_count + rejected_count, 1)) * 100
-        user_engagement = (custom_feedback_count / max(total_ai_feedback, 1)) * 100
-        
-        learning_status = {
-            'custom_feedback_count': custom_feedback_count,
-            'accepted_feedback_count': accepted_count,
-            'rejected_feedback_count': rejected_count,
-            'total_ai_feedback': total_ai_feedback,
-            'sections_with_patterns': len([s for s in review_session.sections if review_session.feedback_data.get(s)]),
-            'learning_active': True,
-            'acceptance_rate': round(acceptance_rate, 1),
-            'user_engagement_score': round(user_engagement, 1),
-            'learning_insights': generate_learning_insights(review_session),
-            'improvement_suggestions': generate_improvement_suggestions(acceptance_rate, user_engagement)
-        }
-        
-        return jsonify({'success': True, 'learning_status': learning_status})
+        if format_type == 'html':
+            learning_html = review_session.learning_system.generate_learning_report_html()
+            return jsonify({'success': True, 'learning_html': learning_html})
+        else:
+            learning_stats = review_session.learning_system.get_learning_statistics()
+            
+            # Get recommended feedback for current sections
+            recommendations = {}
+            for section_name in review_session.sections:
+                section_content = review_session.sections[section_name]
+                recs = review_session.learning_system.get_recommended_feedback(section_name, section_content)
+                if recs:
+                    recommendations[section_name] = recs
+            
+            return jsonify({
+                'success': True, 
+                'learning_status': learning_stats,
+                'recommendations': recommendations
+            })
         
     except Exception as e:
         return jsonify({'error': f'Get learning status failed: {str(e)}'}), 500

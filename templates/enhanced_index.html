@@ -843,29 +843,41 @@
             color: #f0f6fc !important;
         }
 
+        /* Keep document content white in dark mode for better highlight visibility */
         .dark-mode #documentContent {
-            background: #21262d !important;
-            color: #f0f6fc !important;
-            border: 1px solid #30363d !important;
+            background: #ffffff !important;
+            color: #000000 !important;
+            border: 2px solid #30363d !important;
+        }
+        
+        .dark-mode #documentContent .document-inner {
+            background: #ffffff !important;
+            color: #000000 !important;
         }
         
         .dark-mode #documentContent div {
-            background: #21262d !important;
-            color: #f0f6fc !important;
+            background: #ffffff !important;
+            color: #000000 !important;
         }
         
         .dark-mode #documentContent h1 {
-            color: #f0f6fc !important;
-            border-bottom-color: #30363d !important;
+            color: #000000 !important;
+            border-bottom-color: #cccccc !important;
         }
         
         .dark-mode #documentContent p {
-            color: #f0f6fc !important;
+            color: #000000 !important;
+        }
+        
+        .dark-mode #documentContent #documentText {
+            background: #ffffff !important;
+            color: #000000 !important;
         }
 
         .dark-mode #documentContent button {
             background: #1f6feb !important;
             color: #ffffff !important;
+            border: 1px solid #1f6feb !important;
         }
 
         .dark-mode .controls {
@@ -1016,20 +1028,41 @@
             background: rgba(79, 70, 229, 0.3);
         }
         
-        /* Dark mode highlighting */
+        /* Dark mode highlighting - keep highlights visible on white document background */
         .dark-mode .text-highlight {
-            border-color: rgba(255,255,255,0.3) !important;
+            border: 2px solid rgba(0,0,0,0.4) !important;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3) !important;
         }
         
         .dark-mode .highlight-tools {
             background: linear-gradient(135deg, #21262d 0%, #30363d 100%) !important;
-            border-color: #1f6feb !important;
+            border: 2px solid #1f6feb !important;
+            color: #f0f6fc !important;
         }
         
         .dark-mode .highlight-tools span {
             color: #f0f6fc !important;
         }
+        
+        .dark-mode .highlight-tools button {
+            border: 1px solid #30363d !important;
+        }
 
+        /* Document content stays white in dark mode for highlight visibility */
+        .dark-mode #documentContent,
+        .dark-mode #documentContent .document-inner,
+        .dark-mode #documentContent #documentText {
+            background: #ffffff !important;
+            color: #000000 !important;
+        }
+        
+        .dark-mode .expanded-document,
+        .dark-mode .expanded-document .document-inner,
+        .dark-mode .expanded-document #documentText {
+            background: #ffffff !important;
+            color: #000000 !important;
+        }
+        
         /* Additional dark mode fixes for specific elements */
         .dark-mode .all-custom-feedback {
             background: #21262d !important;
@@ -1502,7 +1535,7 @@
             <button class="btn btn-info" onclick="showPatterns()">📊 Patterns</button>
             <button class="btn btn-info" onclick="showLogs()">📋 Logs</button>
             <button class="btn btn-info" onclick="showLearning()">🧠 Learning</button>
-            <button class="btn btn-primary" onclick="showTextHighlightingFeature()">🎨 Text Highlighting Feature</button>
+            <button class="btn btn-primary" onclick="showTextHighlightingFeature()" title="Learn how to use text highlighting and commenting features">🎨 Text Highlighting Feature</button>
             <button class="btn btn-warning" onclick="resetSession()">🔄 Reset</button>
         </div>
 
@@ -1592,11 +1625,11 @@
                         <!-- Text Highlighting Tools -->
                         <div class="highlight-tools" style="display: flex; gap: 8px; align-items: center; margin-top: 10px; padding: 10px; background: linear-gradient(135deg, #f8f9ff 0%, #e3f2fd 100%); border-radius: 8px; border: 2px solid #4f46e5;">
                             <span style="font-weight: 600; color: #4f46e5; font-size: 12px;">🎨 Highlight Tools:</span>
-                            <button class="btn btn-warning" onclick="setHighlightColor('yellow')" style="padding: 4px 8px; font-size: 11px; background: #ffd700; color: #333;">🟡 Yellow</button>
-                            <button class="btn btn-success" onclick="setHighlightColor('lightgreen')" style="padding: 4px 8px; font-size: 11px; background: #90ee90; color: #333;">🟢 Green</button>
-                            <button class="btn btn-info" onclick="setHighlightColor('lightblue')" style="padding: 4px 8px; font-size: 11px; background: #add8e6; color: #333;">🔵 Blue</button>
-                            <button class="btn btn-danger" onclick="setHighlightColor('lightcoral')" style="padding: 4px 8px; font-size: 11px; background: #f08080; color: #333;">🔴 Red</button>
-                            <button class="btn btn-secondary" onclick="setHighlightColor('lightgray')" style="padding: 4px 8px; font-size: 11px; background: #d3d3d3; color: #333;">⚪ Gray</button>
+                            <button class="btn btn-warning" onclick="setHighlightColor('yellow')" style="padding: 4px 8px; font-size: 11px; background: #ffd700; color: #333; border: 1px solid #e6c200;">🟡 Yellow</button>
+                            <button class="btn btn-success" onclick="setHighlightColor('lightgreen')" style="padding: 4px 8px; font-size: 11px; background: #90ee90; color: #333; border: 1px solid #7dd87d;">🟢 Green</button>
+                            <button class="btn btn-info" onclick="setHighlightColor('lightblue')" style="padding: 4px 8px; font-size: 11px; background: #add8e6; color: #333; border: 1px solid #9ac5d3;">🔵 Blue</button>
+                            <button class="btn btn-danger" onclick="setHighlightColor('lightcoral')" style="padding: 4px 8px; font-size: 11px; background: #f08080; color: #333; border: 1px solid #dd6d6d;">🔴 Red</button>
+                            <button class="btn btn-secondary" onclick="setHighlightColor('lightgray')" style="padding: 4px 8px; font-size: 11px; background: #d3d3d3; color: #333; border: 1px solid #c0c0c0;">⚪ Gray</button>
                             <button class="btn btn-secondary" onclick="clearHighlights()" style="padding: 4px 8px; font-size: 11px;">🧹 Clear All</button>
                             <button class="btn btn-success" id="saveHighlightBtn" onclick="saveHighlightedText()" style="padding: 4px 8px; font-size: 11px; display: none;">💾 Save & Comment</button>
                         </div>
@@ -1935,6 +1968,8 @@
     </style>
 
     <script src="/static/js/app.js"></script>
+    <script src="/static/js/button_fixes.js"></script>
+    <script src="/static/js/missing_functions.js"></script>
     <script src="/static/js/text_highlighting.js"></script>
     <script>
         // Global variables
