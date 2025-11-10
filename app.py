@@ -8,12 +8,13 @@ from werkzeug.utils import secure_filename
 
 # Import our modular components
 from core.document_analyzer import DocumentAnalyzer
-from core.ai_feedback_engine import AIFeedbackEngine
+from core.ai_feedback_engine_enhanced import EnhancedAIFeedbackEngine
 from utils.statistics_manager import StatisticsManager
 from utils.document_processor import DocumentProcessor
 from utils.pattern_analyzer import DocumentPatternAnalyzer
 from utils.audit_logger import AuditLogger
 from utils.learning_system import FeedbackLearningSystem
+from config.model_config import model_config
 
 app = Flask(__name__, static_folder='static')
 app.secret_key = 'your-secret-key-here'
@@ -36,35 +37,17 @@ if os.path.exists(env_file):
 # Global components - with error handling
 try:
     document_analyzer = DocumentAnalyzer()
-    ai_engine = AIFeedbackEngine()
+    ai_engine = EnhancedAIFeedbackEngine()
     stats_manager = StatisticsManager()
     doc_processor = DocumentProcessor()
     pattern_analyzer = DocumentPatternAnalyzer()
     audit_logger = AuditLogger()
     learning_system = FeedbackLearningSystem()
     
-    # Log environment configuration
-    flask_env = os.environ.get('FLASK_ENV', 'development')
-    aws_region = os.environ.get('AWS_REGION', os.environ.get('AWS_DEFAULT_REGION', 'not configured'))
-    model_id = os.environ.get('BEDROCK_MODEL_ID', 'not configured')
-    max_tokens = os.environ.get('BEDROCK_MAX_TOKENS', '8192')
-    temperature = os.environ.get('BEDROCK_TEMPERATURE', '0.7')
-    reasoning_enabled = os.environ.get('REASONING_ENABLED', 'false')
-    reasoning_budget = os.environ.get('REASONING_BUDGET_TOKENS', '2000')
-    
     print("AI-Prism components initialized successfully")
-    print(f"Environment: {flask_env}")
-    print(f"AWS Region: {aws_region}")
-    print(f"Bedrock Model: {model_id}")
-    print(f"Max Tokens: {max_tokens}")
-    print(f"Temperature: {temperature}")
-    print(f"Reasoning Enabled: {reasoning_enabled}")
-    print(f"Reasoning Budget: {reasoning_budget}")
     
-    if flask_env == 'production':
-        print("Running in App Runner production mode")
-    else:
-        print("Running in local development mode")
+    # Print comprehensive model configuration
+    model_config.print_config_summary()
         
 except Exception as e:
     print(f"Error initializing AI-Prism components: {e}")
@@ -189,53 +172,167 @@ def upload_document():
         })
         
     except Exception as e:
+        print(f"ERROR Upload error: {str(e)}")
         return jsonify({'error': f'Upload failed: {str(e)}'}), 500
 
 @app.route('/analyze_section', methods=['POST'])
 def analyze_section():
     try:
+        # Validate request data
+        if not request.is_json:
+            return jsonify({'success': False, 'error': 'Request must be JSON'}), 400
+            
         data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'error': 'No JSON data provided'}), 400
+            
         session_id = data.get('session_id') or session.get('session_id')
         section_name = data.get('section_name')
         
-        if not session_id or session_id not in sessions:
-            return jsonify({'error': 'Invalid session'}), 400
+        if not session_id:
+            return jsonify({'success': False, 'error': 'No session ID provided'}), 400
+            
+        if session_id not in sessions:
+            return jsonify({'success': False, 'error': 'Invalid or expired session'}), 400
+        
+        if not section_name:
+            return jsonify({'success': False, 'error': 'No section name provided'}), 400
         
         review_session = sessions[session_id]
         
         if section_name not in review_session.sections:
-            return jsonify({'error': 'Section not found'}), 400
+            return jsonify({'success': False, 'error': f'Section "{section_name}" not found in document'}), 400
         
         section_content = review_session.sections[section_name]
         
+        if not section_content or section_content.strip() == '':
+            return jsonify({
+                'success': True,
+                'feedback_items': [],
+                'section_content': 'This section appears to be empty.',
+                'message': 'Section is empty - no analysis needed'
+            })
+        
+        print(f"ANALYZING section: {section_name} ({len(section_content)} characters)")
+        
         # Analyze with AI engine
-        analysis_result = ai_engine.analyze_section(section_name, section_content)
+        try:
+            print(f"Starting AI analysis for section: {section_name}")
+            analysis_result = ai_engine.analyze_section(section_name, section_content)
+            print(f"AI analysis completed")
+        except Exception as ai_error:
+            print(f"AI analysis failed: {str(ai_error)}")
+            analysis_result = {
+                'feedback_items': [],
+                'error': f'AI analysis failed: {str(ai_error)}',
+                'fallback': True
+            }
+        
+        # Ensure we have a valid result structure
+        if not isinstance(analysis_result, dict):
+            print(f"Invalid analysis result type: {type(analysis_result)}")
+            analysis_result = {'feedback_items': [], 'error': 'Invalid result format'}
+        
         feedback_items = analysis_result.get('feedback_items', [])
+        if not isinstance(feedback_items, list):
+            print(f"Invalid feedback_items type: {type(feedback_items)}")
+            feedback_items = []
+        
+        # If no feedback items and analysis failed, create a basic feedback item
+        if not feedback_items and analysis_result.get('error'):
+            print(f"Creating fallback feedback for failed analysis")
+            feedback_items = [{
+                'id': f"{section_name}_fallback_{datetime.now().strftime('%H%M%S')}",
+                'type': 'suggestion',
+                'category': 'Analysis Status',
+                'description': f'AI analysis temporarily unavailable for this section. Content appears to be {len(section_content)} characters long.',
+                'suggestion': 'Manual review recommended. Check AWS credentials and Bedrock access if real AI analysis is needed.',
+                'example': '',
+                'questions': ['Is the content complete and accurate?', 'Are there any obvious gaps or issues?'],
+                'hawkeye_refs': [13],
+                'risk_level': 'Low',
+                'confidence': 0.5
+            }]
+        
+        # Validate feedback items structure
+        if not isinstance(feedback_items, list):
+            print(f"Invalid feedback_items type: {type(feedback_items)}")
+            feedback_items = []
+        
+        # Ensure each feedback item has required fields
+        validated_feedback = []
+        for i, item in enumerate(feedback_items):
+            if isinstance(item, dict):
+                # Ensure required fields exist
+                validated_item = {
+                    'id': item.get('id', f"{section_name}_{i}_{datetime.now().strftime('%H%M%S')}"),
+                    'type': item.get('type', 'suggestion'),
+                    'category': item.get('category', 'General'),
+                    'description': item.get('description', 'No description provided'),
+                    'suggestion': item.get('suggestion', ''),
+                    'example': item.get('example', ''),
+                    'questions': item.get('questions', []) if isinstance(item.get('questions'), list) else [],
+                    'hawkeye_refs': item.get('hawkeye_refs', []) if isinstance(item.get('hawkeye_refs'), list) else [],
+                    'risk_level': item.get('risk_level', 'Low'),
+                    'confidence': float(item.get('confidence', 0.8)) if isinstance(item.get('confidence'), (int, float)) else 0.8
+                }
+                validated_feedback.append(validated_item)
+            else:
+                print(f"Skipping invalid feedback item {i}: {type(item)}")
+        
+        feedback_items = validated_feedback
+        
+        # Log final result
+        print(f"Section analysis completed: {section_name} - {len(feedback_items)} validated feedback items")
         
         # Store feedback data
         review_session.feedback_data[section_name] = feedback_items
         
         # Update statistics immediately
-        stats_manager.update_feedback_data(section_name, feedback_items)
+        try:
+            stats_manager.update_feedback_data(section_name, feedback_items)
+        except Exception as stats_error:
+            print(f"WARNING Statistics update failed: {stats_error}")
         
         # Log activity
-        review_session.activity_log.append({
-            'timestamp': datetime.now().isoformat(),
-            'action': 'SECTION_ANALYZED',
-            'details': f'Section {section_name} analyzed - {len(feedback_items)} feedback items generated'
-        })
+        try:
+            review_session.activity_log.append({
+                'timestamp': datetime.now().isoformat(),
+                'action': 'SECTION_ANALYZED',
+                'details': f'Section {section_name} analyzed - {len(feedback_items)} feedback items generated'
+            })
+            
+            # Log with audit logger
+            review_session.audit_logger.log('SECTION_ANALYZED', f'Section {section_name} analyzed - {len(feedback_items)} feedback items generated')
+        except Exception as log_error:
+            print(f"WARNING Logging failed: {log_error}")
         
-        # Log with audit logger
-        review_session.audit_logger.log('SECTION_ANALYZED', f'Section {section_name} analyzed - {len(feedback_items)} feedback items generated')
+        print(f"SUCCESS Section analysis completed: {section_name} - {len(feedback_items)} feedback items")
         
         return jsonify({
             'success': True,
             'feedback_items': feedback_items,
-            'section_content': section_content
+            'section_content': section_content,
+            'section_name': section_name,
+            'analysis_timestamp': datetime.now().isoformat()
         })
         
+    except json.JSONDecodeError as json_error:
+        print(f"❌ JSON decode error: {str(json_error)}")
+        return jsonify({'success': False, 'error': 'Invalid JSON in request'}), 400
+        
     except Exception as e:
-        return jsonify({'error': f'Analysis failed: {str(e)}'}), 500
+        print(f"ERROR Analysis error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        
+        # Always return valid JSON even on error
+        return jsonify({
+            'success': False, 
+            'error': f'Analysis failed: {str(e)}',
+            'error_type': type(e).__name__,
+            'timestamp': datetime.now().isoformat()
+        }), 500
 
 @app.route('/accept_feedback', methods=['POST'])
 def accept_feedback():
@@ -415,41 +512,30 @@ def chat():
             'ai_model': ai_model
         })
         
-        # Get AI response with model-specific processing
+        # Get AI response with enhanced context including current feedback
+        current_feedback = review_session.feedback_data.get(current_section, [])
+        
         context = {
             'current_section': current_section,
             'document_name': review_session.document_name,
             'total_sections': len(review_session.sections),
+            'current_feedback': current_feedback,
             'ai_model': ai_model,
-            'guidelines_preference': getattr(review_session, 'guidelines_preference', 'both')
+            'guidelines_preference': getattr(review_session, 'guidelines_preference', 'both'),
+            'accepted_count': len(review_session.accepted_feedback.get(current_section, [])),
+            'rejected_count': len(review_session.rejected_feedback.get(current_section, []))
         }
         
-        try:
-            response = ai_engine.process_chat_query(message, context)
-        except Exception as model_error:
-            # If primary model fails, try fallback
-            fallback_models = ['claude-3-haiku', 'gpt-4', 'gemini-pro']
-            response = None
-            
-            for fallback_model in fallback_models:
-                if fallback_model != ai_model:
-                    try:
-                        context['ai_model'] = fallback_model
-                        response = ai_engine.process_chat_query(message, context)
-                        response = f"[Using {fallback_model} as backup] {response}"
-                        break
-                    except:
-                        continue
-            
-            if not response:
-                response = "I'm experiencing technical difficulties with all AI models. Please try again later or contact support."
+        # AI engine now handles fallback internally
+        response = ai_engine.process_chat_query(message, context)
         
         # Add AI response to history
+        actual_model = model_config.get_model_config()['model_name']
         review_session.chat_history.append({
             'role': 'assistant',
             'content': response,
             'timestamp': datetime.now().isoformat(),
-            'ai_model': ai_model
+            'ai_model': actual_model
         })
         
         # Log activity
@@ -459,9 +545,10 @@ def chat():
             'details': f'User query with {ai_model}: {message[:50]}...'
         })
         
-        return jsonify({'success': True, 'response': response, 'model_used': ai_model})
+        return jsonify({'success': True, 'response': response, 'model_used': actual_model})
         
     except Exception as e:
+        print(f"ERROR Chat error: {str(e)}")
         return jsonify({'error': f'Chat failed: {str(e)}'}), 500
 
 @app.route('/delete_document', methods=['POST'])
@@ -1404,23 +1491,36 @@ def clear_all_user_feedback():
 
 if __name__ == '__main__':
     try:
-        port = int(os.environ.get('PORT', 8080))
-        flask_env = os.environ.get('FLASK_ENV', 'development')
-        debug_mode = flask_env != 'production'
+        config = model_config.get_model_config()
         
-        print(f"Starting AI-Prism Flask app on port {port}")
-        print(f"Environment: {flask_env}")
-        print(f"Debug mode: {debug_mode}")
-        print("All routes and functionality loaded successfully")
+        print("=" * 60)
+        print("STARTING AI-PRISM DOCUMENT ANALYSIS TOOL")
+        print("=" * 60)
+        print(f"Server: http://localhost:{config['port']}")
+        print(f"Environment: {config['flask_env']}")
+        print(f"Debug mode: {config['flask_env'] != 'production'}")
+        print(f"AI Model: {config['model_name']}")
+        print(f"AWS Credentials: {'Available' if model_config.has_credentials() else 'Not configured'}")
+        print(f"All routes and functionality loaded successfully")
+        print("=" * 60)
+        print("Ready for document analysis with Hawkeye framework!")
+        print("=" * 60)
         
         app.run(
-            debug=debug_mode, 
+            debug=config['flask_env'] != 'production', 
             host='0.0.0.0', 
-            port=port, 
+            port=config['port'], 
             threaded=True, 
             use_reloader=False
         )
     except Exception as e:
-        print(f"Flask startup error: {e}")
+        print("=" * 60)
+        print("AI-PRISM STARTUP ERROR")
+        print("=" * 60)
+        print(f"Error: {e}")
+        print("\nFull traceback:")
         import traceback
         traceback.print_exc()
+        print("=" * 60)
+        print("Check configuration and try again")
+        print("=" * 60)

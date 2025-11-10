@@ -60,14 +60,28 @@ def main():
         reasoning_enabled = os.environ.get('REASONING_ENABLED', 'false')
         reasoning_budget = os.environ.get('REASONING_BUDGET_TOKENS', '2000')
         
-        print(f"Starting AI-Prism Flask app on {host}:{port}")
+        print("=" * 60)
+        print("AI-PRISM DOCUMENT ANALYSIS TOOL")
+        print("=" * 60)
+        print(f"Server: http://{host}:{port}")
         print(f"Environment: {flask_env}")
         print(f"AWS Region: {aws_region}")
         print(f"Bedrock Model: {model_id}")
         print(f"Max Tokens: {max_tokens}")
         print(f"Temperature: {temperature}")
-        print(f"Reasoning Enabled: {reasoning_enabled}")
-        print(f"Reasoning Budget: {reasoning_budget}")
+        print(f"Reasoning: {reasoning_enabled} (Budget: {reasoning_budget})")
+        
+        # Check AWS credentials
+        aws_access_key = os.environ.get('AWS_ACCESS_KEY_ID')
+        aws_secret_key = os.environ.get('AWS_SECRET_ACCESS_KEY')
+        
+        if aws_access_key and aws_secret_key:
+            print(f"AWS Credentials: [OK] Configured")
+            print(f"Real AI analysis enabled with Claude Sonnet!")
+        else:
+            print(f"AWS Credentials: [NOT SET] Not configured")
+            print(f"Mock AI responses will be used for testing")
+            print(f"Run 'python test_bedrock_connection.py' to test AWS setup")
         
         # Ensure required directories exist
         os.makedirs('uploads', exist_ok=True)
@@ -79,6 +93,9 @@ def main():
         
         print(f"Debug mode: {debug_mode}")
         print("AI-Prism configured for AWS App Runner deployment")
+        print("=" * 60)
+        print("Ready for document analysis with Hawkeye framework!")
+        print("=" * 60)
         
         app.run(
             debug=debug_mode,
@@ -89,9 +106,17 @@ def main():
         )
         
     except Exception as e:
-        print(f"Error starting server: {e}")
+        print("=" * 60)
+        print("[ERROR] AI-PRISM STARTUP ERROR")
+        print("=" * 60)
+        print(f"Error: {e}")
+        print("\nFull traceback:")
         import traceback
         traceback.print_exc()
+        print("=" * 60)
+        print("Check configuration and dependencies")
+        print("See AWS_SETUP_GUIDE.md for help")
+        print("=" * 60)
         sys.exit(1)
 
 if __name__ == '__main__':

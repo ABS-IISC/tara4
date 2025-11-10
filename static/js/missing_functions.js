@@ -182,11 +182,27 @@ function analyzeNextSection() {
     const sectionName = window.sections[window.currentAnalysisStep];
     const progressPercent = ((window.currentAnalysisStep + 1) / window.sections.length) * 100;
     
+    // Update progress bar
     const progressFill = document.getElementById('progressFill');
     const progressText = document.getElementById('progressText');
     
     if (progressFill) progressFill.style.width = progressPercent + '%';
-    if (progressText) progressText.textContent = `Analyzing: ${sectionName} (${window.currentAnalysisStep + 1}/${window.sections.length})`;
+    if (progressText) progressText.textContent = `🔍 Analyzing: ${sectionName} (${window.currentAnalysisStep + 1}/${window.sections.length}) - ${Math.round(progressPercent)}%`;
+    
+    // Show detailed progress in document progress panel
+    showSectionLoadingProgress(sectionName);
+    
+    // Update detailed progress
+    const progressTitle = document.getElementById('progressTitle');
+    const progressDesc = document.getElementById('progressDesc');
+    
+    if (progressTitle) {
+        progressTitle.textContent = `🤖 AI-Prism is analyzing "${sectionName}"...`;
+    }
+    
+    if (progressDesc) {
+        progressDesc.textContent = `Section ${window.currentAnalysisStep + 1} of ${window.sections.length} - Applying Hawkeye framework and generating intelligent feedback`;
+    }
     
     fetch('/analyze_section', {
         method: 'POST',
@@ -198,8 +214,22 @@ function analyzeNextSection() {
             section_name: sectionName
         })
     })
-    .then(response => response.json())
-    .then(data => {
+    .then(response => {
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        return response.text();
+    })
+    .then(text => {
+        let data;
+        try {
+            data = JSON.parse(text);
+        } catch (jsonError) {
+            console.error('JSON Parse Error in analysis:', jsonError);
+            console.error('Response text:', text);
+            throw new Error('Invalid JSON response during analysis');
+        }
+        
         if (data.success) {
             window.sectionData = window.sectionData || {};
             window.sectionData[sectionName] = {
@@ -207,32 +237,77 @@ function analyzeNextSection() {
                 feedback: data.feedback_items
             };
             
+            // Show success message
+            const feedbackCount = data.feedback_items ? data.feedback_items.length : 0;
+            if (progressDesc) {
+                progressDesc.textContent = `✅ "${sectionName}" analysis complete! Generated ${feedbackCount} feedback items.`;
+            }
+            
             window.currentAnalysisStep++;
-            setTimeout(analyzeNextSection, 1000);
+            
+            // Continue with next section after showing success briefly
+            setTimeout(() => {
+                hideSectionLoadingProgress();
+                setTimeout(analyzeNextSection, 500);
+            }, 1500);
         } else {
+            console.warn(`Analysis failed for section ${sectionName}:`, data.error);
+            if (progressDesc) {
+                progressDesc.textContent = `⚠️ "${sectionName}" analysis had issues. Continuing with next section...`;
+            }
+            
             window.currentAnalysisStep++;
-            setTimeout(analyzeNextSection, 500);
+            setTimeout(() => {
+                hideSectionLoadingProgress();
+                setTimeout(analyzeNextSection, 1000);
+            }, 1000);
         }
     })
     .catch(error => {
-        console.error('Analysis error:', error);
+        console.error('Analysis error for section', sectionName, ':', error);
+        
+        if (progressDesc) {
+            progressDesc.textContent = `❌ "${sectionName}" analysis failed. Continuing with next section...`;
+        }
+        
         window.currentAnalysisStep++;
-        setTimeout(analyzeNextSection, 500);
+        setTimeout(() => {
+            hideSectionLoadingProgress();
+            setTimeout(analyzeNextSection, 1000);
+        }, 1000);
     });
 }
 
 function completeAnalysis() {
     const progressText = document.getElementById('progressText');
-    if (progressText) progressText.textContent = 'Analysis Complete!';
+    const progressTitle = document.getElementById('progressTitle');
+    const progressDesc = document.getElementById('progressDesc');
     
+    if (progressText) progressText.textContent = '🎉 Comprehensive Analysis Complete!';
+    if (progressTitle) progressTitle.textContent = '🎉 All sections analyzed successfully!';
+    if (progressDesc) progressDesc.textContent = '📋 Ready to review feedback and complete your document analysis';
+    
+    // Show completion for a moment
     setTimeout(() => {
         hideProgress();
+        hideSectionLoadingProgress();
+        
+        // Load first section
         loadSection(0);
         updateStatistics();
+        
+        // Enable complete review button
         const completeBtn = document.getElementById('completeReviewBtn');
         if (completeBtn) completeBtn.disabled = false;
-        showNotification('Comprehensive analysis completed! Navigate through sections to review feedback.', 'success');
-    }, 2000);
+        
+        // Show success notification
+        showNotification('🎉 Comprehensive analysis completed! Navigate through sections to review AI-generated feedback.', 'success');
+        
+        // Show helpful tip
+        setTimeout(() => {
+            showNotification('💡 Tip: Use the section dropdown or Previous/Next buttons to navigate between sections', 'info');
+        }, 3000);
+    }, 3000);
 }
 
 function loadSection(index) {
@@ -256,7 +331,8 @@ function loadSection(index) {
         updateRiskIndicator(data.feedback);
         loadUserFeedbackForSection(sectionName);
     } else {
-        showProgress('Loading section...');
+        // Show enhanced loading with progress
+        showSectionLoadingProgress(sectionName);
         
         fetch('/analyze_section', {
             method: 'POST',
@@ -268,19 +344,59 @@ function loadSection(index) {
                 section_name: sectionName
             })
         })
-        .then(response => response.json())
-        .then(data => {
+        .then(response => {
+            // Check if response is ok before parsing JSON
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            return response.text(); // Get as text first
+        })
+        .then(text => {
+            // Try to parse JSON with better error handling
+            let data;
+            try {
+                data = JSON.parse(text);
+            } catch (jsonError) {
+                console.error('JSON Parse Error:', jsonError);
+                console.error('Response text:', text);
+                throw new Error('Invalid JSON response from server. Please check server logs.');
+            }
+            
             if (data.success) {
+                // Store the data for future use
+                window.sectionData = window.sectionData || {};
+                window.sectionData[sectionName] = {
+                    content: data.section_content,
+                    feedback: data.feedback_items
+                };
+                
                 displaySectionContent(data.section_content, sectionName);
                 displayFeedback(data.feedback_items, sectionName);
                 updateRiskIndicator(data.feedback_items);
                 loadUserFeedbackForSection(sectionName);
+                
+                showNotification(`Section "${sectionName}" loaded successfully!`, 'success');
+            } else {
+                throw new Error(data.error || 'Failed to analyze section');
             }
             hideProgress();
+            hideSectionLoadingProgress();
         })
         .catch(error => {
+            console.error('Section loading error:', error);
             hideProgress();
-            showNotification('Failed to load section: ' + error.message, 'error');
+            hideSectionLoadingProgress();
+            
+            // Show user-friendly error message
+            const errorMsg = error.message.includes('JSON') ? 
+                'Server response error. Please try refreshing the page.' : 
+                error.message;
+            
+            showNotification('Failed to load section: ' + errorMsg, 'error');
+            
+            // Show fallback content
+            displaySectionContent('Section content could not be loaded. Please try again.', sectionName);
+            displayFeedback([], sectionName);
         });
     }
 }
@@ -754,6 +870,64 @@ function showProgress(message) {
     
     if (progressContainer) progressContainer.style.display = 'block';
     if (progressText) progressText.textContent = message;
+}
+
+// Enhanced loading functions for better user experience
+function showSectionLoadingProgress(sectionName) {
+    const progressPanel = document.getElementById('documentProgress');
+    if (progressPanel) {
+        progressPanel.style.display = 'block';
+        
+        // Update progress content
+        const progressTitle = document.getElementById('progressTitle');
+        const progressDesc = document.getElementById('progressDesc');
+        const progressGif = document.getElementById('progressGif');
+        
+        if (progressTitle) {
+            progressTitle.textContent = `🔍 AI-Prism is analyzing "${sectionName}"...`;
+        }
+        
+        if (progressDesc) {
+            progressDesc.textContent = 'Applying Hawkeye framework and generating intelligent feedback...';
+        }
+        
+        if (progressGif) {
+            // Use a default loading GIF
+            progressGif.src = 'https://media.giphy.com/media/3o7btPCcdNniyf0ArS/giphy.gif';
+            progressGif.alt = 'AI-Prism is analyzing...';
+        }
+        
+        // Start a simple animation cycle
+        startLoadingAnimation();
+    }
+}
+
+function hideSectionLoadingProgress() {
+    const progressPanel = document.getElementById('documentProgress');
+    if (progressPanel) {
+        progressPanel.style.display = 'none';
+    }
+    stopLoadingAnimation();
+}
+
+function startLoadingAnimation() {
+    const progressTitle = document.getElementById('progressTitle');
+    if (!progressTitle) return;
+    
+    let dots = 0;
+    window.loadingInterval = setInterval(() => {
+        dots = (dots + 1) % 4;
+        const dotString = '.'.repeat(dots);
+        const baseText = progressTitle.textContent.replace(/\.+$/, '');
+        progressTitle.textContent = baseText + dotString;
+    }, 500);
+}
+
+function stopLoadingAnimation() {
+    if (window.loadingInterval) {
+        clearInterval(window.loadingInterval);
+        window.loadingInterval = null;
+    }
 }
 
 function hideProgress() {

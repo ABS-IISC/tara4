@@ -1,9 +1,17 @@
 import json
 import re
+import os
 from datetime import datetime
 from collections import defaultdict
-import boto3
-from docx import Document
+try:
+    import boto3
+except ImportError:
+    boto3 = None
+try:
+    from docx import Document
+except ImportError:
+    print("Warning: python-docx not installed. Document processing may fail.")
+    Document = None
 
 class DocumentAnalyzer:
     def __init__(self):
@@ -45,25 +53,49 @@ class DocumentAnalyzer:
 
     def extract_sections_from_docx(self, doc_path):
         """Extract sections from Word document with comprehensive content capture"""
-        doc = Document(doc_path)
-        sections = {}
-        section_paragraphs = {}
-        paragraph_indices = {}
-        
-        # First try header-based detection
-        sections, section_paragraphs, paragraph_indices = self._extract_by_headers(doc)
-        
-        # If insufficient sections found, try AI-based detection
-        if len(sections) < 3:
-            ai_sections = self._identify_sections_with_ai(doc)
-            if ai_sections:
-                sections, section_paragraphs, paragraph_indices = self._extract_by_ai_hints(doc, ai_sections)
-        
-        # Fallback: create single section with all content
-        if not sections:
-            sections, section_paragraphs, paragraph_indices = self._create_single_section(doc)
-        
-        return sections, section_paragraphs, paragraph_indices
+        try:
+            if Document is None:
+                raise ImportError("python-docx not available")
+            
+            if not os.path.exists(doc_path):
+                raise FileNotFoundError(f"Document not found: {doc_path}")
+            
+            print(f"Loading document: {doc_path}")
+            doc = Document(doc_path)
+            print(f"Document loaded successfully")
+            
+            sections = {}
+            section_paragraphs = {}
+            paragraph_indices = {}
+            
+            # First try header-based detection
+            sections, section_paragraphs, paragraph_indices = self._extract_by_headers(doc)
+            
+            # If insufficient sections found, try AI-based detection
+            if len(sections) < 3:
+                print(f"Only {len(sections)} sections found, trying AI detection...")
+                ai_sections = self._identify_sections_with_ai(doc)
+                if ai_sections:
+                    sections, section_paragraphs, paragraph_indices = self._extract_by_ai_hints(doc, ai_sections)
+            
+            # Fallback: create single section with all content
+            if not sections:
+                print(f"No sections detected, creating single section...")
+                sections, section_paragraphs, paragraph_indices = self._create_single_section(doc)
+            
+            print(f"Extracted {len(sections)} sections: {list(sections.keys())}")
+            return sections, section_paragraphs, paragraph_indices
+            
+        except Exception as e:
+            print(f"Document loading failed: {str(e)}")
+            # Return safe fallback structure
+            return {
+                "Document": f"Failed to load document: {str(e)}"
+            }, {
+                "Document": [f"Failed to load document: {str(e)}"]
+            }, {
+                "Document": [0]
+            }
 
     def _extract_by_headers(self, doc):
         """Extract sections using header detection"""
@@ -227,6 +259,9 @@ Return sections in JSON format:
     def _invoke_bedrock(self, system_prompt, user_prompt):
         """Invoke AWS Bedrock for AI analysis"""
         try:
+            if boto3 is None:
+                raise ImportError("boto3 not available")
+                
             runtime = boto3.client('bedrock-runtime')
             
             body = json.dumps({
@@ -247,6 +282,7 @@ Return sections in JSON format:
             return response_body['content'][0]['text']
             
         except Exception as e:
+            print(f"AI section detection failed: {str(e)}")
             # Fallback response for testing
             return json.dumps({
                 "sections": [
