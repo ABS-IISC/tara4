@@ -66,7 +66,7 @@ class AIFeedbackEngine:
             return ""
 
     def analyze_section(self, section_name, content, doc_type="Full Write-up"):
-        """Analyze section with comprehensive Hawkeye framework"""
+        """Analyze section with enhanced Hawkeye framework - focused and actionable"""
         cache_key = f"{section_name}_{hash(content)}"
         if cache_key in self.feedback_cache:
             return self.feedback_cache[cache_key]
@@ -74,57 +74,54 @@ class AIFeedbackEngine:
         # Get section-specific guidance
         section_guidance = self._get_section_guidance(section_name)
         
-        prompt = f"""DOCUMENT ANALYSIS TASK:
-Analyze section "{section_name}" from a CT EE investigation writeup against Hawkeye framework standards.
+        prompt = f"""TASK: Analyze "{section_name}" for CT EE investigation quality.
 
 {section_guidance}
 
-SECTION CONTENT:
-{content[:3000]}
+CONTENT:
+{content[:2000]}
 
-CRITICAL ANALYSIS REQUIREMENTS:
-1. IDENTIFY SPECIFIC GAPS: What concrete information is missing?
-2. ASSESS COMPLIANCE: Does content meet investigation standards?
-3. EVALUATE DEPTH: Is analysis thorough enough for the issue type?
-4. CHECK COMPLETENESS: Are all required elements present?
-5. VERIFY ACCURACY: Are facts, dates, and processes correct?
+REQUIREMENTS:
+• Find 2-3 specific gaps only (not generic issues)
+• Focus on missing critical elements
+• Provide direct, actionable fixes
+• Reference Hawkeye checkpoints
+• Be concise - max 1-2 sentences per item
 
-FOCUS AREAS:
-- Missing critical details that impact investigation quality
-- Insufficient evidence or documentation
-- Gaps in root cause analysis or preventative actions
-- Unclear accountability or ownership
-- Inadequate customer impact assessment
-
-Return precise, actionable feedback in JSON format:
+FORMAT:
 {{
     "feedback_items": [
         {{
             "id": "unique_id",
             "type": "critical|important|suggestion",
-            "category": "specific Hawkeye area",
-            "description": "Precise gap or issue identified",
-            "suggestion": "Specific action to address the gap",
-            "questions": ["Direct question to address"],
+            "category": "Investigation|Root Cause|Documentation|Timeline|Evidence",
+            "description": "Specific missing element or gap (max 100 chars)",
+            "suggestion": "Direct action to fix (max 80 chars)",
+            "questions": ["Key question to address?"],
             "hawkeye_refs": [checkpoint_numbers],
             "risk_level": "High|Medium|Low",
-            "confidence": 0.95
+            "confidence": 0.85
         }}
     ]
 }}"""
 
-        system_prompt = f"""You are a CT EE investigation expert conducting detailed document analysis. Focus on identifying specific gaps, missing information, and compliance issues. Be precise, direct, and actionable in your feedback.
+        system_prompt = f"""You are a CT EE investigation specialist. Provide focused, actionable analysis.
 
 {self.hawkeye_checklist}
 
-Analyze documents for:
-- Specific missing information that impacts investigation quality
-- Compliance gaps with investigation standards
-- Insufficient depth in analysis or evidence
-- Unclear accountability and ownership
-- Inadequate risk assessment or customer impact evaluation
+RULES:
+• Maximum 3 feedback items
+• Each item must be specific to this content
+• Focus on critical gaps only
+• Keep descriptions under 100 characters
+• Suggestions must be actionable
+• Reference relevant Hawkeye checkpoints
 
-Provide only meaningful, actionable feedback that improves document quality. Structure responses professionally with clear bullet points and specific recommendations."""
+AVOID:
+• Generic advice
+• Lengthy explanations
+• Minor issues
+• Repetitive points"""
 
         response = self._invoke_bedrock(system_prompt, prompt)
         
@@ -180,23 +177,23 @@ Provide only meaningful, actionable feedback that improves document quality. Str
         if 'feedback_items' not in result:
             result['feedback_items'] = []
         
-        # Validate and enhance feedback items
+        # Validate and enhance feedback items - limit to top 3
         validated_items = []
-        for i, item in enumerate(result.get('feedback_items', [])):
+        for i, item in enumerate(result.get('feedback_items', [])[:3]):  # Limit to 3 items
             if not isinstance(item, dict):
                 print(f"⚠️ Skipping invalid feedback item {i}: {type(item)}")
                 continue
                 
-            # Ensure all required fields exist
+            # Ensure all required fields exist with improved defaults
             validated_item = {
                 'id': item.get('id', f"{section_name}_{i}_{datetime.now().strftime('%H%M%S')}"),
                 'type': item.get('type', 'suggestion'),
-                'category': item.get('category', 'General'),
-                'description': item.get('description', 'No description provided'),
-                'suggestion': item.get('suggestion', ''),
-                'example': item.get('example', ''),
-                'questions': item.get('questions', []) if isinstance(item.get('questions'), list) else [],
-                'hawkeye_refs': item.get('hawkeye_refs', []) if isinstance(item.get('hawkeye_refs'), list) else [],
+                'category': item.get('category', 'Investigation Process'),
+                'description': self._truncate_text(item.get('description', 'Analysis gap identified'), 100),
+                'suggestion': self._truncate_text(item.get('suggestion', ''), 80),
+                'example': self._truncate_text(item.get('example', ''), 60),
+                'questions': item.get('questions', [])[:2] if isinstance(item.get('questions'), list) else [],  # Limit to 2 questions
+                'hawkeye_refs': item.get('hawkeye_refs', [])[:3] if isinstance(item.get('hawkeye_refs'), list) else [],  # Limit to 3 refs
                 'risk_level': item.get('risk_level', 'Low'),
                 'confidence': float(item.get('confidence', 0.8)) if isinstance(item.get('confidence'), (int, float)) else 0.8
             }
@@ -206,7 +203,7 @@ Provide only meaningful, actionable feedback that improves document quality. Str
                 validated_item['hawkeye_refs'] = self._get_hawkeye_references(
                     validated_item['category'], 
                     validated_item['description']
-                )
+                )[:2]  # Limit to 2 references
             
             # Classify risk level if not provided or invalid
             if validated_item['risk_level'] not in ['High', 'Medium', 'Low']:
@@ -220,74 +217,49 @@ Provide only meaningful, actionable feedback that improves document quality. Str
         # Cache the result
         self.feedback_cache[cache_key] = result
         
-        print(f"✅ Analysis complete: {len(validated_items)} validated feedback items")
+        print(f"✅ Analysis complete: {len(validated_items)} focused feedback items (max 3)")
         return result
 
     def _get_section_guidance(self, section_name):
-        """Get section-specific analysis guidance"""
+        """Get focused section-specific analysis guidance"""
         section_lower = section_name.lower()
         
         if "timeline" in section_lower:
-            return """
-            TIMELINE ANALYSIS REQUIREMENTS:
-            - DATES: Verify all dates are accurate, formatted consistently (DD-MMM-YYYY)
-            - SEQUENCE: Check chronological order, identify time gaps >24 hours
-            - EVENTS: Ensure all critical events are documented (first detection, escalation, resolution)
-            - CORRELATION: Link timeline events to enforcement actions and customer impact
-            - COMPLETENESS: Verify no missing steps between problem identification and resolution
-            - ACCOUNTABILITY: Each event should have clear ownership and action taken
-            """
+            return """TIMELINE FOCUS:
+• Missing timestamps (DD-MMM-YYYY format)
+• Gaps >24hrs without explanation
+• Unclear event ownership
+• Critical events missing"""
         elif "resolving action" in section_lower:
-            return """
-            For Resolving Actions, focus on:
-            - Completeness of resolution steps
-            - Validation of actions taken
-            - Impact on affected parties
-            - Follow-up mechanisms and ownership
-            - Clear completion dates and accountability
-            """
+            return """RESOLVING ACTIONS FOCUS:
+• Incomplete resolution steps
+• Missing validation evidence
+• Unclear ownership/dates
+• No impact assessment"""
         elif "root cause" in section_lower or "preventative action" in section_lower:
-            return """
-            ROOT CAUSE & PREVENTATIVE ACTION ANALYSIS:
-            - 5 WHYS DEPTH: Each "why" must lead to deeper systemic understanding
-            - SYSTEMIC vs SYMPTOMATIC: Distinguish between surface issues and underlying causes
-            - ACTIONABILITY: Each preventative action must be specific, measurable, achievable
-            - OWNERSHIP: Clear DRI (Directly Responsible Individual) for each action
-            - TIMELINE: Specific completion dates, not vague "Q1" or "soon"
-            - EFFECTIVENESS: How will success be measured? What metrics will track improvement?
-            - PROCESS GAPS: Identify specific process failures that enabled the issue
-            - PLACEHOLDER STATUS: Mark incomplete items clearly, provide completion timeline
-            """
+            return """ROOT CAUSE FOCUS:
+• Lacks 5-whys depth
+• Addresses symptoms not causes
+• Vague preventative actions
+• Missing success metrics"""
         elif "executive summary" in section_lower or "summary" in section_lower:
-            return """
-            EXECUTIVE SUMMARY REQUIREMENTS:
-            - IMPACT STATEMENT: Quantify customer, business, and financial impact
-            - KEY FINDINGS: 3-5 most critical discoveries from investigation
-            - ROOT CAUSE: Single sentence summary of primary cause
-            - ACTIONS TAKEN: Immediate response and resolution steps
-            - PREVENTION: Key preventative measures implemented
-            - ACCOUNTABILITY: Clear ownership for ongoing actions
-            - TIMELINE: When issue occurred, detected, and resolved
-            - COMPLETENESS: Can executive understand full situation from summary alone?
-            """
+            return """SUMMARY FOCUS:
+• Missing quantified impact
+• Unclear root cause statement
+• Incomplete action summary
+• Not executive-ready"""
         elif "background" in section_lower:
-            return """
-            For Background sections, focus on:
-            - Context clarity and completeness
-            - Relevance of historical information
-            - Key milestones and decision points
-            - Policy or guideline references
-            - Process maturity (pilot vs established)
-            """
+            return """BACKGROUND FOCUS:
+• Context unclear/irrelevant
+• Missing key milestones
+• Process maturity unclear
+• No policy references"""
         else:
-            return """
-            General section analysis focusing on:
-            - Completeness and clarity of information
-            - Alignment with Hawkeye investigation standards
-            - Evidence quality and documentation
-            - Clear action items and ownership
-            - Customer impact consideration
-            """
+            return """GENERAL FOCUS:
+• Information gaps
+• Evidence quality issues
+• Unclear accountability
+• Missing customer impact"""
 
     def _get_hawkeye_references(self, category, description):
         """Map feedback to relevant Hawkeye checklist items"""
@@ -382,9 +354,9 @@ Provide only meaningful, actionable feedback that improves document quality. Str
 
     
     def _mock_ai_response(self, user_prompt):
-        """Enhanced mock AI response for development/testing with realistic feedback"""
+        """Focused mock AI response with concise, actionable feedback"""
         # Simulate processing delay
-        time.sleep(2)
+        time.sleep(1)
         
         # Generate contextual mock responses based on prompt content
         prompt_lower = user_prompt.lower()
@@ -394,19 +366,14 @@ Provide only meaningful, actionable feedback that improves document quality. Str
                 "feedback_items": [
                     {
                         "id": f"mock_timeline_{int(time.time())}",
-                        "type": "critical",
-                        "category": "Timeline of Events",
-                        "description": "Timeline lacks specific timestamps and chronological accuracy. Missing critical event markers that could impact investigation validity.",
-                        "suggestion": "Add precise timestamps (DD-MMM-YYYY HH:MM format) and ensure chronological order with clear event markers.",
-                        "example": "Use format: '15-Jan-2024 14:30 - Initial detection' rather than vague time references.",
-                        "questions": [
-                            "Are all timestamps accurate and verifiable?",
-                            "What events occurred between detection and response?",
-                            "Who was responsible for each timeline entry?"
-                        ],
+                        "type": "important",
+                        "category": "Timeline",
+                        "description": "Missing timestamps and >24hr gaps unexplained",
+                        "suggestion": "Add DD-MMM-YYYY HH:MM format and gap explanations",
+                        "questions": ["Who owned each timeline entry?"],
                         "hawkeye_refs": [2, 13],
-                        "risk_level": "High",
-                        "confidence": 0.92
+                        "risk_level": "Medium",
+                        "confidence": 0.88
                     }
                 ]
             })
@@ -416,18 +383,29 @@ Provide only meaningful, actionable feedback that improves document quality. Str
                     {
                         "id": f"mock_rootcause_{int(time.time())}",
                         "type": "critical",
-                        "category": "Root Cause Analysis",
-                        "description": "Root cause analysis insufficient - lacks 5-whys methodology and systemic issue identification. Current analysis addresses symptoms rather than underlying causes.",
-                        "suggestion": "Implement comprehensive 5-whys analysis to identify true systemic root causes. Include process gap analysis.",
-                        "example": "Why did X happen? Because Y. Why did Y happen? Because Z. Continue until systemic cause identified.",
-                        "questions": [
-                            "What process failures enabled this issue?",
-                            "How can we prevent similar systemic problems?",
-                            "What organizational changes are needed?"
-                        ],
+                        "category": "Root Cause",
+                        "description": "Analysis lacks 5-whys depth, addresses symptoms not causes",
+                        "suggestion": "Apply 5-whys to identify systemic root causes",
+                        "questions": ["What process failures enabled this?"],
                         "hawkeye_refs": [11, 12],
                         "risk_level": "High",
-                        "confidence": 0.95
+                        "confidence": 0.92
+                    }
+                ]
+            })
+        elif "executive summary" in prompt_lower or "summary" in prompt_lower:
+            return json.dumps({
+                "feedback_items": [
+                    {
+                        "id": f"mock_summary_{int(time.time())}",
+                        "type": "important",
+                        "category": "Documentation",
+                        "description": "Missing quantified customer/business impact metrics",
+                        "suggestion": "Add specific impact numbers and affected customer count",
+                        "questions": ["What was the measurable business impact?"],
+                        "hawkeye_refs": [1, 13],
+                        "risk_level": "Medium",
+                        "confidence": 0.85
                     }
                 ]
             })
@@ -437,33 +415,13 @@ Provide only meaningful, actionable feedback that improves document quality. Str
                     {
                         "id": f"mock_general_{int(time.time())}",
                         "type": "important",
-                        "category": "Investigation Process",
-                        "description": "Section requires enhanced analysis depth and evidence validation. Current content meets basic requirements but lacks comprehensive investigation rigor.",
-                        "suggestion": "Strengthen evidence validation protocols and include cross-verification steps for critical findings.",
-                        "example": "Add independent verification sources and document validation methodology used.",
-                        "questions": [
-                            "What evidence supports the key conclusions?",
-                            "How was the evidence independently verified?",
-                            "What additional investigation steps could strengthen this analysis?"
-                        ],
+                        "category": "Investigation",
+                        "description": "Lacks independent evidence verification sources",
+                        "suggestion": "Add cross-verification and validation methodology",
+                        "questions": ["How was evidence independently verified?"],
                         "hawkeye_refs": [2, 15],
                         "risk_level": "Medium",
                         "confidence": 0.85
-                    },
-                    {
-                        "id": f"mock_documentation_{int(time.time())}",
-                        "type": "suggestion",
-                        "category": "Documentation and Reporting",
-                        "description": "Documentation quality is adequate but could benefit from enhanced clarity and stakeholder context.",
-                        "suggestion": "Include executive summary section and ensure technical details are accessible to non-technical stakeholders.",
-                        "example": "Add glossary of technical terms and provide context for business impact.",
-                        "questions": [
-                            "Will all stakeholders understand the technical content?",
-                            "Is the business impact clearly articulated?"
-                        ],
-                        "hawkeye_refs": [13, 17],
-                        "risk_level": "Low",
-                        "confidence": 0.78
                     }
                 ]
             })
@@ -486,273 +444,133 @@ Provide only meaningful, actionable feedback that improves document quality. Str
         
         return formatted
     
+    def _truncate_text(self, text, max_length):
+        """Truncate text to specified length with ellipsis"""
+        if not text or len(text) <= max_length:
+            return text
+        return text[:max_length-3] + "..."
+    
     def _mock_chat_response(self, query, context):
-        """Generate enhanced structured mock chat responses for development/testing"""
+        """Generate concise, focused mock chat responses"""
         # Simulate processing delay
-        time.sleep(1)
+        time.sleep(0.5)
         
         query_lower = query.lower()
         current_section = context.get('current_section', 'current section')
         
         if 'help' in query_lower or 'how' in query_lower:
-            return """**AI-Prism Document Analysis Assistance**
+            return f"""**Quick Help for {current_section}**
 
-• **Current Focus**: Analysis of '{0}' section using Hawkeye framework methodology
-• **Core Capabilities**: Investigation quality assessment, compliance validation, risk evaluation
-• **Framework Application**: 20-point comprehensive checklist for thorough document review
+• **Analysis**: Review against Hawkeye checkpoints
+• **Feedback**: Accept specific, actionable items
+• **Risk**: Assess High/Medium/Low impact
+• **Questions**: Ask about specific gaps or improvements
 
-**Key Areas I Can Help With:**
-• Investigation methodology and evidence validation
-• Risk assessment and classification protocols
-• Documentation quality and compliance standards
-• Stakeholder communication and reporting clarity
-
-**Hawkeye References:**
-• Checkpoint #2: Investigation Process - Methodology validation
-• Checkpoint #15: Quality Control - Standards compliance
-
-**Recommended Next Steps:**
-• Identify specific areas needing improvement in current section
-• Apply relevant Hawkeye checkpoints for comprehensive analysis
-
-**Follow-up Question:** What particular aspect of '{0}' would you like me to analyze in detail?""".format(current_section)
+**What specific aspect needs clarification?**"""
         
         elif 'hawkeye' in query_lower or 'framework' in query_lower:
-            return """**Hawkeye Framework Application**
+            return f"""**Hawkeye for {current_section}**
 
-• **Framework Overview**: Comprehensive 20-point investigation checklist ensuring thorough document analysis
-• **Current Section Relevance**: '{0}' requires specific checkpoint validation for compliance
-• **Quality Assurance**: Systematic approach to investigation documentation and reporting
+**Key Checkpoints:**
+• #2: Investigation methodology
+• #11: Root cause depth
+• #13: Documentation quality
+• #15: Evidence validation
 
-**Most Relevant Checkpoints for '{0}':**
-• Checkpoint #2: Investigation Process - Ensure thorough methodology and evidence validation
-• Checkpoint #11: Root Cause Analysis - Identify systemic issues and underlying causes
-• Checkpoint #13: Documentation & Reporting - Maintain professional quality standards
-• Checkpoint #15: Quality Control - Validate findings and ensure accuracy
-
-**Implementation Guidelines:**
-• Apply systematic review process for each checkpoint
-• Document evidence supporting compliance with each standard
-• Identify gaps requiring additional investigation or clarification
-
-**Recommended Actions:**
-• Review current section against applicable checkpoints
-• Document compliance status for each relevant standard
-
-**Follow-up Question:** Which specific Hawkeye checkpoint would you like me to explain in greater detail?""".format(current_section)
+**Which checkpoint needs explanation?**"""
         
         elif 'risk' in query_lower:
-            return """**Risk Assessment Framework**
+            return f"""**Risk Assessment**
 
-• **Assessment Scope**: Comprehensive risk evaluation for '{0}' section
-• **Classification System**: Three-tier risk categorization with specific criteria
-• **Impact Analysis**: Customer, business, and operational impact consideration
+• **High**: Customer safety, legal issues, major impact
+• **Medium**: Process gaps, operational issues
+• **Low**: Documentation improvements
 
-**Risk Classification Criteria:**
-• **High Risk**: Customer safety concerns, legal compliance violations, significant financial impact, regulatory non-compliance
-• **Medium Risk**: Process gaps, operational inefficiencies, moderate business impact, stakeholder concerns
-• **Low Risk**: Documentation improvements, minor enhancements, formatting issues, clarity improvements
-
-**Assessment Factors:**
-• Customer experience and trust impact
-• Regulatory and legal compliance requirements
-• Business continuity and operational stability
-• Financial implications and cost considerations
-
-**Hawkeye References:**
-• Checkpoint #1: Initial Assessment - Customer experience impact evaluation
-• Checkpoint #19: Legal and Compliance - Regulatory adherence validation
-
-**Recommended Actions:**
-• Conduct systematic risk assessment using established criteria
-• Document risk rationale with supporting evidence
-
-**Follow-up Question:** What specific risk factors are you most concerned about in this section?""".format(current_section)
+**Current section risk factors?**"""
         
         elif 'feedback' in query_lower or 'comment' in query_lower:
-            return """**Feedback Evaluation Guidelines**
+            return """**Feedback Guidelines**
 
-• **Evaluation Framework**: Systematic approach to assessing AI-generated feedback quality
-• **Quality Standards**: Hawkeye framework alignment and actionable improvement focus
-• **Decision Criteria**: Clear guidelines for acceptance and rejection decisions
+**Accept if:**
+• Specific and actionable
+• References Hawkeye checkpoints
+• Addresses real gaps
 
-**Accept Feedback That:**
-• Provides specific, actionable improvement recommendations
-• References relevant Hawkeye checkpoints with clear rationale
-• Addresses compliance gaps or quality enhancement opportunities
-• Includes concrete examples or implementation guidance
-• Aligns with investigation standards and best practices
+**Reject if:**
+• Generic or vague
+• No clear action
+• Outside scope
 
-**Reject Feedback That:**
-• Offers generic or vague suggestions without specific guidance
-• Lacks alignment with established investigation standards
-• Provides no supporting rationale or evidence
-• Duplicates existing content without adding value
-• Falls outside scope of current section analysis
-
-**Quality Assessment Process:**
-• Evaluate feedback against Hawkeye framework relevance
-• Assess actionability and implementation feasibility
-• Consider stakeholder value and investigation enhancement
-
-**Recommended Actions:**
-• Apply consistent evaluation criteria for all feedback items
-• Document rationale for acceptance and rejection decisions
-
-**Follow-up Question:** Would you like help evaluating specific feedback items for '{0}'?""".format(current_section)
+**Which feedback item needs evaluation?**"""
         
         elif 'improve' in query_lower or 'enhance' in query_lower:
-            return """**Section Enhancement Strategy**
+            return f"""**Improvement Areas for {current_section}**
 
-• **Improvement Focus**: Systematic enhancement of '{0}' section quality and compliance
-• **Quality Standards**: Hawkeye framework alignment and professional documentation requirements
-• **Enhancement Areas**: Evidence validation, stakeholder clarity, process documentation
+• **Evidence**: Add verification sources
+• **Impact**: Quantify business effects
+• **Actions**: Specify owners and dates
+• **Process**: Document methodology
 
-**Priority Enhancement Areas:**
-• **Evidence Validation**: Add independent verification sources and cross-reference documentation
-• **Stakeholder Context**: Include comprehensive business impact analysis and stakeholder considerations
-• **Process Documentation**: Detail methodology used and provide clear procedural references
-• **Risk Assessment**: Quantify potential impacts with specific metrics and measurements
-• **Action Items**: Specify clear ownership, timelines, and accountability measures
-
-**Implementation Guidelines:**
-• Conduct systematic review of current content against quality standards
-• Identify specific gaps requiring additional information or clarification
-• Apply Hawkeye checkpoints for comprehensive quality validation
-
-**Hawkeye References:**
-• Checkpoint #2: Investigation Process - Methodology documentation
-• Checkpoint #13: Documentation & Reporting - Quality standards
-• Checkpoint #15: Quality Control - Validation processes
-
-**Recommended Actions:**
-• Prioritize enhancement areas based on impact and feasibility
-• Develop implementation timeline with specific milestones
-
-**Follow-up Question:** Which enhancement area would you like to focus on first for maximum impact?""".format(current_section)
+**Which area to focus on?**"""
         
         elif 'timeline' in query_lower:
-            return """**Timeline Documentation Standards**
+            return """**Timeline Standards**
 
-• **Documentation Requirements**: Precise chronological documentation with verified timestamps
-• **Quality Standards**: Hawkeye framework compliance for timeline accuracy and completeness
-• **Validation Process**: Independent verification of events and sequence accuracy
+• **Format**: DD-MMM-YYYY HH:MM
+• **Gaps**: Explain >24hr delays
+• **Ownership**: Who did what
+• **Sequence**: Chronological order
 
-**Essential Timeline Elements:**
-• **Precise Timestamps**: Use standardized DD-MMM-YYYY HH:MM format for all entries
-• **Chronological Order**: Verify sequence accuracy with clear event progression
-• **Event Ownership**: Identify responsible parties and decision-makers for each entry
-• **Gap Analysis**: Explain any significant time gaps with supporting rationale
-• **Event Correlation**: Link timeline events to outcomes and investigation findings
-
-**Quality Validation Criteria:**
-• All timestamps independently verified and documented
-• Clear accountability established for each timeline entry
-• Logical sequence maintained throughout documentation
-• Critical events properly highlighted and explained
-
-**Hawkeye References:**
-• Checkpoint #2: Investigation Process - Timeline accuracy requirements
-• Checkpoint #13: Documentation & Reporting - Chronological documentation standards
-
-**Recommended Actions:**
-• Conduct comprehensive timeline review for accuracy and completeness
-• Validate all timestamps through independent sources
-• Document verification methodology used
-
-**Follow-up Question:** What specific timeline aspects require clarification or additional validation?"""
+**Specific timeline issue?**"""
         
         else:
-            return """**AI-Prism Analysis Guidance**
+            return f"""**AI-Prism for {current_section}**
 
-• **Query Understanding**: Analysis request for "{0}" regarding '{1}' section
-• **Expertise Areas**: Document analysis, quality assessment, compliance validation, risk evaluation
-• **Framework Application**: Hawkeye methodology for comprehensive investigation review
+**I can help with:**
+• Gap analysis
+• Risk assessment
+• Hawkeye compliance
+• Evidence validation
 
-**Available Assistance Areas:**
-• **Document Analysis**: Comprehensive quality assessment and compliance validation
-• **Hawkeye Framework**: Application of 20-point investigation checklist
-• **Risk Evaluation**: Classification and impact assessment protocols
-• **Evidence Validation**: Verification techniques and quality standards
-• **Stakeholder Communication**: Professional reporting and clarity enhancement
-
-**Analysis Approach:**
-• Systematic review using established quality standards
-• Evidence-based assessment with supporting documentation
-• Risk-focused evaluation with clear classification criteria
-• Actionable recommendations with implementation guidance
-
-**Hawkeye References:**
-• Multiple checkpoints applicable based on specific analysis requirements
-• Framework provides comprehensive quality assurance methodology
-
-**Recommended Next Steps:**
-• Clarify specific analysis requirements for targeted guidance
-• Identify priority areas for detailed investigation
-
-**Follow-up Question:** What specific aspect of '{1}' analysis would be most helpful for your current needs?""".format(query, current_section)
+**What specific question do you have?**"""
 
 
     def process_chat_query(self, query, context):
-        """Process chat queries with AI-Prism focused on guidelines and document analysis"""
+        """Process chat queries with focused, concise responses"""
         print(f"Processing chat query: {query[:50]}...")
         
-        context_info = f"""
-        Current Section: {context.get('current_section', 'Current section')}
-        Document Type: Full Write-up Investigation
-        Hawkeye Framework: 20-point comprehensive checklist
-        Current Feedback Count: {context.get('current_feedback', [])}
-        Accepted Items: {context.get('accepted_count', 0)}
-        Rejected Items: {context.get('rejected_count', 0)}
-        """
+        current_section = context.get('current_section', 'Current section')
+        feedback_count = len(context.get('current_feedback', []))
         
-        prompt = f"""DOCUMENT ANALYSIS GUIDANCE REQUEST:
+        prompt = f"""QUESTION: {query}
+SECTION: {current_section}
+FEEDBACK ITEMS: {feedback_count}
+
+HAWKEYE CHECKPOINTS:
+{self.hawkeye_checklist[:500]}...
+
+RESPONSE RULES:
+• Max 100 words
+• Use bullet points
+• Be specific to the question
+• Reference 1-2 Hawkeye checkpoints if relevant
+• End with one follow-up question
+• No lengthy explanations
+
+FORMAT:
+**[Topic]**
+• Point 1
+• Point 2
+**Next:** Follow-up question?"""
         
-        CONTEXT:
-        {context_info}
+        system_prompt = """You are AI-Prism providing concise CT EE investigation guidance.
         
-        USER QUESTION: {query}
-        
-        HAWKEYE FRAMEWORK REFERENCE:
-        {self.hawkeye_checklist}
-        
-        RESPONSE REQUIREMENTS:
-        1. Structure your response with clear sections using bullet points
-        2. Use professional, guidelines-oriented language
-        3. Reference specific Hawkeye checkpoints when relevant
-        4. Provide actionable recommendations
-        5. Use proper formatting with line breaks and justification
-        6. Include specific examples when helpful
-        7. End with a follow-up question to continue the conversation
-        
-        Format your response as:
-        **[Main Topic]**
-        
-        • Key Point 1: [Detailed explanation]
-        • Key Point 2: [Detailed explanation]
-        
-        **Hawkeye References:**
-        • Checkpoint #X: [Specific relevance]
-        
-        **Recommended Actions:**
-        • Action 1: [Specific step]
-        • Action 2: [Specific step]
-        
-        **Follow-up Question:** [Engaging question to continue discussion]
-        
-        Provide helpful, specific guidance that references the Hawkeye guidelines when relevant. Be professional, structured, and actionable."""
-        
-        system_prompt = """You are AI-Prism, a professional CT EE investigation specialist providing expert guidance on document analysis and compliance. 
-        
-        Your responses must be:
-        - Structured with clear bullet points and sections
-        - Professional and guidelines-oriented
-        - Actionable with specific recommendations
-        - Referenced to Hawkeye framework when relevant
-        - Formatted for easy reading with proper line breaks
-        - Concluded with engaging follow-up questions
-        
-        Always maintain a professional tone while being helpful and accessible."""
+        Rules:
+        - Maximum 100 words
+        - Bullet points only
+        - Direct answers
+        - One follow-up question
+        - Professional tone"""
         
         try:
             response = self._invoke_bedrock(system_prompt, prompt)

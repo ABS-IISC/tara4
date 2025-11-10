@@ -8,7 +8,7 @@ from werkzeug.utils import secure_filename
 
 # Import our modular components
 from core.document_analyzer import DocumentAnalyzer
-from core.ai_feedback_engine_enhanced import EnhancedAIFeedbackEngine
+from core.ai_feedback_engine import AIFeedbackEngine
 from utils.statistics_manager import StatisticsManager
 from utils.document_processor import DocumentProcessor
 from utils.pattern_analyzer import DocumentPatternAnalyzer
@@ -37,7 +37,7 @@ if os.path.exists(env_file):
 # Global components - with error handling
 try:
     document_analyzer = DocumentAnalyzer()
-    ai_engine = EnhancedAIFeedbackEngine()
+    ai_engine = AIFeedbackEngine()
     stats_manager = StatisticsManager()
     doc_processor = DocumentProcessor()
     pattern_analyzer = DocumentPatternAnalyzer()

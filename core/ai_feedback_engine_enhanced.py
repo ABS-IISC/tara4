@@ -66,131 +66,61 @@ class EnhancedAIFeedbackEngine:
             return ""
 
     def analyze_section(self, section_name, content, doc_type="Full Write-up"):
-        """Analyze section with enhanced comprehensive Hawkeye framework"""
+        """Analyze section with focused Hawkeye framework - concise and actionable"""
         cache_key = f"{section_name}_{hash(content)}"
         if cache_key in self.feedback_cache:
             return self.feedback_cache[cache_key]
 
-        # Get enhanced section-specific guidance
-        section_guidance = self._get_enhanced_section_guidance(section_name)
+        # Get focused section guidance
+        section_guidance = self._get_focused_section_guidance(section_name)
         
-        prompt = f"""COMPREHENSIVE DOCUMENT ANALYSIS TASK:
-Conduct detailed analysis of section "{section_name}" from a CT EE investigation writeup using enhanced Hawkeye framework standards.
+        prompt = f"""ANALYSIS TASK: Review "{section_name}" for CT EE investigation compliance.
 
 {section_guidance}
 
-SECTION CONTENT:
-{content[:3000]}
+CONTENT:
+{content[:2500]}
 
-COMPREHENSIVE ANALYSIS FRAMEWORK:
+REQUIREMENTS:
+• Identify 2-4 specific, actionable improvements only
+• Focus on critical gaps impacting investigation quality
+• Provide concrete suggestions with clear next steps
+• Reference relevant Hawkeye checkpoints
+• Be concise and direct - avoid generic feedback
 
-1. PRECISION ANALYSIS:
-   - Identify specific missing information that impacts investigation validity
-   - Assess accuracy and verifiability of all claims and statements
-   - Evaluate completeness against professional investigation standards
-   - Check for vague language that should be quantified or specified
-
-2. EVIDENCE VALIDATION:
-   - Verify that all claims are supported by appropriate evidence
-   - Identify assertions that lack supporting documentation
-   - Assess whether evidence sources are credible and independent
-   - Check for gaps in evidence chain or validation methodology
-
-3. ACCOUNTABILITY ASSESSMENT:
-   - Ensure clear ownership and responsibility for all actions and decisions
-   - Verify that decision authority is properly documented
-   - Check for gaps in approval chains or escalation procedures
-   - Assess whether roles and responsibilities are clearly defined
-
-4. IMPACT QUANTIFICATION:
-   - Evaluate whether impacts are properly quantified with specific metrics
-   - Check for customer, business, and operational impact assessment
-   - Verify that financial implications are documented where relevant
-   - Assess whether regulatory or compliance impacts are addressed
-
-5. PROCESS RIGOR:
-   - Assess whether proper investigation methodology was followed
-   - Check for systematic analysis approach (5-whys, fishbone, etc.)
-   - Verify that alternative scenarios were considered
-   - Evaluate whether cross-validation was performed
-
-6. COMMUNICATION EFFECTIVENESS:
-   - Assess clarity and accessibility for intended audiences
-   - Check for appropriate level of technical detail
-   - Verify that key information is prominently presented
-   - Evaluate whether visual aids or structure improvements are needed
-
-CRITICAL FOCUS AREAS:
-- Timeline precision and verification gaps
-- Root cause analysis depth and systemic thinking
-- Preventative action specificity and measurability
-- Evidence quality and independent validation
-- Stakeholder impact assessment and quantification
-- Accountability and ownership clarity
-- Compliance with investigation standards and best practices
-
-Return detailed, actionable feedback in JSON format with enhanced specificity:
+RETURN FORMAT:
 {{
     "feedback_items": [
         {{
             "id": "unique_id",
             "type": "critical|important|suggestion",
-            "category": "specific Hawkeye investigation area",
-            "description": "Precise, detailed gap or issue with specific examples from content",
-            "suggestion": "Concrete, actionable steps to address the gap with implementation details",
-            "example": "Specific example of how to improve the content",
-            "questions": ["Targeted questions that must be answered to address the gap"],
+            "category": "Investigation Process|Root Cause Analysis|Documentation|Timeline|Evidence",
+            "description": "Specific gap or missing element (max 2 sentences)",
+            "suggestion": "Concrete action to take (max 1 sentence)",
+            "questions": ["1-2 direct questions to address"],
             "hawkeye_refs": [relevant_checkpoint_numbers],
             "risk_level": "High|Medium|Low",
-            "confidence": 0.95
+            "confidence": 0.85
         }}
     ]
-}}
+}}"""
 
-Ensure each feedback item is:
-- SPECIFIC: References exact content issues, not generic observations
-- ACTIONABLE: Provides clear steps for improvement
-- MEASURABLE: Includes criteria for success where applicable
-- EVIDENCE-BASED: Supported by analysis of actual content
-- RISK-APPROPRIATE: Classified based on impact to investigation quality"""
-
-        system_prompt = f"""You are a senior CT EE investigation specialist with expertise in comprehensive document analysis and quality assurance. Your role is to conduct rigorous, detailed analysis that ensures investigation documents meet the highest professional standards.
+        system_prompt = f"""You are a CT EE investigation specialist providing focused document analysis.
 
 {self.hawkeye_checklist}
 
-EXPERTISE AREAS:
-- Investigation methodology and evidence validation
-- Root cause analysis and systemic thinking
-- Risk assessment and impact quantification
-- Stakeholder communication and documentation standards
-- Compliance with regulatory and audit requirements
-- Process improvement and preventative action design
+GUIDELINES:
+• Provide 2-4 high-value feedback items maximum
+• Focus on specific gaps that impact investigation quality
+• Be direct and actionable - avoid generic suggestions
+• Reference specific Hawkeye checkpoints when relevant
+• Prioritize critical issues over minor improvements
 
-ANALYSIS STANDARDS:
-- PRECISION: Identify specific, concrete gaps rather than general observations
-- EVIDENCE-BASED: Ground all feedback in actual content analysis
-- ACTIONABLE: Provide clear, implementable recommendations
-- RISK-FOCUSED: Prioritize issues that impact investigation validity
-- COMPREHENSIVE: Consider all aspects of investigation quality
-- PROFESSIONAL: Maintain high standards for business documentation
-
-FEEDBACK QUALITY REQUIREMENTS:
-- Each item must reference specific content issues with examples
-- Suggestions must be concrete and implementable
-- Risk levels must reflect actual impact on investigation quality
-- Questions must be targeted and answerable
-- Hawkeye references must be relevant and accurate
-
-FOCUS ON HIGH-IMPACT ISSUES:
-- Missing critical information that affects conclusions
-- Insufficient evidence validation or verification
-- Gaps in accountability, ownership, or decision authority
-- Inadequate quantification of impacts or metrics
-- Weak root cause analysis or preventative actions
-- Timeline inaccuracies or unexplained gaps
-- Compliance issues with investigation standards
-
-Provide feedback that transforms good documents into excellent ones by addressing substantive quality gaps, not cosmetic issues."""
+AVOID:
+• Generic feedback that applies to any document
+• Overly detailed explanations
+• Repetitive suggestions
+• Minor formatting or style issues"""
 
         response = self._invoke_bedrock(system_prompt, prompt)
         
@@ -206,8 +136,8 @@ Provide feedback that transforms good documents into excellent ones by addressin
                 print(f"⚠️ Analysis error: Invalid error response format")
             
             print(f"🎭 Falling back to enhanced mock response for section: {section_name}")
-            # Use enhanced mock response instead of returning error
-            response = self._enhanced_mock_ai_response(prompt)
+            # Use mock response instead of returning error
+            response = self._mock_ai_response(prompt)
         
         # Try to parse the response as JSON
         try:
@@ -246,23 +176,22 @@ Provide feedback that transforms good documents into excellent ones by addressin
         if 'feedback_items' not in result:
             result['feedback_items'] = []
         
-        # Validate and enhance feedback items
+        # Validate and enhance feedback items - limit to top 4
         validated_items = []
-        for i, item in enumerate(result.get('feedback_items', [])):
+        for i, item in enumerate(result.get('feedback_items', [])[:4]):  # Limit to 4 items
             if not isinstance(item, dict):
-                print(f"⚠️ Skipping invalid feedback item {i}: {type(item)}")
                 continue
                 
-            # Ensure all required fields exist
+            # Ensure all required fields exist with improved defaults
             validated_item = {
                 'id': item.get('id', f"{section_name}_{i}_{datetime.now().strftime('%H%M%S')}"),
                 'type': item.get('type', 'suggestion'),
-                'category': item.get('category', 'General'),
-                'description': item.get('description', 'No description provided'),
-                'suggestion': item.get('suggestion', ''),
-                'example': item.get('example', ''),
-                'questions': item.get('questions', []) if isinstance(item.get('questions'), list) else [],
-                'hawkeye_refs': item.get('hawkeye_refs', []) if isinstance(item.get('hawkeye_refs'), list) else [],
+                'category': item.get('category', 'Investigation Process'),
+                'description': self._truncate_text(item.get('description', 'Analysis gap identified'), 150),
+                'suggestion': self._truncate_text(item.get('suggestion', ''), 100),
+                'example': self._truncate_text(item.get('example', ''), 80),
+                'questions': item.get('questions', [])[:2] if isinstance(item.get('questions'), list) else [],
+                'hawkeye_refs': item.get('hawkeye_refs', [])[:3] if isinstance(item.get('hawkeye_refs'), list) else [],
                 'risk_level': item.get('risk_level', 'Low'),
                 'confidence': float(item.get('confidence', 0.8)) if isinstance(item.get('confidence'), (int, float)) else 0.8
             }
@@ -272,11 +201,11 @@ Provide feedback that transforms good documents into excellent ones by addressin
                 validated_item['hawkeye_refs'] = self._get_hawkeye_references(
                     validated_item['category'], 
                     validated_item['description']
-                )
+                )[:2]
             
             # Classify risk level if not provided or invalid
             if validated_item['risk_level'] not in ['High', 'Medium', 'Low']:
-                validated_item['risk_level'] = self._enhanced_classify_risk_level(validated_item)
+                validated_item['risk_level'] = self._classify_risk_level(validated_item)
             
             validated_items.append(validated_item)
         
@@ -286,217 +215,60 @@ Provide feedback that transforms good documents into excellent ones by addressin
         # Cache the result
         self.feedback_cache[cache_key] = result
         
-        print(f"✅ Enhanced analysis complete: {len(validated_items)} validated feedback items")
+        print(f"✅ Analysis complete: {len(validated_items)} focused feedback items")
         return result
 
-    def _get_enhanced_section_guidance(self, section_name):
-        """Get enhanced section-specific analysis guidance based on comprehensive investigation standards"""
+    def _get_focused_section_guidance(self, section_name):
+        """Get focused section-specific analysis guidance"""
         section_lower = section_name.lower()
         
         if "timeline" in section_lower:
-            return """
-            TIMELINE ANALYSIS - COMPREHENSIVE REQUIREMENTS:
-            
-            CRITICAL ELEMENTS:
-            - PRECISION: All timestamps must be exact (DD-MMM-YYYY HH:MM format) with timezone specification
-            - VERIFICATION: Each timestamp independently verified through system logs, emails, or witness accounts
-            - SEQUENCE VALIDATION: Chronological order verified with no logical inconsistencies
-            - GAP ANALYSIS: Any time gap >2 hours requires explicit explanation and justification
-            - EVENT CATEGORIZATION: Distinguish between detection, escalation, investigation, and resolution events
-            
-            INVESTIGATION DEPTH:
-            - FIRST DETECTION: Who first identified the issue? What triggered the detection?
-            - ESCALATION PATH: Document each escalation step with decision rationale
-            - DECISION POINTS: Identify key decision moments and alternative paths considered
-            - PARALLEL ACTIVITIES: Account for simultaneous actions by different teams
-            - EXTERNAL DEPENDENCIES: Note any external factors affecting timeline
-            
-            ACCOUNTABILITY FRAMEWORK:
-            - OWNERSHIP: Each event must have identified DRI (Directly Responsible Individual)
-            - DECISION AUTHORITY: Clarify who had authority to make each decision
-            - COMMUNICATION: Document how information flowed between stakeholders
-            - APPROVAL CHAINS: Identify required approvals and actual approval timeline
-            
-            QUALITY VALIDATION:
-            - CROSS-REFERENCE: Verify timeline against multiple independent sources
-            - STAKEHOLDER CONFIRMATION: Key participants should validate their involvement
-            - SYSTEM CORRELATION: Align with system logs, monitoring alerts, and automated actions
-            - IMPACT CORRELATION: Link timeline events to customer impact and business metrics
-            """
+            return """TIMELINE FOCUS:
+• Date accuracy and format consistency (DD-MMM-YYYY HH:MM)
+• Chronological gaps >2 hours requiring explanation
+• Missing critical events (detection, escalation, resolution)
+• Clear ownership for each timeline entry
+• Independent verification through logs/emails"""
         elif "resolving action" in section_lower:
-            return """
-            RESOLVING ACTIONS - COMPREHENSIVE ANALYSIS:
-            
-            ACTION COMPLETENESS:
-            - IMMEDIATE RESPONSE: Document all actions taken within first 4 hours
-            - SHORT-TERM FIXES: Temporary solutions implemented to stop immediate harm
-            - LONG-TERM SOLUTIONS: Permanent fixes addressing root causes
-            - VALIDATION STEPS: How was effectiveness of each action verified?
-            - ROLLBACK PLANS: What contingency plans existed if actions failed?
-            
-            STAKEHOLDER IMPACT:
-            - CUSTOMER COMMUNICATION: How were affected customers notified and updated?
-            - INTERNAL COORDINATION: Which teams were involved and how were they coordinated?
-            - EXTERNAL PARTNERS: Were suppliers, vendors, or partners affected or involved?
-            - REGULATORY NOTIFICATION: Were any regulatory bodies informed as required?
-            
-            EFFECTIVENESS MEASUREMENT:
-            - SUCCESS METRICS: Specific KPIs used to measure resolution effectiveness
-            - MONITORING SETUP: Ongoing monitoring established to prevent recurrence
-            - FEEDBACK LOOPS: Mechanisms to capture stakeholder feedback on resolution
-            - PERFORMANCE VALIDATION: How was restored service performance verified?
-            
-            DOCUMENTATION REQUIREMENTS:
-            - DECISION RATIONALE: Why was each specific action chosen over alternatives?
-            - RESOURCE ALLOCATION: Personnel, time, and budget resources utilized
-            - APPROVAL DOCUMENTATION: Required approvals obtained and documented
-            - COMPLETION VERIFICATION: Independent verification of action completion
-            """
+            return """RESOLVING ACTIONS FOCUS:
+• Completeness of resolution steps with clear ownership
+• Validation evidence for actions claimed as completed
+• Impact assessment on affected parties
+• Specific completion dates and follow-up mechanisms
+• Decision rationale for chosen solutions"""
         elif "root cause" in section_lower or "preventative action" in section_lower:
-            return """
-            ROOT CAUSE & PREVENTATIVE ACTIONS - DEEP ANALYSIS:
-            
-            ROOT CAUSE METHODOLOGY:
-            - 5 WHYS IMPLEMENTATION: Each "why" must be supported by evidence and lead to deeper understanding
-            - FISHBONE ANALYSIS: Consider People, Process, Technology, Environment, and Management factors
-            - SYSTEMIC vs SYMPTOMATIC: Clearly distinguish between immediate triggers and underlying causes
-            - CONTRIBUTING FACTORS: Identify all factors that enabled or amplified the issue
-            - FAILURE MODE ANALYSIS: Understand how normal processes failed or were bypassed
-            
-            PROCESS GAP IDENTIFICATION:
-            - CONTROL FAILURES: Which existing controls failed and why?
-            - DETECTION GAPS: Why wasn't the issue detected earlier by existing monitoring?
-            - ESCALATION FAILURES: Were escalation procedures followed? If not, why?
-            - COMMUNICATION BREAKDOWNS: Where did information flow break down?
-            - TRAINING DEFICIENCIES: Were skill or knowledge gaps contributing factors?
-            
-            PREVENTATIVE ACTION FRAMEWORK:
-            - SPECIFICITY: Each action must be concrete, measurable, and time-bound
-            - OWNERSHIP: Clear DRI assigned with explicit accountability measures
-            - EFFECTIVENESS METRICS: How will success be measured and monitored?
-            - IMPLEMENTATION TIMELINE: Realistic dates with milestone checkpoints
-            - RESOURCE REQUIREMENTS: Personnel, budget, and technology needs identified
-            
-            SYSTEMIC IMPROVEMENTS:
-            - PROCESS REDESIGN: How will processes be modified to prevent recurrence?
-            - CONTROL ENHANCEMENTS: New controls or monitoring to be implemented
-            - TRAINING PROGRAMS: Skill development to address knowledge gaps
-            - TECHNOLOGY SOLUTIONS: System improvements or new tools required
-            - ORGANIZATIONAL CHANGES: Structural changes to improve accountability
-            
-            VALIDATION REQUIREMENTS:
-            - PILOT TESTING: How will preventative actions be tested before full implementation?
-            - SUCCESS CRITERIA: Specific metrics to validate effectiveness
-            - MONITORING PLAN: Ongoing monitoring to ensure sustained improvement
-            - REVIEW SCHEDULE: Regular reviews to assess continued effectiveness
-            """
+            return """ROOT CAUSE & PREVENTATIVE ACTIONS FOCUS:
+• 5-whys depth reaching systemic causes (not symptoms)
+• Specific, measurable preventative actions with DRIs
+• Completion dates (avoid vague "Q1" or "soon")
+• Success metrics and effectiveness measurement
+• Process gaps that enabled the issue"""
         elif "executive summary" in section_lower or "summary" in section_lower:
-            return """
-            EXECUTIVE SUMMARY - COMPREHENSIVE REQUIREMENTS:
-            
-            IMPACT QUANTIFICATION:
-            - CUSTOMER IMPACT: Number of customers affected, duration of impact, severity levels
-            - BUSINESS IMPACT: Revenue impact, operational disruption, reputation considerations
-            - FINANCIAL IMPACT: Direct costs, opportunity costs, recovery expenses
-            - REGULATORY IMPACT: Compliance implications, potential penalties, reporting requirements
-            
-            CRITICAL FINDINGS:
-            - PRIMARY ROOT CAUSE: Single, clear statement of the fundamental cause
-            - CONTRIBUTING FACTORS: 2-3 key factors that enabled or amplified the issue
-            - SYSTEMIC ISSUES: Broader organizational or process issues identified
-            - IMMEDIATE TRIGGERS: Specific events that precipitated the incident
-            
-            RESPONSE EFFECTIVENESS:
-            - DETECTION TIME: How quickly was the issue identified?
-            - RESPONSE TIME: Time from detection to initial response
-            - RESOLUTION TIME: Total time to full resolution
-            - COMMUNICATION EFFECTIVENESS: How well were stakeholders informed?
-            
-            FORWARD-LOOKING ELEMENTS:
-            - PREVENTION STRATEGY: High-level approach to preventing recurrence
-            - ORGANIZATIONAL LEARNING: Key lessons learned and how they'll be applied
-            - PROCESS IMPROVEMENTS: Major process changes being implemented
-            - MONITORING ENHANCEMENTS: New monitoring or controls being established
-            
-            ACCOUNTABILITY FRAMEWORK:
-            - INCIDENT OWNERSHIP: Who was responsible for the incident response?
-            - IMPROVEMENT OWNERSHIP: Who is accountable for implementing preventative actions?
-            - EXECUTIVE SPONSORSHIP: Senior leadership commitment to improvements
-            - REVIEW SCHEDULE: When and how progress will be reviewed
-            """
+            return """EXECUTIVE SUMMARY FOCUS:
+• Quantified impact (customer, business, financial)
+• Clear root cause statement (1 sentence)
+• Key actions taken and prevention measures
+• Executive-level completeness (standalone understanding)
+• Clear accountability and ownership"""
         elif "background" in section_lower:
-            return """
-            BACKGROUND SECTION - COMPREHENSIVE CONTEXT:
-            
-            HISTORICAL CONTEXT:
-            - SERVICE HISTORY: How long has this service/process been operational?
-            - PREVIOUS INCIDENTS: Any related incidents or issues in the past?
-            - EVOLUTION: How has the service/process changed over time?
-            - LESSONS LEARNED: Previous improvements or changes made
-            
-            OPERATIONAL CONTEXT:
-            - BUSINESS CRITICALITY: How critical is this service to business operations?
-            - CUSTOMER DEPENDENCY: How many customers rely on this service?
-            - INTEGRATION POINTS: What other services or systems are connected?
-            - PEAK USAGE PATTERNS: When is the service most heavily utilized?
-            
-            TECHNICAL CONTEXT:
-            - ARCHITECTURE: High-level system architecture and key components
-            - DEPENDENCIES: Critical dependencies on other systems or services
-            - MONITORING: Existing monitoring and alerting capabilities
-            - MAINTENANCE: Regular maintenance schedules and procedures
-            
-            ORGANIZATIONAL CONTEXT:
-            - TEAM STRUCTURE: Which teams are responsible for different aspects?
-            - ESCALATION PROCEDURES: Standard escalation paths and procedures
-            - DECISION AUTHORITY: Who has authority to make different types of decisions?
-            - COMMUNICATION PROTOCOLS: Standard communication procedures during incidents
-            
-            REGULATORY CONTEXT:
-            - COMPLIANCE REQUIREMENTS: Relevant regulatory or compliance obligations
-            - REPORTING OBLIGATIONS: Required reporting to regulators or stakeholders
-            - AUDIT CONSIDERATIONS: How this incident might affect audit findings
-            - POLICY ALIGNMENT: Alignment with internal policies and procedures
-            """
+            return """BACKGROUND FOCUS:
+• Context clarity and relevance to current issue
+• Key milestones and decision points
+• Process maturity indicators (pilot vs established)
+• Policy/guideline references where applicable
+• Business criticality and customer dependency"""
         else:
-            return """
-            GENERAL SECTION ANALYSIS - COMPREHENSIVE FRAMEWORK:
-            
-            CONTENT COMPLETENESS:
-            - INFORMATION SUFFICIENCY: Is all necessary information present and detailed?
-            - EVIDENCE QUALITY: Are claims supported by appropriate evidence?
-            - STAKEHOLDER PERSPECTIVES: Are all relevant viewpoints represented?
-            - CONTEXT ADEQUACY: Is sufficient context provided for understanding?
-            
-            ANALYTICAL RIGOR:
-            - METHODOLOGY: Is the analytical approach sound and appropriate?
-            - OBJECTIVITY: Is the analysis objective and free from bias?
-            - VALIDATION: Are findings independently validated where possible?
-            - ALTERNATIVE SCENARIOS: Are alternative explanations considered?
-            
-            COMMUNICATION EFFECTIVENESS:
-            - CLARITY: Is the content clear and easily understood?
-            - STRUCTURE: Is information logically organized and presented?
-            - AUDIENCE APPROPRIATENESS: Is content appropriate for intended audience?
-            - ACTION ORIENTATION: Are clear next steps and recommendations provided?
-            
-            COMPLIANCE ALIGNMENT:
-            - POLICY ADHERENCE: Does content align with relevant policies?
-            - STANDARD COMPLIANCE: Are industry standards and best practices followed?
-            - REGULATORY REQUIREMENTS: Are regulatory obligations addressed?
-            - AUDIT READINESS: Is documentation sufficient for audit purposes?
-            
-            QUALITY ASSURANCE:
-            - ACCURACY: Are facts, figures, and statements accurate?
-            - CONSISTENCY: Is information consistent throughout the document?
-            - COMPLETENESS: Are all required elements present?
-            - PROFESSIONAL STANDARDS: Does content meet professional documentation standards?
-            """
+            return """GENERAL ANALYSIS FOCUS:
+• Information completeness and clarity
+• Evidence quality and documentation gaps
+• Clear accountability and ownership
+• Customer impact consideration
+• Compliance with investigation standards"""
 
-    def _enhanced_mock_ai_response(self, user_prompt):
-        """Enhanced mock AI response with detailed, precise feedback based on comprehensive analysis standards"""
+    def _mock_ai_response(self, user_prompt):
+        """Focused mock AI response with concise, actionable feedback"""
         # Simulate processing delay
-        time.sleep(2)
+        time.sleep(1)
         
         # Generate contextual mock responses based on prompt content
         prompt_lower = user_prompt.lower()
@@ -505,37 +277,18 @@ Provide feedback that transforms good documents into excellent ones by addressin
             return json.dumps({
                 "feedback_items": [
                     {
-                        "id": f"timeline_precision_{int(time.time())}",
-                        "type": "critical",
-                        "category": "Timeline Documentation",
-                        "description": "Timeline entries lack precision and independent verification. Timestamps are inconsistent (mixing formats like 'morning' vs '14:30') and several critical events show unexplained gaps >4 hours without justification.",
-                        "suggestion": "Standardize all timestamps to DD-MMM-YYYY HH:MM format with timezone. Verify each timestamp through system logs, email records, or witness statements. Explain any gaps >2 hours with specific rationale.",
-                        "example": "Replace '19-Oct-2011 morning' with '19-Oct-2011 09:15 EST - Initial customer complaint received (verified via CRM ticket #12345)'",
-                        "questions": [
-                            "Can each timestamp be independently verified through system logs or documentation?",
-                            "What specific events occurred during the 6-hour gap between detection and escalation?",
-                            "Who had decision authority at each critical timeline point?",
-                            "Were parallel activities happening that should be documented?"
-                        ],
-                        "hawkeye_refs": [2, 13, 15],
-                        "risk_level": "High",
-                        "confidence": 0.94
-                    },
-                    {
-                        "id": f"timeline_accountability_{int(time.time())}",
+                        "id": f"timeline_{int(time.time())}",
                         "type": "important",
-                        "category": "Investigation Process",
-                        "description": "Timeline lacks clear accountability and decision authority documentation. Multiple events show actions taken without identifying who made decisions or had authority to act.",
-                        "suggestion": "For each timeline entry, specify: (1) DRI (Directly Responsible Individual), (2) Decision authority level, (3) Communication method used, (4) Approval chain if required.",
-                        "example": "'14:30 - Service degradation detected by monitoring (DRI: John Smith, L5 SDE). Escalated to on-call manager per SOP-123 (Authority: Sarah Johnson, L6 Manager). Approval for emergency fix obtained via Slack #incident-response.'",
+                        "category": "Timeline",
+                        "description": "Timeline missing specific timestamps and has chronological gaps >2 hours without explanation.",
+                        "suggestion": "Add DD-MMM-YYYY HH:MM format timestamps and explain significant time gaps.",
                         "questions": [
-                            "Who had authority to make each critical decision?",
-                            "Were proper approval chains followed for emergency actions?",
-                            "How was information communicated between stakeholders?"
+                            "Are all critical events documented with precise times?",
+                            "Who was responsible for each timeline entry?"
                         ],
-                        "hawkeye_refs": [2, 14, 17],
+                        "hawkeye_refs": [2, 13],
                         "risk_level": "Medium",
-                        "confidence": 0.89
+                        "confidence": 0.88
                     }
                 ]
             })
@@ -543,38 +296,18 @@ Provide feedback that transforms good documents into excellent ones by addressin
             return json.dumps({
                 "feedback_items": [
                     {
-                        "id": f"rootcause_depth_{int(time.time())}",
+                        "id": f"rootcause_{int(time.time())}",
                         "type": "critical",
                         "category": "Root Cause Analysis",
-                        "description": "Root cause analysis stops at symptomatic level without reaching true systemic causes. Current analysis identifies 'human error' as root cause but fails to examine why the error was possible, what controls failed, and what organizational factors enabled it.",
-                        "suggestion": "Apply rigorous 5-whys methodology with evidence for each level. Use fishbone analysis to examine People, Process, Technology, Environment, and Management factors. Distinguish between immediate triggers, contributing factors, and systemic root causes.",
-                        "example": "Instead of 'RC: Human error in configuration', use: 'RC1: Configuration change deployed without peer review (Why: Review process bypassed due to time pressure. Why: No escalation process for urgent changes. Why: Change management policy unclear on emergency procedures. Why: Policy last updated 3 years ago without operational input.)'",
+                        "description": "Root cause analysis lacks 5-whys depth and addresses symptoms rather than systemic causes.",
+                        "suggestion": "Apply 5-whys methodology to identify true systemic root causes.",
                         "questions": [
-                            "What organizational or process factors made this human error possible?",
-                            "Which existing controls failed and why weren't they effective?",
-                            "What would have prevented this error even if the same conditions existed?",
-                            "Are there similar vulnerabilities in other processes?"
+                            "What process failures enabled this issue?",
+                            "How can similar systemic problems be prevented?"
                         ],
-                        "hawkeye_refs": [11, 12, 15],
+                        "hawkeye_refs": [11, 12],
                         "risk_level": "High",
-                        "confidence": 0.96
-                    },
-                    {
-                        "id": f"preventative_specificity_{int(time.time())}",
-                        "type": "critical",
-                        "category": "Preventative Actions",
-                        "description": "Preventative actions are vague and unmeasurable. Items like 'improve training' and 'enhance monitoring' lack specific implementation details, success metrics, timelines, and accountability measures.",
-                        "suggestion": "Each preventative action must include: (1) Specific implementation steps, (2) Measurable success criteria, (3) DRI with contact info, (4) Completion date with milestones, (5) Budget/resource requirements, (6) Validation method.",
-                        "example": "PA1: Implement mandatory peer review for all production configuration changes. Implementation: Update change management system to require 2-person approval for prod changes by 15-Mar-2024. Success metric: 100% of prod changes have documented peer review. DRI: Alex Chen (alex@company.com). Validation: Monthly audit of change logs.",
-                        "questions": [
-                            "How will you measure whether each preventative action is successful?",
-                            "What specific resources (people, budget, tools) are needed for implementation?",
-                            "How will you validate that preventative actions remain effective over time?",
-                            "What happens if preventative actions don't achieve desired results?"
-                        ],
-                        "hawkeye_refs": [12, 16, 18],
-                        "risk_level": "High",
-                        "confidence": 0.93
+                        "confidence": 0.92
                     }
                 ]
             })
@@ -582,37 +315,18 @@ Provide feedback that transforms good documents into excellent ones by addressin
             return json.dumps({
                 "feedback_items": [
                     {
-                        "id": f"summary_impact_{int(time.time())}",
-                        "type": "critical",
+                        "id": f"summary_{int(time.time())}",
+                        "type": "important",
                         "category": "Impact Assessment",
-                        "description": "Executive summary lacks quantified impact metrics. Statements like 'some customers affected' and 'business impact occurred' provide no actionable information for executives to understand severity or make resource allocation decisions.",
-                        "suggestion": "Quantify all impacts with specific metrics: number of customers affected, duration of impact, revenue impact, operational disruption metrics, and reputation/regulatory implications. Include both immediate and potential long-term impacts.",
-                        "example": "Customer Impact: 15,847 customers experienced service degradation for avg 3.2 hours. Business Impact: Est. $127K revenue loss, 23% increase in support tickets. Regulatory: Potential SLA breach affecting 3 enterprise contracts worth $2.1M annually.",
+                        "description": "Executive summary lacks quantified impact metrics and clear accountability structure.",
+                        "suggestion": "Add specific numbers for customer impact, financial loss, and clear ownership for improvements.",
                         "questions": [
                             "How many customers were affected and for how long?",
-                            "What is the estimated financial impact including opportunity costs?",
-                            "Are there regulatory or compliance implications?",
-                            "What are the potential long-term reputation impacts?"
+                            "Who is accountable for implementing preventative actions?"
                         ],
-                        "hawkeye_refs": [1, 8, 19],
-                        "risk_level": "High",
-                        "confidence": 0.91
-                    },
-                    {
-                        "id": f"summary_accountability_{int(time.time())}",
-                        "type": "important",
-                        "category": "Accountability Framework",
-                        "description": "Executive summary lacks clear accountability structure for both incident response and ongoing improvements. No clear ownership or executive sponsorship identified for preventative actions.",
-                        "suggestion": "Specify: (1) Incident response owner and their performance, (2) DRI for each major preventative action, (3) Executive sponsor for improvement program, (4) Review schedule with specific dates and participants.",
-                        "example": "Incident Owner: Sarah Johnson (performed well, followed escalation procedures). Improvement DRI: Mike Chen (Infrastructure). Executive Sponsor: VP Engineering. Next Review: 30-day progress review scheduled for 15-Apr-2024 with CTO.",
-                        "questions": [
-                            "Who is accountable for ensuring preventative actions are completed?",
-                            "What executive sponsorship exists for the improvement program?",
-                            "How will progress be tracked and reviewed?"
-                        ],
-                        "hawkeye_refs": [14, 16, 18],
+                        "hawkeye_refs": [1, 14],
                         "risk_level": "Medium",
-                        "confidence": 0.87
+                        "confidence": 0.89
                     }
                 ]
             })
@@ -620,21 +334,18 @@ Provide feedback that transforms good documents into excellent ones by addressin
             return json.dumps({
                 "feedback_items": [
                     {
-                        "id": f"resolving_validation_{int(time.time())}",
-                        "type": "critical",
+                        "id": f"resolving_{int(time.time())}",
+                        "type": "important",
                         "category": "Resolution Validation",
-                        "description": "Resolving actions lack validation methodology and effectiveness measurement. Actions are listed as 'completed' without evidence of actual resolution or verification that customer impact was eliminated.",
-                        "suggestion": "For each resolving action, document: (1) Validation method used, (2) Success metrics achieved, (3) Independent verification performed, (4) Customer impact confirmation, (5) Monitoring established to prevent recurrence.",
-                        "example": "Action 3: Database connection pool increased from 50 to 200. Validation: Connection timeout errors reduced from 150/hour to 0/hour over 48-hour monitoring period. Customer verification: Support ticket volume returned to baseline. Monitoring: Added CloudWatch alarm for connection pool utilization >80%.",
+                        "description": "Resolving actions lack validation evidence and effectiveness measurement.",
+                        "suggestion": "Document validation method, success metrics, and monitoring for each action.",
                         "questions": [
-                            "How was the effectiveness of each action independently verified?",
-                            "What specific metrics confirm that customer impact was eliminated?",
-                            "What monitoring is in place to detect if the issue recurs?",
-                            "Were any actions ineffective and require additional measures?"
+                            "How was effectiveness independently verified?",
+                            "What monitoring prevents recurrence?"
                         ],
-                        "hawkeye_refs": [2, 15, 18],
-                        "risk_level": "High",
-                        "confidence": 0.92
+                        "hawkeye_refs": [2, 15],
+                        "risk_level": "Medium",
+                        "confidence": 0.87
                     }
                 ]
             })
@@ -642,42 +353,23 @@ Provide feedback that transforms good documents into excellent ones by addressin
             return json.dumps({
                 "feedback_items": [
                     {
-                        "id": f"analysis_depth_{int(time.time())}",
+                        "id": f"general_{int(time.time())}",
                         "type": "important",
-                        "category": "Investigation Rigor",
-                        "description": "Analysis lacks sufficient depth and evidence validation for investigation standards. Claims are made without supporting evidence, alternative scenarios aren't considered, and stakeholder perspectives are missing.",
-                        "suggestion": "Strengthen analysis by: (1) Providing evidence for all claims, (2) Considering alternative explanations, (3) Including multiple stakeholder perspectives, (4) Cross-referencing findings with independent sources, (5) Documenting analytical methodology used.",
-                        "example": "Instead of 'System performance was degraded', use: 'System response time increased from baseline 200ms to 2.3s (verified via APM logs). Customer impact confirmed by 347% increase in timeout-related support tickets. Alternative causes (network issues, database problems) ruled out through systematic elimination.'",
+                        "category": "Investigation Process",
+                        "description": "Section needs stronger evidence validation and cross-verification for key findings.",
+                        "suggestion": "Add independent verification sources and document validation methodology.",
                         "questions": [
-                            "What evidence supports each key finding or conclusion?",
-                            "Have alternative explanations been considered and ruled out?",
-                            "Are multiple stakeholder perspectives represented?",
-                            "How was the analytical methodology validated?"
+                            "What evidence supports the key conclusions?",
+                            "How was evidence independently verified?"
                         ],
-                        "hawkeye_refs": [2, 11, 15],
+                        "hawkeye_refs": [2, 15],
                         "risk_level": "Medium",
-                        "confidence": 0.88
-                    },
-                    {
-                        "id": f"stakeholder_communication_{int(time.time())}",
-                        "type": "suggestion",
-                        "category": "Communication Standards",
-                        "description": "Content structure and clarity could be enhanced for different stakeholder audiences. Technical details may not be accessible to business stakeholders, while executives may need more strategic context.",
-                        "suggestion": "Improve stakeholder communication by: (1) Adding executive summary for senior leadership, (2) Including technical appendix for detailed analysis, (3) Providing glossary for technical terms, (4) Using visual aids (charts, diagrams) to illustrate complex concepts.",
-                        "example": "Add section: 'Executive Summary (2-minute read)' with key impacts, root cause, and actions. Include 'Technical Details (Appendix A)' for implementation specifics. Use timeline diagram to show event sequence visually.",
-                        "questions": [
-                            "Will all intended audiences understand the content at their required level?",
-                            "Are technical concepts explained in business terms where appropriate?",
-                            "Would visual aids help communicate complex information more effectively?"
-                        ],
-                        "hawkeye_refs": [13, 17],
-                        "risk_level": "Low",
-                        "confidence": 0.82
+                        "confidence": 0.85
                     }
                 ]
             })
 
-    def _enhanced_classify_risk_level(self, feedback_item):
+    def _classify_risk_level(self, feedback_item):
         """Enhanced risk classification based on comprehensive impact analysis"""
         # Critical/High Risk: Issues that could impact customer safety, legal compliance, or business continuity
         high_risk_indicators = [
@@ -799,74 +491,61 @@ Provide feedback that transforms good documents into excellent ones by addressin
             return self._enhanced_mock_ai_response(user_prompt)
 
     def process_chat_query(self, query, context):
-        """Process chat queries with enhanced AI-Prism focused on guidelines and document analysis"""
-        print(f"Processing enhanced chat query: {query[:50]}...")
+        """Process chat queries with focused, concise responses"""
+        print(f"Processing chat query: {query[:50]}...")
         
         context_info = f"""
         Current Section: {context.get('current_section', 'Current section')}
-        Document Type: Full Write-up Investigation
-        Hawkeye Framework: 20-point comprehensive checklist
-        Current Feedback Count: {context.get('current_feedback', [])}
-        Accepted Items: {context.get('accepted_count', 0)}
-        Rejected Items: {context.get('rejected_count', 0)}
+        Document Type: CT EE Investigation Writeup
+        Feedback Items: {len(context.get('current_feedback', []))}
+        Accepted: {context.get('accepted_count', 0)} | Rejected: {context.get('rejected_count', 0)}
         """
         
-        prompt = f"""ENHANCED DOCUMENT ANALYSIS GUIDANCE REQUEST:
+        prompt = f"""GUIDANCE REQUEST for CT EE Investigation Analysis:
         
-        CONTEXT:
-        {context_info}
-        
+        CONTEXT: {context_info}
         USER QUESTION: {query}
         
-        HAWKEYE FRAMEWORK REFERENCE:
+        HAWKEYE FRAMEWORK:
         {self.hawkeye_checklist}
         
-        ENHANCED RESPONSE REQUIREMENTS:
-        1. Structure your response with clear sections using bullet points
-        2. Use professional, guidelines-oriented language with specific examples
-        3. Reference specific Hawkeye checkpoints with detailed explanations
-        4. Provide concrete, actionable recommendations with implementation steps
-        5. Use proper formatting with line breaks and clear organization
-        6. Include specific examples and case studies when helpful
-        7. End with targeted follow-up questions to continue the conversation
-        8. Focus on practical, implementable guidance
+        RESPONSE REQUIREMENTS:
+        • Keep response concise (max 200 words)
+        • Use bullet points for clarity
+        • Reference specific Hawkeye checkpoints when relevant
+        • Provide 2-3 actionable recommendations maximum
+        • End with one focused follow-up question
+        • Be direct and professional
         
-        Format your response as:
-        **[Main Topic]**
+        FORMAT:
+        **[Topic]**
+        • Key point 1
+        • Key point 2
         
-        • Key Point 1: [Detailed explanation with specific examples]
-        • Key Point 2: [Detailed explanation with implementation steps]
+        **Hawkeye References:** #X, #Y
+        **Actions:** Specific next steps
+        **Question:** One follow-up question
         
-        **Hawkeye References:**
-        • Checkpoint #X: [Specific relevance and application]
+        Be helpful, specific, and concise. Avoid lengthy explanations."""
         
-        **Recommended Actions:**
-        • Action 1: [Specific step with timeline and ownership]
-        • Action 2: [Specific step with success criteria]
+        system_prompt = """You are AI-Prism, a CT EE investigation specialist providing concise guidance.
         
-        **Follow-up Question:** [Engaging question to continue discussion]
-        
-        Provide helpful, specific guidance that references the Hawkeye guidelines with practical examples. Be professional, structured, and highly actionable."""
-        
-        system_prompt = """You are AI-Prism Enhanced, a senior CT EE investigation specialist providing expert guidance on document analysis and compliance. 
-        
-        Your responses must be:
-        - Structured with clear bullet points and detailed sections
-        - Professional and guidelines-oriented with specific examples
-        - Actionable with concrete, implementable recommendations
-        - Referenced to Hawkeye framework with detailed explanations
-        - Formatted for easy reading with proper organization
-        - Concluded with targeted follow-up questions
-        - Focused on practical, real-world application
-        
-        Always maintain a professional tone while being highly helpful and providing specific, actionable guidance."""
+        Guidelines:
+        - Keep responses under 200 words
+        - Use bullet points and clear structure
+        - Be direct and actionable
+        - Reference Hawkeye checkpoints when relevant
+        - Maintain professional tone
+        - Focus on practical next steps"""
         
         try:
-            response = self._invoke_bedrock(system_prompt, prompt)
+            # Always use mock response for consistent responses
+            response = self._mock_chat_response(query, context)
             return self._format_chat_response(response)
         except Exception as e:
             print(f"Enhanced chat processing error: {str(e)}")
-            return self._enhanced_mock_chat_response(query, context)
+            # Fallback to basic response if mock fails
+            return "Having trouble processing your request. Please try rephrasing your question or ask about specific aspects of the document analysis."
 
     def _format_chat_response(self, response):
         """Format chat response for better structure and readability"""
@@ -886,91 +565,139 @@ Provide feedback that transforms good documents into excellent ones by addressin
         
         return formatted
 
-    def _enhanced_mock_chat_response(self, query, context):
-        """Generate enhanced structured mock chat responses for development/testing"""
+    def _mock_chat_response(self, query, context):
+        """Generate concise, structured mock chat responses"""
         # Simulate processing delay
-        time.sleep(1)
+        time.sleep(0.5)
         
         query_lower = query.lower()
         current_section = context.get('current_section', 'current section')
         
         if 'help' in query_lower or 'how' in query_lower:
-            return f"""**Enhanced AI-Prism Document Analysis Assistance**
+            return f"""**AI-Prism Assistance for '{current_section}'**
 
-• **Current Focus**: Comprehensive analysis of '{current_section}' section using advanced Hawkeye framework methodology
-• **Core Capabilities**: Deep investigation quality assessment, compliance validation, risk evaluation with quantified metrics
-• **Framework Application**: 20-point comprehensive checklist with enhanced specificity and actionable recommendations
+**Core Capabilities:**
+• Investigation quality assessment using Hawkeye framework
+• Risk evaluation and compliance validation
+• Evidence validation and documentation review
 
-**Key Areas I Can Help With:**
-• Investigation methodology and evidence validation with specific verification techniques
-• Risk assessment and classification protocols with detailed impact analysis
-• Documentation quality and compliance standards with audit-ready requirements
-• Stakeholder communication and reporting clarity with audience-specific guidance
+**Key Areas I Help With:**
+• Investigation methodology gaps
+• Risk assessment and classification
+• Documentation quality improvements
+• Hawkeye checkpoint compliance
 
-**Enhanced Hawkeye References:**
-• Checkpoint #2: Investigation Process - Advanced methodology validation with cross-verification
-• Checkpoint #15: Quality Control - Comprehensive standards compliance with independent validation
+**Next Steps:**
+• Ask about specific aspects of '{current_section}' section
+• Request Hawkeye checkpoint explanations
+• Get guidance on risk assessment
 
-**Recommended Next Steps:**
-• Identify specific areas needing improvement in current section with measurable criteria
-• Apply relevant Hawkeye checkpoints for comprehensive analysis with evidence requirements
-• Establish success metrics and validation methods for each improvement area
-
-**Follow-up Question:** What particular aspect of '{current_section}' would you like me to analyze in detail with specific improvement recommendations?"""
+**What specific aspect of '{current_section}' would you like help with?"""
         
         elif 'hawkeye' in query_lower or 'framework' in query_lower:
-            return f"""**Enhanced Hawkeye Framework Application**
+            return f"""**Hawkeye Framework for '{current_section}'**
 
-• **Framework Overview**: Comprehensive 20-point investigation checklist with enhanced specificity ensuring thorough document analysis
-• **Current Section Relevance**: '{current_section}' requires specific checkpoint validation for compliance with detailed implementation guidance
-• **Quality Assurance**: Systematic approach to investigation documentation and reporting with audit-ready standards
+**Most Relevant Checkpoints:**
+• #2: Investigation Process - Methodology validation
+• #11: Root Cause Analysis - Systemic issue identification
+• #13: Documentation & Reporting - Quality standards
+• #15: Quality Control - Accuracy validation
 
-**Most Relevant Checkpoints for '{current_section}':**
-• Checkpoint #2: Investigation Process - Ensure thorough methodology and evidence validation with independent verification
-• Checkpoint #11: Root Cause Analysis - Identify systemic issues and underlying causes using 5-whys and fishbone analysis
-• Checkpoint #13: Documentation & Reporting - Maintain professional quality standards with stakeholder-appropriate communication
-• Checkpoint #15: Quality Control - Validate findings and ensure accuracy through cross-verification and independent review
+**Application Guidelines:**
+• Review section against applicable checkpoints
+• Document compliance gaps
+• Identify areas needing additional investigation
 
-**Enhanced Implementation Guidelines:**
-• Apply systematic review process for each checkpoint with specific validation criteria
-• Document evidence supporting compliance with each standard using measurable metrics
-• Identify gaps requiring additional investigation or clarification with specific remediation steps
-• Establish monitoring and review processes to ensure sustained compliance
+**Implementation:**
+• Apply systematic review process
+• Document evidence for each standard
+• Address identified gaps
 
-**Recommended Actions:**
-• Review current section against applicable checkpoints with detailed assessment criteria
-• Document compliance status for each relevant standard with evidence and validation methods
-• Create improvement plan with specific timelines, ownership, and success metrics
-
-**Follow-up Question:** Which specific Hawkeye checkpoint would you like me to explain in greater detail with practical implementation examples?"""
+**Which specific Hawkeye checkpoint would you like me to explain?"""
         
-        else:
-            return f"""**Enhanced AI-Prism Analysis Guidance**
+        elif 'improve' in query_lower or 'enhance' in query_lower:
+            return f"""**Enhancement Strategy for '{current_section}'**
 
-• **Query Understanding**: Comprehensive analysis request for "{query}" regarding '{current_section}' section
-• **Expertise Areas**: Advanced document analysis, quality assessment, compliance validation, risk evaluation with quantified impact
-• **Framework Application**: Enhanced Hawkeye methodology for comprehensive investigation review with actionable recommendations
+**Priority Areas:**
+• **Evidence Validation**: Add verification sources
+• **Stakeholder Context**: Include business impact analysis
+• **Process Documentation**: Detail methodology used
+• **Risk Assessment**: Quantify impacts with metrics
+• **Action Items**: Specify ownership and timelines
 
-**Available Assistance Areas:**
-• **Document Analysis**: Comprehensive quality assessment and compliance validation with specific improvement recommendations
-• **Hawkeye Framework**: Application of 20-point investigation checklist with detailed implementation guidance
-• **Risk Evaluation**: Classification and impact assessment protocols with quantified metrics and validation methods
-• **Evidence Validation**: Verification techniques and quality standards with independent cross-verification
-• **Stakeholder Communication**: Professional reporting and clarity enhancement with audience-specific guidance
-
-**Enhanced Analysis Approach:**
-• Systematic review using established quality standards with measurable criteria
-• Evidence-based assessment with supporting documentation and independent validation
-• Risk-focused evaluation with clear classification criteria and impact quantification
-• Actionable recommendations with implementation guidance, timelines, and success metrics
+**Implementation:**
+• Review content against quality standards
+• Identify specific information gaps
+• Apply relevant Hawkeye checkpoints
 
 **Hawkeye References:**
-• Multiple checkpoints applicable based on specific analysis requirements with detailed implementation guidance
-• Framework provides comprehensive quality assurance methodology with validation protocols
+• #2: Investigation Process
+• #13: Documentation & Reporting
+• #15: Quality Control
 
-**Recommended Next Steps:**
-• Clarify specific analysis requirements for targeted guidance with measurable outcomes
-• Identify priority areas for detailed investigation with resource allocation and timeline planning
-• Establish success criteria and validation methods for each improvement area
+**Which enhancement area should we focus on first?"""
+        
+        elif 'risk' in query_lower:
+            return f"""**Risk Assessment for '{current_section}'**
 
-**Follow-up Question:** What specific aspect of '{current_section}' analysis would be most helpful for your current needs, and what level of detail would you like in the recommendations?"""
+**Risk Classification:**
+• **High**: Customer safety, legal violations, significant financial impact
+• **Medium**: Process gaps, operational issues, moderate business impact
+• **Low**: Documentation improvements, minor enhancements
+
+**Assessment Factors:**
+• Customer experience impact
+• Regulatory compliance requirements
+• Business continuity implications
+• Financial and operational costs
+
+**Hawkeye References:**
+• #1: Initial Assessment - Customer impact evaluation
+• #19: Legal & Compliance - Regulatory adherence
+
+**What specific risk factors concern you most in this section?"""
+        
+        elif 'timeline' in query_lower:
+            return f"""**Timeline Documentation Standards**
+
+**Essential Elements:**
+• **Timestamps**: DD-MMM-YYYY HH:MM format
+• **Chronological Order**: Verify sequence accuracy
+• **Event Ownership**: Identify responsible parties
+• **Gap Analysis**: Explain significant time gaps
+• **Event Correlation**: Link to outcomes
+
+**Quality Validation:**
+• Independent timestamp verification
+• Clear accountability for each entry
+• Logical sequence maintenance
+• Critical event highlighting
+
+**Hawkeye References:**
+• #2: Investigation Process - Timeline accuracy
+• #13: Documentation & Reporting - Standards
+
+**What specific timeline aspects need clarification?"""
+        
+        else:
+            return f"""**AI-Prism Guidance for '{current_section}'**
+
+**Available Assistance:**
+• Document analysis and quality assessment
+• Hawkeye framework application
+• Risk evaluation and classification
+• Evidence validation techniques
+• Professional reporting guidance
+
+**Analysis Approach:**
+• Systematic quality standards review
+• Evidence-based assessment
+• Risk-focused evaluation
+• Actionable recommendations
+
+**Hawkeye Framework:**
+• 20-point investigation checklist
+• Comprehensive quality assurance
+• Multiple applicable checkpoints
+
+**What specific aspect of '{current_section}' analysis would be most helpful?"""
