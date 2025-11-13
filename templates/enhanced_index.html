@@ -457,13 +457,14 @@
         }
 
         .chat-container {
-            height: 600px;
+            flex: 1;
             border: 1px solid #ecf0f1;
-            border-radius: 10px;
+            border-radius: 10px 10px 0 0;
             overflow-y: auto;
             padding: 15px;
             margin-bottom: 0;
             background: #fafafa;
+            min-height: 400px;
         }
         
         .thinking-indicator {
@@ -527,6 +528,9 @@
             padding: 20px;
             border-radius: 0 0 15px 15px;
             margin-top: 0;
+            border-left: 2px solid #4f46e5;
+            border-right: 2px solid #4f46e5;
+            border-bottom: 2px solid #4f46e5;
         }
 
         .chat-input {
@@ -2102,11 +2106,15 @@
             <button class="btn btn-info" onclick="showTutorial()">🔍 Tutorial</button>
             <button class="btn btn-info" onclick="showFAQ()">❓ FAQs</button>
             <button class="btn btn-info" onclick="showPatterns()">📊 Patterns</button>
-            <button class="btn btn-info" onclick="showLogs()">📋 Logs</button>
+            <button class="btn btn-info" onclick="showActivityLogs()">📋 Activity Logs</button>
             <button class="btn btn-info" onclick="showLearning()">🧠 Learning</button>
             <button class="btn btn-primary" onclick="showTextHighlightingFeature()" title="Learn how to use text highlighting and commenting features">🎨 Text Highlighting Feature</button>
             <button class="btn btn-info" onclick="showCustomFeedbackHelp()" title="Learn how to add custom feedback to AI suggestions">✨ Custom Feedback Help</button>
             <button class="btn btn-warning" onclick="resetSession()">🔄 Reset</button>
+            <button class="btn btn-secondary" onclick="checkSessionStatus()" title="Debug session information">🔍 Debug Session</button>
+            <button class="btn btn-info" onclick="setTestSession()" title="Create test session for debugging">🧪 Test Session</button>
+            <button class="btn btn-warning" onclick="testCompleteReview()" title="Test complete review function">🧪 Test Review</button>
+            <button class="btn btn-info" onclick="testS3Connection()" title="Test S3 connectivity">☁️ Test S3</button>
         </div>
 
         <!-- Upload Area - Always Visible -->
@@ -2285,8 +2293,8 @@
                 
                 <!-- AI-Prism Chat Tab -->
                 <div class="tab-content" id="chatTab">
-                    <div class="feedback-content-scroll">
-                        <div class="chat-container" id="chatContainer" style="background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%); border: 2px solid #4f46e5; border-radius: 15px; padding: 10px; min-height: 400px; overflow-y: auto;">
+                    <div style="display: flex; flex-direction: column; height: 100%;">
+                        <div class="chat-container" id="chatContainer" style="flex: 1; background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%); border: 2px solid #4f46e5; border-radius: 15px 15px 0 0; padding: 10px; min-height: 400px; overflow-y: auto; margin-bottom: 0;">
                             <div class="chat-message assistant" style="background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); color: white; border-radius: 12px; padding: 20px; margin: 10px; box-shadow: 0 5px 15px rgba(79, 70, 229, 0.3);">
                                 <strong>🪷 AI-Prism Your Intelligent Assistant:</strong><br><br>
                                 <strong>Welcome to AI-Prism Professional Document Analysis</strong><br><br>
@@ -2306,31 +2314,32 @@
                                 </div>
                             </div>
                         </div>
-                    </div>
-                    <div class="custom-feedback-fixed">
-                        <!-- Thinking indicator -->
-                        <div class="thinking-indicator" id="thinkingIndicator">
-                            <div class="thinking-dots">
-                                <div class="thinking-dot"></div>
-                                <div class="thinking-dot"></div>
-                                <div class="thinking-dot"></div>
-                            </div>
-                            <span style="color: #4f46e5; font-weight: 600;">🤖 AI-Prism is thinking...</span>
-                        </div>
                         
-                        <div class="chat-input-container">
-                            <div style="flex: 1; position: relative;">
-                                <input type="text" class="chat-input" id="chatInput" placeholder="Ask AI-Prism about feedback, guidelines, or document analysis..." onkeypress="handleChatKeyPress(event)" style="width: 100%; padding: 15px 20px; border: 3px solid #4f46e5; border-radius: 25px; font-size: 14px; background: linear-gradient(135deg, #ffffff, #f8fafc); box-shadow: 0 5px 15px rgba(79, 70, 229, 0.1);">
-                                <div style="position: absolute; right: 15px; top: 50%; transform: translateY(-50%); color: #6b7280; font-size: 12px; pointer-events: none;">
-                                    Press Enter ⏎
+                        <div style="position: sticky; bottom: 0; background: white; border-top: 0;">
+                            <!-- Thinking indicator -->
+                            <div class="thinking-indicator" id="thinkingIndicator">
+                                <div class="thinking-dots">
+                                    <div class="thinking-dot"></div>
+                                    <div class="thinking-dot"></div>
+                                    <div class="thinking-dot"></div>
                                 </div>
+                                <span style="color: #4f46e5; font-weight: 600;">🤖 AI-Prism is thinking...</span>
                             </div>
-                            <button class="btn btn-primary" onclick="sendChatMessage()" id="sendChatBtn" style="padding: 15px 25px; border-radius: 25px; font-weight: 600; box-shadow: 0 5px 15px rgba(79, 70, 229, 0.3);">
-                                <span>🚀</span> Send
-                            </button>
-                        </div>
-                        <div style="text-align: center; margin-top: 10px; font-size: 0.8em; color: #6b7280; padding: 0 20px 10px 20px;">
-                            AI-Prism is powered by advanced AI and ready to help with your document analysis
+                            
+                            <div class="chat-input-container" style="margin-top: 0;">
+                                <div style="flex: 1; position: relative;">
+                                    <input type="text" class="chat-input" id="chatInput" placeholder="Ask AI-Prism about feedback, guidelines, or document analysis..." onkeypress="handleChatKeyPress(event)" style="width: 100%; padding: 15px 20px; border: 3px solid #4f46e5; border-radius: 25px; font-size: 14px; background: linear-gradient(135deg, #ffffff, #f8fafc); box-shadow: 0 5px 15px rgba(79, 70, 229, 0.1);">
+                                    <div style="position: absolute; right: 15px; top: 50%; transform: translateY(-50%); color: #6b7280; font-size: 12px; pointer-events: none;">
+                                        Press Enter ⏎
+                                    </div>
+                                </div>
+                                <button class="btn btn-primary" onclick="sendChatMessage()" id="sendChatBtn" style="padding: 15px 25px; border-radius: 25px; font-weight: 600; box-shadow: 0 5px 15px rgba(79, 70, 229, 0.3);">
+                                    <span>🚀</span> Send
+                                </button>
+                            </div>
+                            <div style="text-align: center; margin-top: 10px; font-size: 0.8em; color: #6b7280; padding: 0 20px 10px 20px;">
+                                AI-Prism is powered by advanced AI and ready to help with your document analysis
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -2616,6 +2625,7 @@
     <script src="/static/js/text_highlight_comments.js"></script>
     <script src="/static/js/enhanced_help_system.js"></script>
     <script src="/static/js/custom_feedback_fix.js"></script>
+    <script src="/static/js/session_test.js"></script>
     <script>
         // Global variables - using window scope to avoid conflicts with other JS files
         window.currentSession = window.currentSession || null;
@@ -3028,7 +3038,13 @@
         
         function closeModal(modalId) {
             const modal = document.getElementById(modalId);
-            if (modal) modal.style.display = 'none';
+            if (modal) {
+                if (modalId === 's3SuccessModal') {
+                    document.body.removeChild(modal);
+                } else {
+                    modal.style.display = 'none';
+                }
+            }
         }
         
         function showModal(modalId, title, content) {
@@ -3335,14 +3351,675 @@
             if (modal) modal.style.display = 'block';
         }
         function showPatterns() { showNotification('Pattern analysis functionality not implemented yet', 'info'); }
-        function showLogs() { showNotification('Activity logs functionality not implemented yet', 'info'); }
-        function showLearning() { showNotification('Learning system functionality not implemented yet', 'info'); }
+        function showActivityLogs() {
+            // Check multiple session sources
+            const sessionId = window.currentSession || (typeof currentSession !== 'undefined' ? currentSession : null) || sessionStorage.getItem('currentSession');
+            
+            if (!sessionId) {
+                showNotification('No active session. Please upload a document first.', 'error');
+                return;
+            }
+            
+            console.log('Loading activity logs for session:', sessionId);
+            
+            fetch(`/get_activity_logs?session_id=${sessionId}&format=html`)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.success && data.logs_html) {
+                    showModal('genericModal', 'Activity Logs', data.logs_html);
+                } else if (data.success && data.logs) {
+                    displayActivityLogsModal(data.logs, data.summary);
+                } else {
+                    showNotification('Failed to load activity logs: ' + (data.error || 'Unknown error'), 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Activity logs error:', error);
+                showNotification('Failed to load activity logs: ' + error.message, 'error');
+            });
+        }
+        
+        function displayActivityLogsModal(logs, summary) {
+            // Fallback function for when HTML format is not available
+            const modalContent = `
+                <div style="max-height: 80vh; overflow-y: auto; padding: 20px;">
+                    <div style="background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); color: white; padding: 25px; border-radius: 15px; margin-bottom: 25px; box-shadow: 0 8px 25px rgba(79, 70, 229, 0.3);">
+                        <h3 style="margin: 0 0 15px 0; font-size: 1.8em;">📋 Activity Logs & Session Summary</h3>
+                        <p style="margin: 0; font-size: 1.1em; opacity: 0.9;">Complete audit trail of all activities in this session</p>
+                    </div>
+                    
+                    <!-- Session Summary -->
+                    <div style="background: linear-gradient(135deg, #f8f9ff 0%, #e3f2fd 100%); padding: 25px; border-radius: 15px; margin-bottom: 25px; border: 3px solid #4f46e5;">
+                        <h4 style="color: #4f46e5; margin-bottom: 20px; font-size: 1.3em;">📊 Session Summary</h4>
+                        
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; margin-bottom: 20px;">
+                            <div style="background: white; padding: 15px; border-radius: 10px; text-align: center; box-shadow: 0 3px 10px rgba(0,0,0,0.1);">
+                                <div style="font-size: 2em; font-weight: bold; color: #4f46e5;">${summary?.total_activities || logs?.length || 0}</div>
+                                <div style="font-size: 0.9em; color: #666;">Total Activities</div>
+                            </div>
+                            <div style="background: white; padding: 15px; border-radius: 10px; text-align: center; box-shadow: 0 3px 10px rgba(0,0,0,0.1);">
+                                <div style="font-size: 2em; font-weight: bold; color: #10b981;">${summary?.success_count || 0}</div>
+                                <div style="font-size: 0.9em; color: #666;">Successful</div>
+                            </div>
+                            <div style="background: white; padding: 15px; border-radius: 10px; text-align: center; box-shadow: 0 3px 10px rgba(0,0,0,0.1);">
+                                <div style="font-size: 2em; font-weight: bold; color: #ef4444;">${summary?.failed_count || 0}</div>
+                                <div style="font-size: 0.9em; color: #666;">Failed</div>
+                            </div>
+                            <div style="background: white; padding: 15px; border-radius: 10px; text-align: center; box-shadow: 0 3px 10px rgba(0,0,0,0.1);">
+                                <div style="font-size: 2em; font-weight: bold; color: #f59e0b;">${summary?.success_rate || 0}%</div>
+                                <div style="font-size: 0.9em; color: #666;">Success Rate</div>
+                            </div>
+                        </div>
+                        
+                        <div style="background: rgba(79, 70, 229, 0.1); padding: 15px; border-radius: 10px;">
+                            <p style="margin: 0; color: #4f46e5; font-weight: 600; font-size: 0.95em;">
+                                💡 Session Duration: ${summary?.session_duration || 'Unknown'} minutes | Last Activity: ${summary?.last_activity ? new Date(summary.last_activity).toLocaleString() : 'None'}
+                            </p>
+                        </div>
+                    </div>
+                    
+                    <!-- Recent Activities -->
+                    <div style="background: white; padding: 20px; border-radius: 12px; box-shadow: 0 3px 10px rgba(0,0,0,0.1);">
+                        <h4 style="color: #4f46e5; margin-bottom: 20px;">📝 Recent Activities</h4>
+                        
+                        <div style="max-height: 400px; overflow-y: auto;">
+                            ${logs && logs.length > 0 ? logs.slice(-20).reverse().map(log => {
+                                const statusColor = log.status === 'success' ? '#10b981' : 
+                                                  log.status === 'failed' ? '#ef4444' : 
+                                                  log.status === 'warning' ? '#f59e0b' : '#6b7280';
+                                const statusIcon = log.status === 'success' ? '✅' : 
+                                                 log.status === 'failed' ? '❌' : 
+                                                 log.status === 'warning' ? '⚠️' : '🔄';
+                                
+                                return `
+                                    <div style="display: flex; gap: 15px; padding: 12px; background: #f8f9ff; border-radius: 8px; margin-bottom: 8px; border-left: 4px solid ${statusColor};">
+                                        <div style="font-family: monospace; color: #666; min-width: 80px; font-size: 0.8em;">
+                                            ${log.timestamp ? new Date(log.timestamp).toLocaleTimeString() : 'Unknown'}
+                                        </div>
+                                        <div style="font-size: 1.2em; min-width: 20px;">${statusIcon}</div>
+                                        <div style="flex: 1;">
+                                            <div style="font-weight: 600; color: ${statusColor}; margin-bottom: 4px;">
+                                                ${log.action ? log.action.replace(/_/g, ' ').toUpperCase() : 'UNKNOWN ACTION'}
+                                            </div>
+                                            ${log.details ? `
+                                                <div style="font-size: 0.9em; color: #666; margin-bottom: 4px;">
+                                                    ${typeof log.details === 'object' ? Object.entries(log.details).map(([key, value]) => 
+                                                        `<span style="margin-right: 15px;"><strong>${key}:</strong> ${value}</span>`
+                                                    ).join('') : log.details}
+                                                </div>
+                                            ` : ''}
+                                            ${log.error ? `
+                                                <div style="font-size: 0.85em; color: #ef4444; background: rgba(239, 68, 68, 0.1); padding: 5px 8px; border-radius: 4px;">
+                                                    ❌ ${log.error}
+                                                </div>
+                                            ` : ''}
+                                        </div>
+                                    </div>
+                                `;
+                            }).join('') : '<div style="text-align: center; padding: 20px; color: #666;">No activities found</div>'}
+                        </div>
+                    </div>
+                    
+                    <div style="display: flex; gap: 15px; justify-content: center; margin-top: 25px; flex-wrap: wrap;">
+                        <button class="btn btn-primary" onclick="exportActivityLogs()" style="padding: 12px 25px; border-radius: 20px; font-weight: 600;">
+                            📥 Export Logs
+                        </button>
+                        <button class="btn btn-info" onclick="refreshActivityLogs()" style="padding: 12px 25px; border-radius: 20px;">
+                            🔄 Refresh
+                        </button>
+                        <button class="btn btn-secondary" onclick="closeModal('genericModal')" style="padding: 12px 25px; border-radius: 20px;">
+                            ✅ Close
+                        </button>
+                    </div>
+                </div>
+            `;
+            
+            showModal('genericModal', 'Activity Logs', modalContent);
+        }
+        
+        function exportActivityLogs() {
+            const sessionId = window.currentSession || (typeof currentSession !== 'undefined' ? currentSession : null) || sessionStorage.getItem('currentSession');
+            
+            if (!sessionId) {
+                showNotification('No active session', 'error');
+                return;
+            }
+            
+            window.location.href = `/export_activity_logs?session_id=${sessionId}`;
+            showNotification('📥 Exporting activity logs...', 'info');
+        }
+        
+        function refreshActivityLogs() {
+            closeModal('genericModal');
+            setTimeout(() => {
+                showActivityLogs();
+            }, 100);
+        }
+        function showLearning() { 
+            const sessionId = window.currentSession || (typeof currentSession !== 'undefined' ? currentSession : null) || sessionStorage.getItem('currentSession');
+            
+            if (!sessionId) {
+                showNotification('No active session. Please upload a document first.', 'error');
+                return;
+            }
+            
+            fetch(`/get_learning_status?session_id=${sessionId}&format=html`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.success && data.learning_html) {
+                    showModal('genericModal', 'AI Learning Status', data.learning_html);
+                } else {
+                    showNotification('Learning system data not available yet', 'info');
+                }
+            })
+            .catch(error => {
+                console.error('Learning status error:', error);
+                showNotification('Learning system functionality not implemented yet', 'info');
+            });
+        }
+        
+        function checkSessionStatus() {
+            console.log('=== SESSION DEBUG INFO ===');
+            console.log('window.currentSession:', window.currentSession);
+            console.log('currentSession (global):', typeof currentSession !== 'undefined' ? currentSession : 'undefined');
+            console.log('sessionStorage currentSession:', sessionStorage.getItem('currentSession'));
+            console.log('window.sections:', window.sections ? window.sections.length : 'undefined');
+            console.log('sections (global):', typeof sections !== 'undefined' ? sections.length : 'undefined');
+            
+            const sessionId = window.currentSession || (typeof currentSession !== 'undefined' ? currentSession : null) || sessionStorage.getItem('currentSession');
+            
+            if (sessionId) {
+                // Test session validity with server
+                fetch(`/get_statistics?session_id=${sessionId}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        showNotification(`✅ Session ${sessionId.substring(0, 8)}... is valid and active`, 'success');
+                        console.log('Session validation successful:', data);
+                    } else {
+                        showNotification(`❌ Session ${sessionId.substring(0, 8)}... is invalid: ${data.error}`, 'error');
+                        console.log('Session validation failed:', data);
+                    }
+                })
+                .catch(error => {
+                    showNotification(`❌ Session validation failed: ${error.message}`, 'error');
+                    console.error('Session validation error:', error);
+                });
+            } else {
+                showNotification('❌ No session found in any location', 'error');
+            }
+        }
+        
+        function setTestSession() {
+            // Create a test session for debugging
+            const testSessionId = 'test-session-' + Date.now();
+            
+            // Set session in all locations
+            window.currentSession = testSessionId;
+            if (typeof currentSession !== 'undefined') {
+                currentSession = testSessionId;
+            }
+            sessionStorage.setItem('currentSession', testSessionId);
+            
+            // Create test sections
+            window.sections = ['Test Section 1', 'Test Section 2', 'Test Section 3'];
+            if (typeof sections !== 'undefined') {
+                sections = ['Test Section 1', 'Test Section 2', 'Test Section 3'];
+            }
+            
+            showNotification(`🧪 Test session created: ${testSessionId.substring(0, 20)}...`, 'success');
+            console.log('Test session created:', {
+                sessionId: testSessionId,
+                sections: window.sections
+            });
+        }
+        
+        function testCompleteReview() {
+            console.log('Testing complete review function...');
+            
+            // Check session state
+            const sessionId = window.currentSession || (typeof currentSession !== 'undefined' ? currentSession : null) || sessionStorage.getItem('currentSession');
+            const availableSections = window.sections || (typeof sections !== 'undefined' ? sections : null) || [];
+            
+            console.log('Test Complete Review Debug:', {
+                sessionId: sessionId,
+                sectionsCount: availableSections.length,
+                sections: availableSections
+            });
+            
+            if (!sessionId) {
+                showNotification('❌ Test failed: No session ID found', 'error');
+                return;
+            }
+            
+            if (!availableSections || availableSections.length === 0) {
+                showNotification('❌ Test failed: No sections found', 'error');
+                return;
+            }
+            
+            showNotification(`✅ Test passed: Session ${sessionId.substring(0, 8)}... with ${availableSections.length} sections`, 'success');
+            
+            // Test the actual complete review function
+            try {
+                completeReview();
+            } catch (error) {
+                showNotification(`❌ Complete review test failed: ${error.message}`, 'error');
+                console.error('Complete review test error:', error);
+            }
+        }
+        
+        function testS3Connection() {
+            showNotification('🔄 Testing S3 connection...', 'info');
+            
+            fetch('/test_s3_connection')
+            .then(response => response.json())
+            .then(data => {
+                if (data.success && data.s3_status) {
+                    const status = data.s3_status;
+                    if (status.connected && status.bucket_accessible) {
+                        showNotification(`✅ S3 connection successful! Bucket: ${status.bucket_name}`, 'success');
+                    } else {
+                        showNotification(`⚠️ S3 connection issues: ${status.error || 'Unknown error'}`, 'warning');
+                    }
+                    
+                    // Show detailed status
+                    const modalContent = `
+                        <div style="padding: 20px;">
+                            <h3 style="color: #4f46e5; margin-bottom: 20px;">☁️ S3 Connection Test Results</h3>
+                            
+                            <div style="background: #f8f9ff; padding: 20px; border-radius: 12px; margin-bottom: 20px;">
+                                <h4 style="color: #4f46e5; margin-bottom: 15px;">Connection Status:</h4>
+                                <div style="display: grid; gap: 10px;">
+                                    <div style="padding: 10px; background: white; border-radius: 8px; border-left: 4px solid ${status.connected ? '#10b981' : '#ef4444'};">
+                                        <strong>AWS Connection:</strong> ${status.connected ? '✅ Connected' : '❌ Failed'}
+                                    </div>
+                                    <div style="padding: 10px; background: white; border-radius: 8px; border-left: 4px solid ${status.bucket_accessible ? '#10b981' : '#ef4444'};">
+                                        <strong>Bucket Access:</strong> ${status.bucket_accessible ? '✅ Accessible' : '❌ Not accessible'}
+                                    </div>
+                                    <div style="padding: 10px; background: white; border-radius: 8px; border-left: 4px solid #4f46e5;">
+                                        <strong>Bucket Name:</strong> ${status.bucket_name || 'Not specified'}
+                                    </div>
+                                    <div style="padding: 10px; background: white; border-radius: 8px; border-left: 4px solid #4f46e5;">
+                                        <strong>Region:</strong> ${status.region || 'Not specified'}
+                                    </div>
+                                    ${status.error ? `
+                                        <div style="padding: 10px; background: white; border-radius: 8px; border-left: 4px solid #ef4444;">
+                                            <strong>Error:</strong> ${status.error}
+                                        </div>
+                                    ` : ''}
+                                </div>
+                            </div>
+                            
+                            <div style="text-align: center;">
+                                <button class="btn btn-secondary" onclick="closeModal('genericModal')" style="padding: 12px 25px; border-radius: 20px;">
+                                    ✅ Close
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                    
+                    showModal('genericModal', 'S3 Connection Test', modalContent);
+                } else {
+                    showNotification(`❌ S3 test failed: ${data.error || 'Unknown error'}`, 'error');
+                }
+            })
+            .catch(error => {
+                showNotification(`❌ S3 test error: ${error.message}`, 'error');
+                console.error('S3 test error:', error);
+            });
+        }
         function resetSession() {
             if (confirm('Are you sure you want to reset the current session? All progress will be lost.')) {
+                // Clear all session data
+                window.currentSession = null;
+                if (typeof currentSession !== 'undefined') {
+                    currentSession = null;
+                }
+                sessionStorage.removeItem('currentSession');
+                
+                // Clear other data
+                window.sections = [];
+                if (typeof sections !== 'undefined') {
+                    sections = [];
+                }
+                
                 location.reload();
             }
         }
-        function completeReview() { showNotification('Complete review functionality not implemented yet', 'info'); }
+        function completeReview() {
+            // Debug session state
+            console.log('Complete Review Debug:', {
+                windowCurrentSession: window.currentSession,
+                currentSession: typeof currentSession !== 'undefined' ? currentSession : 'undefined',
+                sessionStorage: sessionStorage.getItem('currentSession'),
+                sections: window.sections ? window.sections.length : 0
+            });
+            
+            // Check multiple session sources
+            const sessionId = window.currentSession || (typeof currentSession !== 'undefined' ? currentSession : null) || sessionStorage.getItem('currentSession');
+            
+            if (!sessionId) {
+                showNotification('No active session. Please upload a document first.', 'error');
+                return;
+            }
+            
+            // Check if we have sections (indicating a document was uploaded)
+            const availableSections = window.sections || [];
+            if (!availableSections || availableSections.length === 0) {
+                showNotification('No document sections found. Please upload and analyze a document first.', 'error');
+                return;
+            }
+            
+            // First test S3 connectivity
+            fetch('/test_s3_connection')
+            .then(response => response.json())
+            .then(s3Data => {
+                const s3Available = s3Data.success && s3Data.s3_status.connected && s3Data.s3_status.bucket_accessible;
+                
+                // Show S3 export confirmation popup with S3 status
+                const modalContent = `
+                    <div style="text-align: center; padding: 30px;">
+                        <div style="background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); color: white; padding: 25px; border-radius: 15px; margin-bottom: 25px; box-shadow: 0 8px 25px rgba(79, 70, 229, 0.3);">
+                            <h3 style="margin: 0 0 15px 0; font-size: 1.8em;">🎉 Complete Your Review</h3>
+                            <p style="margin: 0; font-size: 1.1em; opacity: 0.9;">Your document analysis is ready for final submission</p>
+                        </div>
+                        
+                        <div style="background: linear-gradient(135deg, #f8f9ff 0%, #e3f2fd 100%); padding: 25px; border-radius: 15px; margin-bottom: 25px; border: 3px solid #4f46e5;">
+                            <h4 style="color: #4f46e5; margin-bottom: 20px; font-size: 1.3em;">📦 Export Options</h4>
+                            
+                            <div style="display: grid; gap: 15px; margin-bottom: 20px;">
+                                <div style="background: white; padding: 20px; border-radius: 12px; border-left: 5px solid ${s3Available ? '#10b981' : '#e74c3c'}; box-shadow: 0 3px 10px rgba(0,0,0,0.1);">
+                                    <h5 style="color: ${s3Available ? '#10b981' : '#e74c3c'}; margin-bottom: 10px; display: flex; align-items: center; gap: 10px;">
+                                        <span style="font-size: 1.5em;">${s3Available ? '☁️' : '❌'}</span> S3 Cloud Export ${s3Available ? '(Available)' : '(Unavailable)'}
+                                    </h5>
+                                    <p style="margin: 0; color: #555; font-size: 0.95em; line-height: 1.5;">
+                                        ${s3Available ? 
+                                            'Complete backup to <strong>s3://felix-s3-bucket/tara/</strong> including:<br>• Original and reviewed documents<br>• All feedback and logs<br>• Comprehensive analysis report<br>• Activity timeline and statistics' :
+                                            `S3 export not available: ${s3Data.s3_status?.error || 'Connection failed'}<br>• Check AWS credentials<br>• Verify S3 bucket access<br>• Will use local fallback`
+                                        }
+                                    </p>
+                                </div>
+                                
+                                <div style="background: white; padding: 20px; border-radius: 12px; border-left: 5px solid #f59e0b; box-shadow: 0 3px 10px rgba(0,0,0,0.1);">
+                                    <h5 style="color: #f59e0b; margin-bottom: 10px; display: flex; align-items: center; gap: 10px;">
+                                        <span style="font-size: 1.5em;">💾</span> Local Download Only
+                                    </h5>
+                                    <p style="margin: 0; color: #555; font-size: 0.95em; line-height: 1.5;">
+                                        Download reviewed document with comments only
+                                        <br>• No backup to cloud storage
+                                        <br>• Limited to final document only
+                                    </p>
+                                </div>
+                            </div>
+                            
+                            <div style="background: rgba(79, 70, 229, 0.1); padding: 15px; border-radius: 10px; margin-bottom: 20px;">
+                                <p style="margin: 0; color: #4f46e5; font-weight: 600; font-size: 0.9em;">
+                                    💡 ${s3Available ? 'S3 Export creates a timestamped folder with your document name for complete audit trail' : 'S3 export will automatically fallback to local storage if cloud upload fails'}
+                                </p>
+                            </div>
+                        </div>
+                        
+                        <div style="display: flex; gap: 15px; justify-content: center; flex-wrap: wrap;">
+                            <button class="btn ${s3Available ? 'btn-success' : 'btn-secondary'}" onclick="completeReviewWithS3Export()" style="padding: 15px 30px; font-size: 16px; border-radius: 25px; font-weight: 700; ${s3Available ? 'box-shadow: 0 8px 25px rgba(16, 185, 129, 0.4);' : ''}">
+                                ${s3Available ? '☁️ Complete with S3 Export' : '💾 Complete (Local Fallback)'}
+                            </button>
+                            <button class="btn btn-warning" onclick="completeReviewLocalOnly()" style="padding: 15px 30px; font-size: 16px; border-radius: 25px; font-weight: 700;">
+                                💾 Local Download Only
+                            </button>
+                            <button class="btn btn-secondary" onclick="closeModal('genericModal')" style="padding: 15px 30px; font-size: 16px; border-radius: 25px;">
+                                ❌ Cancel
+                            </button>
+                        </div>
+                    </div>
+                `;
+                
+                showModal('genericModal', 'Complete Review', modalContent);
+            })
+            .catch(error => {
+                console.error('S3 test failed:', error);
+                // Show modal without S3 option
+                const modalContent = `
+                    <div style="text-align: center; padding: 30px;">
+                        <div style="background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); color: white; padding: 25px; border-radius: 15px; margin-bottom: 25px;">
+                            <h3 style="margin: 0 0 15px 0; font-size: 1.8em;">🎉 Complete Your Review</h3>
+                            <p style="margin: 0; font-size: 1.1em; opacity: 0.9;">S3 connectivity test failed - using local download only</p>
+                        </div>
+                        
+                        <div style="display: flex; gap: 15px; justify-content: center;">
+                            <button class="btn btn-warning" onclick="completeReviewLocalOnly()" style="padding: 15px 30px; font-size: 16px; border-radius: 25px; font-weight: 700;">
+                                💾 Local Download Only
+                            </button>
+                            <button class="btn btn-secondary" onclick="closeModal('genericModal')" style="padding: 15px 30px; font-size: 16px; border-radius: 25px;">
+                                ❌ Cancel
+                            </button>
+                        </div>
+                    </div>
+                `;
+                
+                showModal('genericModal', 'Complete Review', modalContent);
+            });
+        }
+        
+        function completeReviewWithS3Export() {
+            closeModal('genericModal');
+            
+            // Show confirmation dialog
+            if (confirm('🚀 Ready to complete your review with S3 export?\n\n✅ This will:\n• Generate your final document with comments\n• Export everything to S3 cloud storage (or local fallback)\n• Create a complete audit trail\n\nClick OK to proceed.')) {
+                performCompleteReview(true);
+            }
+        }
+        
+        function completeReviewLocalOnly() {
+            closeModal('genericModal');
+            
+            if (confirm('📥 Complete review with local download only?\n\n⚠️ Note: This will only download the final document.\nNo backup will be created in cloud storage.\n\nClick OK to proceed.')) {
+                performCompleteReview(false);
+            }
+        }
+        
+        function performCompleteReview(exportToS3 = false) {
+            if (!currentSession) {
+                showNotification('No active session available', 'error');
+                return;
+            }
+            
+            showProgress('Completing review and generating final document...');
+            
+            fetch('/complete_review', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    session_id: currentSession,
+                    export_to_s3: exportToS3
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                hideProgress();
+                
+                if (data.success) {
+                    let message = `🎉 Review completed successfully!\n\n📄 Final document: ${data.output_file}\n💬 Comments added: ${data.comments_count}`;
+                    
+                    // Show S3 export success popup if all data saved successfully
+                    if (exportToS3 && data.s3_export) {
+                        if (data.s3_export.success) {
+                            message += `\n\n☁️ S3 Export: SUCCESS\n📁 Location: ${data.s3_export.location}\n📦 Files exported: ${data.s3_export.total_files || 'Multiple'}`;
+                            
+                            // Show special popup for successful S3 save
+                            showS3SuccessPopup(data.s3_export);
+                            showNotification('✅ All data saved in S3 successfully! Check the logs for details.', 'success');
+                        } else {
+                            message += `\n\n⚠️ S3 Export: FAILED\n❌ Error: ${data.s3_export.error}\n💾 Files saved locally as backup`;
+                            showNotification('⚠️ Review completed but S3 export failed. Files saved locally.', 'warning');
+                        }
+                    } else {
+                        showNotification('✅ Review completed successfully!', 'success');
+                    }
+                    
+                    // Show detailed results
+                    const modalContent = `
+                        <div style="text-align: center; padding: 20px;">
+                            <div style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; padding: 20px; border-radius: 15px; margin-bottom: 20px;">
+                                <h3 style="margin: 0 0 10px 0;">🎉 Review Completed Successfully!</h3>
+                                <p style="margin: 0; opacity: 0.9;">Your document analysis is complete</p>
+                            </div>
+                            
+                            <div style="background: #f8f9ff; padding: 20px; border-radius: 12px; margin-bottom: 20px; text-align: left;">
+                                <h4 style="color: #4f46e5; margin-bottom: 15px;">📊 Review Summary:</h4>
+                                <div style="display: grid; gap: 10px;">
+                                    <div style="padding: 10px; background: white; border-radius: 8px; border-left: 4px solid #4f46e5;">
+                                        <strong>📄 Final Document:</strong> ${data.output_file}
+                                    </div>
+                                    <div style="padding: 10px; background: white; border-radius: 8px; border-left: 4px solid #10b981;">
+                                        <strong>💬 Comments Added:</strong> ${data.comments_count}
+                                    </div>
+                                    ${exportToS3 && data.s3_export ? `
+                                        <div style="padding: 10px; background: white; border-radius: 8px; border-left: 4px solid ${data.s3_export.success ? '#10b981' : '#ef4444'};">
+                                            <strong>☁️ S3 Export:</strong> ${data.s3_export.success ? 'SUCCESS' : 'FAILED'}
+                                            ${data.s3_export.success ? `<br><small>📁 ${data.s3_export.location}</small>` : `<br><small>❌ ${data.s3_export.error}</small>`}
+                                        </div>
+                                    ` : ''}
+                                </div>
+                            </div>
+                            
+                            <div style="display: flex; gap: 15px; justify-content: center; flex-wrap: wrap;">
+                                <button class="btn btn-primary" onclick="downloadFinalDocument('${data.output_file}')" style="padding: 12px 25px; border-radius: 20px;">
+                                    📥 Download Document
+                                </button>
+                                <button class="btn btn-info" onclick="startNewReview()" style="padding: 12px 25px; border-radius: 20px;">
+                                    🔄 Start New Review
+                                </button>
+                                <button class="btn btn-secondary" onclick="closeModal('genericModal')" style="padding: 12px 25px; border-radius: 20px;">
+                                    ✅ Done
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                    
+                    showModal('genericModal', 'Review Complete', modalContent);
+                    
+                    // Enable download button
+                    const downloadBtn = document.getElementById('downloadBtn');
+                    if (downloadBtn) {
+                        downloadBtn.disabled = false;
+                        downloadBtn.onclick = () => downloadFinalDocument(data.output_file);
+                    }
+                    
+                    finalDocumentData = data;
+                } else {
+                    showNotification('Failed to complete review: ' + (data.error || 'Unknown error'), 'error');
+                }
+            })
+            .catch(error => {
+                hideProgress();
+                console.error('Complete review error:', error);
+                showNotification('Failed to complete review: ' + error.message, 'error');
+            });
+        }
+        
+        function downloadFinalDocument(filename) {
+            if (filename) {
+                window.location.href = `/download/${filename}`;
+                showNotification('📥 Downloading final document...', 'info');
+            } else {
+                showNotification('No document available for download', 'error');
+            }
+        }
+        
+        function showS3SuccessPopup(s3Data) {
+            const modalContent = `
+                <div style="text-align: center; padding: 30px;">
+                    <div style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; padding: 25px; border-radius: 15px; margin-bottom: 25px; box-shadow: 0 8px 25px rgba(16, 185, 129, 0.3); animation: pulse 2s infinite;">
+                        <h3 style="margin: 0 0 15px 0; font-size: 2em;">☁️✅ All Data Saved in S3 Successfully!</h3>
+                        <p style="margin: 0; font-size: 1.2em; opacity: 0.9;">Complete backup created in cloud storage</p>
+                    </div>
+                    
+                    <div style="background: linear-gradient(135deg, #f0fff4 0%, #dcfce7 100%); padding: 25px; border-radius: 15px; margin-bottom: 25px; border: 3px solid #10b981;">
+                        <h4 style="color: #10b981; margin-bottom: 20px; font-size: 1.4em;">📦 Export Details</h4>
+                        
+                        <div style="text-align: left; margin-bottom: 20px;">
+                            <div style="background: white; padding: 15px; border-radius: 10px; margin-bottom: 10px; box-shadow: 0 3px 10px rgba(0,0,0,0.1);">
+                                <strong style="color: #10b981;">📁 S3 Location:</strong><br>
+                                <code style="background: #f8f9ff; padding: 5px 8px; border-radius: 4px; font-family: monospace; color: #4f46e5;">${s3Data.location}</code>
+                            </div>
+                            
+                            <div style="background: white; padding: 15px; border-radius: 10px; margin-bottom: 10px; box-shadow: 0 3px 10px rgba(0,0,0,0.1);">
+                                <strong style="color: #10b981;">📊 Files Exported:</strong> ${s3Data.total_files || 'Multiple'}<br>
+                                <strong style="color: #10b981;">💾 Total Size:</strong> ${s3Data.total_size_mb ? s3Data.total_size_mb + ' MB' : 'Calculated'}
+                            </div>
+                            
+                            <div style="background: white; padding: 15px; border-radius: 10px; box-shadow: 0 3px 10px rgba(0,0,0,0.1);">
+                                <strong style="color: #10b981;">⏰ Export Time:</strong> ${new Date().toLocaleString()}<br>
+                                <strong style="color: #10b981;">🔒 Status:</strong> <span style="color: #10b981; font-weight: bold;">SECURE BACKUP COMPLETE</span>
+                            </div>
+                        </div>
+                        
+                        <div style="background: rgba(16, 185, 129, 0.1); padding: 15px; border-radius: 10px; margin-bottom: 20px;">
+                            <h5 style="color: #10b981; margin-bottom: 10px;">✅ What was saved:</h5>
+                            <div style="text-align: left; color: #059669; font-size: 0.95em; line-height: 1.6;">
+                                • Original document and reviewed version<br>
+                                • All AI-generated feedback and user comments<br>
+                                • Complete activity logs and session data<br>
+                                • Analysis statistics and patterns<br>
+                                • Timestamped audit trail
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div style="display: flex; gap: 15px; justify-content: center; flex-wrap: wrap;">
+                        <button class="btn btn-success" onclick="showActivityLogs(); closeModal('s3SuccessModal');" style="padding: 15px 30px; font-size: 16px; border-radius: 25px; font-weight: 700; box-shadow: 0 8px 25px rgba(16, 185, 129, 0.4);">
+                            📋 View Activity Logs
+                        </button>
+                        <button class="btn btn-info" onclick="downloadFinalDocument('${s3Data.document_filename || 'document'}'); closeModal('s3SuccessModal');" style="padding: 15px 30px; font-size: 16px; border-radius: 25px; font-weight: 700;">
+                            📥 Download Document
+                        </button>
+                        <button class="btn btn-secondary" onclick="closeModal('s3SuccessModal')" style="padding: 15px 30px; font-size: 16px; border-radius: 25px;">
+                            ✅ Close
+                        </button>
+                    </div>
+                </div>
+            `;
+            
+            // Create a special modal for S3 success
+            const modal = document.createElement('div');
+            modal.id = 's3SuccessModal';
+            modal.className = 'modal';
+            modal.style.display = 'block';
+            modal.innerHTML = `
+                <div class="modal-content" style="animation: slideInFromTop 0.5s ease-out;">
+                    <div class="modal-header" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; border-radius: 15px 15px 0 0; margin: -30px -30px 20px -30px; padding: 30px;">
+                        <h3 style="margin: 0; font-size: 1.8em; text-align: center;">☁️ S3 Export Success</h3>
+                    </div>
+                    ${modalContent}
+                </div>
+            `;
+            
+            document.body.appendChild(modal);
+            
+            // Auto-remove after 30 seconds
+            setTimeout(() => {
+                if (document.getElementById('s3SuccessModal')) {
+                    document.body.removeChild(modal);
+                }
+            }, 30000);
+        }
+        
+        function startNewReview() {
+            closeModal('genericModal');
+            if (document.getElementById('s3SuccessModal')) {
+                document.body.removeChild(document.getElementById('s3SuccessModal'));
+            }
+            if (confirm('🔄 Start a new review?\n\nThis will reset the current session and allow you to upload a new document.')) {
+                location.reload();
+            }
+        }
         
         // Add missing functions that are referenced in HTML
         function cancelAnalysis() {

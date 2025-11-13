@@ -1,6 +1,6 @@
 // Button functionality fixes for AI-Prism Document Analysis Tool
 
-// Global variables
+// Global variables - synchronized with window scope
 let currentSession = null;
 let sections = [];
 let currentSectionIndex = 0;
@@ -19,6 +19,22 @@ let dashboardData = {
     rejectedFeedback: 0,
     userFeedback: 0
 };
+
+// Synchronize with window scope for cross-file compatibility
+function syncSessionVariables() {
+    if (window.currentSession && !currentSession) {
+        currentSession = window.currentSession;
+    }
+    if (window.sections && sections.length === 0) {
+        sections = window.sections;
+    }
+    if (window.currentSectionIndex !== undefined) {
+        currentSectionIndex = window.currentSectionIndex;
+    }
+}
+
+// Call sync function periodically
+setInterval(syncSessionVariables, 1000);
 
 // Loading media content for progress animations
 let loadingMediaWithContent = [
@@ -267,24 +283,72 @@ function submitToolFeedback() {
 }
 
 function completeReview() {
-    if (!currentSession) {
-        showNotification('No active session', 'error');
+    // Sync variables first
+    syncSessionVariables();
+    
+    // Check multiple possible session variables
+    const sessionId = currentSession || window.currentSession || sessionStorage.getItem('currentSession');
+    const availableSections = sections || window.sections || [];
+    
+    console.log('Complete Review Debug:', {
+        currentSession,
+        windowCurrentSession: window.currentSession,
+        sessionStorage: sessionStorage.getItem('currentSession'),
+        sections: availableSections.length,
+        finalSessionId: sessionId
+    });
+    
+    if (!sessionId) {
+        showNotification('No active session. Please upload a document first.', 'error');
         return;
     }
     
-    if (confirm('Complete the review and generate the final document with comments?')) {
-        showProgress('Generating final document...');
+    // Check if we have sections (indicating a document was uploaded)
+    if (!availableSections || availableSections.length === 0) {
+        showNotification('No document sections found. Please upload and analyze a document first.', 'error');
+        return;
+    }
+    
+    if (confirm('Complete the review and automatically save all data to S3? This will generate the final document and export everything.')) {
+        showProgress('Generating final document and saving to S3...');
         
+        // Automatically export to S3 when completing review
         fetch('/complete_review', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ session_id: currentSession })
+            body: JSON.stringify({ 
+                session_id: sessionId,
+                export_to_s3: true  // Automatically export to S3
+            })
         })
-        .then(response => response.json())
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            return response.json();
+        })
         .then(data => {
             hideProgress();
             if (data.success) {
-                showNotification(`Review completed! Document generated with ${data.comments_count} comments.`, 'success');
+                let message = `Review completed! Document generated with ${data.comments_count} comments.`;
+                
+                // Check S3 export status
+                if (data.s3_export) {
+                    if (data.s3_export.success) {
+                        message += ` All data automatically saved to S3: ${data.s3_export.location}`;
+                        
+                        // Show special S3 success popup
+                        showS3SuccessPopup(data.s3_export);
+                    } else {
+                        message += ` S3 export failed: ${data.s3_export.error}. Files saved locally as backup.`;
+                        showNotification('S3 export failed, but files saved locally', 'warning');
+                    }
+                } else {
+                    message += ' Files saved locally.';
+                }
+                
+                showNotification(message, 'success');
+                
                 const downloadBtn = document.getElementById('downloadBtn');
                 if (downloadBtn) {
                     downloadBtn.disabled = false;
@@ -297,6 +361,7 @@ function completeReview() {
         })
         .catch(error => {
             hideProgress();
+            console.error('Complete review error:', error);
             showNotification('Review completion failed: ' + error.message, 'error');
         });
     }
@@ -456,20 +521,38 @@ function showNotification(message, type = 'info') {
     notification.className = `notification ${type}`;
     notification.textContent = message;
     
+    // Add styles for better visibility
+    notification.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        padding: 15px 20px;
+        border-radius: 8px;
+        color: white;
+        font-weight: 500;
+        z-index: 10000;
+        max-width: 400px;
+        word-wrap: break-word;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        transform: translateX(100%);
+        transition: transform 0.3s ease;
+        background: ${type === 'success' ? '#28a745' : type === 'error' ? '#dc3545' : type === 'warning' ? '#ffc107' : '#17a2b8'};
+    `;
+    
     document.body.appendChild(notification);
     
     setTimeout(() => {
-        notification.classList.add('show');
+        notification.style.transform = 'translateX(0)';
     }, 100);
     
     setTimeout(() => {
-        notification.classList.remove('show');
+        notification.style.transform = 'translateX(100%)';
         setTimeout(() => {
             if (notification.parentNode) {
                 notification.parentNode.removeChild(notification);
             }
         }, 300);
-    }, 4000);
+    }, type === 'error' ? 6000 : 4000);
 }
 
 // Essential functions that are referenced in the HTML
@@ -481,12 +564,159 @@ function updateStatistics() {
     console.log('updateStatistics called');
 }
 
+// Accept Feedback Function
+function acceptFeedback(feedbackId, event) {
+    if (event) event.stopPropagation();
+    
+    syncSessionVariables();
+    const sessionId = currentSession || window.currentSession || sessionStorage.getItem('currentSession');
+    
+    if (!sessionId) {
+        showNotification('No active session', 'error');
+        return;
+    }
+    
+    const sectionName = sections[currentSectionIndex];
+    if (!sectionName) {
+        showNotification('No section selected', 'error');
+        return;
+    }
+    
+    fetch('/accept_feedback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            session_id: sessionId,
+            section_name: sectionName,
+            feedback_id: feedbackId
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showNotification('Feedback accepted!', 'success');
+            updateFeedbackStatus(feedbackId, 'accepted');
+            updateStatistics();
+        } else {
+            showNotification(data.error || 'Accept failed', 'error');
+        }
+    })
+    .catch(error => {
+        showNotification('Accept failed: ' + error.message, 'error');
+    });
+}
+
+// Reject Feedback Function
+function rejectFeedback(feedbackId, event) {
+    if (event) event.stopPropagation();
+    
+    syncSessionVariables();
+    const sessionId = currentSession || window.currentSession || sessionStorage.getItem('currentSession');
+    
+    if (!sessionId) {
+        showNotification('No active session', 'error');
+        return;
+    }
+    
+    const sectionName = sections[currentSectionIndex];
+    if (!sectionName) {
+        showNotification('No section selected', 'error');
+        return;
+    }
+    
+    fetch('/reject_feedback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            session_id: sessionId,
+            section_name: sectionName,
+            feedback_id: feedbackId
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showNotification('Feedback rejected!', 'info');
+            updateFeedbackStatus(feedbackId, 'rejected');
+            updateStatistics();
+        } else {
+            showNotification(data.error || 'Reject failed', 'error');
+        }
+    })
+    .catch(error => {
+        showNotification('Reject failed: ' + error.message, 'error');
+    });
+}
+
+// Update Feedback Status Function
+function updateFeedbackStatus(feedbackId, status) {
+    const feedbackItem = document.querySelector(`[data-feedback-id="${feedbackId}"]`);
+    if (feedbackItem) {
+        const actions = feedbackItem.querySelector('.feedback-actions');
+        const statusColor = status === 'accepted' ? '#2ecc71' : '#e74c3c';
+        const statusText = status === 'accepted' ? '✓ Accepted' : '✗ Rejected';
+        
+        if (!feedbackStates[feedbackId]) {
+            feedbackStates[feedbackId] = {
+                originalHtml: actions.innerHTML,
+                status: 'pending'
+            };
+        }
+        feedbackStates[feedbackId].status = status;
+        
+        actions.innerHTML = `
+            <span style="color: ${statusColor}; font-weight: bold;">${statusText}</span>
+            <button class="btn btn-warning revert-btn" onclick="revertFeedback('${feedbackId}', event)" style="font-size: 12px; padding: 5px 10px; margin-left: 10px;">🔄 Revert</button>
+        `;
+        feedbackItem.style.opacity = '0.7';
+    }
+}
+
+// Revert Feedback Function
+function revertFeedback(feedbackId, event) {
+    if (event) event.stopPropagation();
+    
+    const feedbackItem = document.querySelector(`[data-feedback-id="${feedbackId}"]`);
+    if (feedbackItem && feedbackStates[feedbackId]) {
+        const actions = feedbackItem.querySelector('.feedback-actions');
+        actions.innerHTML = feedbackStates[feedbackId].originalHtml;
+        feedbackItem.style.opacity = '1';
+        
+        feedbackStates[feedbackId].status = 'pending';
+        
+        showNotification('Feedback reverted to original state', 'success');
+        updateStatistics();
+    }
+}
+
 function showProgress(text) {
     const progressContainer = document.getElementById('progressContainer');
     const progressText = document.getElementById('progressText');
     
-    if (progressContainer) progressContainer.style.display = 'block';
-    if (progressText) progressText.textContent = text;
+    if (progressContainer) {
+        progressContainer.style.display = 'block';
+        progressContainer.style.cssText += `
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(255,255,255,0.95);
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+            z-index: 9999;
+            text-align: center;
+            min-width: 300px;
+        `;
+    }
+    if (progressText) {
+        progressText.textContent = text;
+        progressText.style.cssText = `
+            font-size: 16px;
+            color: #333;
+            margin-bottom: 15px;
+        `;
+    }
 }
 
 function hideProgress() {
@@ -504,12 +734,43 @@ function showModal(modalId, title, content) {
     
     if (titleElement) titleElement.textContent = title;
     if (contentElement) contentElement.innerHTML = content;
-    if (modal) modal.style.display = 'block';
+    if (modal) {
+        modal.style.display = 'block';
+        modal.style.cssText += `
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 10000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        `;
+        
+        const modalContent = modal.querySelector('.modal-content');
+        if (modalContent) {
+            modalContent.style.cssText += `
+                background: white;
+                border-radius: 10px;
+                padding: 0;
+                max-width: 90vw;
+                max-height: 90vh;
+                overflow: hidden;
+                box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            `;
+        }
+    }
 }
 
 function closeModal(modalId) {
     const modal = document.getElementById(modalId);
-    if (modal) modal.style.display = 'none';
+    if (modal) {
+        modal.style.display = 'none';
+        // Reset any custom styles
+        modal.style.cssText = '';
+    }
 }
 
 function downloadDocument() {
@@ -645,36 +906,120 @@ function showPatterns() {
 }
 
 function showLogs() {
-    if (!currentSession) {
-        showNotification('No active session', 'error');
+    // Use the same function as showActivityLogs for consistency
+    showActivityLogs();
+}
+
+function showActivityLogs() {
+    // Check multiple session sources
+    const sessionId = currentSession || window.currentSession || (typeof currentSession !== 'undefined' ? currentSession : null) || sessionStorage.getItem('currentSession');
+    
+    if (!sessionId) {
+        showNotification('No active session. Please upload a document first.', 'error');
         return;
     }
     
-    showProgress('Loading activity logs...');
+    showProgress('Loading comprehensive activity logs...');
     
-    fetch(`/get_logs?session_id=${currentSession}&format=html`)
-    .then(response => response.json())
+    fetch(`/get_activity_logs?session_id=${sessionId}&format=html`)
+    .then(response => {
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        return response.json();
+    })
     .then(data => {
         hideProgress();
-        if (data.success) {
+        if (data.success && data.logs_html) {
             const modalContent = `
-                <div style="max-height: 70vh; overflow-y: auto;">
-                    ${data.logs_html || '<p>No logs available.</p>'}
-                    <div style="text-align: center; margin-top: 20px;">
-                        <button class="btn btn-info" onclick="exportLogs()" style="margin: 5px;">📥 Export Logs</button>
-                        <button class="btn btn-secondary" onclick="refreshLogs()" style="margin: 5px;">🔄 Refresh</button>
+                <div style="max-height: 75vh; overflow-y: auto; padding: 15px;">
+                    ${data.logs_html}
+                    <div style="text-align: center; margin-top: 25px; padding-top: 15px; border-top: 1px solid #eee;">
+                        <button class="btn btn-primary" onclick="exportActivityLogs()" style="margin: 5px; padding: 10px 20px;">📥 Export Logs</button>
+                        <button class="btn btn-info" onclick="refreshActivityLogs()" style="margin: 5px; padding: 10px 20px;">🔄 Refresh</button>
+                        <button class="btn btn-secondary" onclick="closeModal('genericModal')" style="margin: 5px; padding: 10px 20px;">✅ Close</button>
                     </div>
                 </div>
             `;
             
-            showModal('genericModal', '📋 Activity Logs', modalContent);
+            showModal('genericModal', '📋 Complete Activity Logs', modalContent);
         } else {
-            showNotification('Failed to load logs: ' + (data.error || 'Unknown error'), 'error');
+            // Fallback to JSON format if HTML not available
+            fetch(`/get_activity_logs?session_id=${sessionId}&format=json`)
+            .then(response => response.json())
+            .then(fallbackData => {
+                if (fallbackData.success) {
+                    const logs = fallbackData.logs || [];
+                    const summary = fallbackData.summary || {};
+                    
+                    let logsHtml = `
+                        <div class="activity-logs-container">
+                            <div class="logs-summary" style="margin-bottom: 20px; padding: 15px; background: #f8f9fa; border-radius: 8px;">
+                                <h4>📊 Activity Summary</h4>
+                                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-top: 10px;">
+                                    <div><strong>Total:</strong> ${summary.total_activities || logs.length}</div>
+                                    <div><strong>Success:</strong> ${summary.success_count || 0}</div>
+                                    <div><strong>Failed:</strong> ${summary.failed_count || 0}</div>
+                                    <div><strong>Rate:</strong> ${summary.success_rate || 0}%</div>
+                                </div>
+                            </div>
+                            <div class="logs-list" style="max-height: 400px; overflow-y: auto;">
+                    `;
+                    
+                    if (logs.length > 0) {
+                        logs.slice(-20).forEach(log => {
+                            const statusColor = log.status === 'success' ? '#28a745' : 
+                                              log.status === 'failed' ? '#dc3545' : 
+                                              log.status === 'warning' ? '#ffc107' : '#6c757d';
+                            const statusIcon = log.status === 'success' ? '✅' : 
+                                             log.status === 'failed' ? '❌' : 
+                                             log.status === 'warning' ? '⚠️' : '📝';
+                            
+                            logsHtml += `
+                                <div style="padding: 10px; margin-bottom: 8px; border-left: 4px solid ${statusColor}; background: #f8f9fa; border-radius: 4px;">
+                                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+                                        <span style="font-weight: bold; color: ${statusColor};">${statusIcon} ${log.action || 'Unknown Action'}</span>
+                                        <span style="font-size: 0.8em; color: #666;">${log.timestamp ? new Date(log.timestamp).toLocaleTimeString() : 'Unknown time'}</span>
+                                    </div>
+                                    ${log.details ? `<div style="font-size: 0.9em; color: #555;">${log.details}</div>` : ''}
+                                    ${log.error ? `<div style="font-size: 0.85em; color: #dc3545; margin-top: 5px;">❌ ${log.error}</div>` : ''}
+                                </div>
+                            `;
+                        });
+                    } else {
+                        logsHtml += '<div style="text-align: center; padding: 20px; color: #666;">No activities found</div>';
+                    }
+                    
+                    logsHtml += `
+                            </div>
+                        </div>
+                    `;
+                    
+                    const modalContent = `
+                        <div style="max-height: 75vh; overflow-y: auto;">
+                            ${logsHtml}
+                            <div style="text-align: center; margin-top: 20px;">
+                                <button class="btn btn-primary" onclick="exportActivityLogs()" style="margin: 5px;">📥 Export Logs</button>
+                                <button class="btn btn-info" onclick="refreshActivityLogs()" style="margin: 5px;">🔄 Refresh</button>
+                                <button class="btn btn-secondary" onclick="closeModal('genericModal')" style="margin: 5px;">✅ Close</button>
+                            </div>
+                        </div>
+                    `;
+                    
+                    showModal('genericModal', '📋 Activity Logs', modalContent);
+                } else {
+                    showNotification('No activity logs available', 'info');
+                }
+            })
+            .catch(fallbackError => {
+                showNotification('Failed to load activity logs: ' + fallbackError.message, 'error');
+            });
         }
     })
     .catch(error => {
         hideProgress();
-        showNotification('Failed to load logs: ' + error.message, 'error');
+        console.error('Activity logs error:', error);
+        showNotification('Failed to load activity logs: ' + error.message, 'error');
     });
 }
 
@@ -757,46 +1102,13 @@ function resetSession() {
 
 // Helper functions for new features
 function exportLogs() {
-    if (!currentSession) {
-        showNotification('No active session', 'error');
-        return;
-    }
-    
-    fetch(`/get_logs?session_id=${currentSession}&format=json`)
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            const exportData = {
-                export_timestamp: new Date().toISOString(),
-                session_id: currentSession,
-                logs: data.logs,
-                performance_metrics: data.performance_metrics,
-                summary: data.summary
-            };
-            
-            const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `activity_logs_${new Date().toISOString().split('T')[0]}.json`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            window.URL.revokeObjectURL(url);
-            
-            showNotification('Activity logs exported successfully!', 'success');
-        } else {
-            showNotification('Export failed: ' + (data.error || 'Unknown error'), 'error');
-        }
-    })
-    .catch(error => {
-        showNotification('Export failed: ' + error.message, 'error');
-    });
+    // Use the new exportActivityLogs function
+    exportActivityLogs();
 }
 
 function refreshLogs() {
     closeModal('genericModal');
-    setTimeout(() => showLogs(), 100);
+    setTimeout(() => showActivityLogs(), 100);
 }
 
 function exportLearningData() {
@@ -841,6 +1153,173 @@ function refreshLearning() {
     setTimeout(() => showLearning(), 100);
 }
 
+// S3 Success Popup Function
+function showS3SuccessPopup(s3ExportData) {
+    const modalContent = `
+        <div style="text-align: center; padding: 30px;">
+            <div style="font-size: 4em; margin-bottom: 20px;">🎉</div>
+            <h3 style="color: #28a745; margin-bottom: 20px;">S3 Export Successful!</h3>
+            
+            <div style="background: #d4edda; border: 1px solid #c3e6cb; border-radius: 8px; padding: 20px; margin-bottom: 20px; text-align: left;">
+                <h4 style="color: #155724; margin-bottom: 15px;">📦 Export Details</h4>
+                <div style="margin-bottom: 10px;"><strong>Location:</strong> ${s3ExportData.location || 'S3 Bucket'}</div>
+                <div style="margin-bottom: 10px;"><strong>Folder:</strong> ${s3ExportData.folder_name || 'Unknown'}</div>
+                <div style="margin-bottom: 10px;"><strong>Files Uploaded:</strong> ${s3ExportData.total_files || 0}</div>
+                <div style="margin-bottom: 10px;"><strong>Bucket:</strong> ${s3ExportData.bucket || 'felix-s3-bucket'}</div>
+                ${s3ExportData.s3_path ? `<div style="margin-bottom: 10px;"><strong>S3 Path:</strong> ${s3ExportData.s3_path}</div>` : ''}
+            </div>
+            
+            <div style="background: #fff3cd; border: 1px solid #ffeaa7; border-radius: 8px; padding: 15px; margin-bottom: 20px;">
+                <h5 style="color: #856404; margin-bottom: 10px;">📋 What was saved:</h5>
+                <ul style="text-align: left; color: #856404; margin: 0; padding-left: 20px;">
+                    <li>Original document (before review)</li>
+                    <li>Reviewed document (with comments)</li>
+                    <li>All feedback data (accepted, rejected, custom)</li>
+                    <li>Activity logs and chat history</li>
+                    <li>Comprehensive analysis report</li>
+                    <li>Guidelines document (if uploaded)</li>
+                </ul>
+            </div>
+            
+            <div style="display: flex; gap: 15px; justify-content: center; flex-wrap: wrap;">
+                <button class="btn btn-success" onclick="testS3Connection()" style="padding: 12px 25px;">
+                    🔗 Test S3 Connection
+                </button>
+                <button class="btn btn-info" onclick="showActivityLogs()" style="padding: 12px 25px;">
+                    📋 View Activity Logs
+                </button>
+                <button class="btn btn-primary" onclick="closeModal('genericModal')" style="padding: 12px 25px;">
+                    ✅ Continue
+                </button>
+            </div>
+        </div>
+    `;
+    
+    showModal('genericModal', '🎉 S3 Export Complete', modalContent);
+}
+
+// Export Activity Logs Function
+function exportActivityLogs() {
+    const sessionId = currentSession || window.currentSession || sessionStorage.getItem('currentSession');
+    
+    if (!sessionId) {
+        showNotification('No active session', 'error');
+        return;
+    }
+    
+    // Show format selection modal
+    const modalContent = `
+        <div style="text-align: center; padding: 20px;">
+            <h3 style="color: #667eea; margin-bottom: 20px;">📥 Export Activity Logs</h3>
+            <p style="margin-bottom: 30px;">Choose the format for your activity logs export:</p>
+            
+            <div style="display: flex; gap: 20px; justify-content: center; flex-wrap: wrap;">
+                <button class="btn btn-primary" onclick="downloadActivityLogs('json')" style="padding: 15px 25px;">
+                    📄 JSON Format
+                </button>
+                <button class="btn btn-success" onclick="downloadActivityLogs('csv')" style="padding: 15px 25px;">
+                    📅 CSV Format
+                </button>
+                <button class="btn btn-info" onclick="downloadActivityLogs('txt')" style="padding: 15px 25px;">
+                    📝 Text Format
+                </button>
+            </div>
+            
+            <div style="margin-top: 20px;">
+                <button class="btn btn-secondary" onclick="closeModal('genericModal')" style="padding: 10px 20px;">
+                    ❌ Cancel
+                </button>
+            </div>
+        </div>
+    `;
+    
+    showModal('genericModal', 'Export Activity Logs', modalContent);
+}
+
+// Download Activity Logs Function
+function downloadActivityLogs(format) {
+    const sessionId = currentSession || window.currentSession || sessionStorage.getItem('currentSession');
+    
+    if (!sessionId) {
+        showNotification('No active session', 'error');
+        return;
+    }
+    
+    closeModal('genericModal');
+    window.location.href = `/export_activity_logs?session_id=${sessionId}&format=${format}`;
+    showNotification(`Downloading activity logs as ${format.toUpperCase()}...`, 'info');
+}
+
+// Refresh Activity Logs Function
+function refreshActivityLogs() {
+    closeModal('genericModal');
+    setTimeout(() => {
+        showActivityLogs();
+    }, 100);
+}
+
+// Test S3 Connection Function
+function testS3Connection() {
+    showProgress('Testing S3 connection...');
+    
+    fetch('/test_s3_connection')
+    .then(response => response.json())
+    .then(data => {
+        hideProgress();
+        
+        if (data.success && data.s3_status) {
+            const status = data.s3_status;
+            let statusMessage = '';
+            let statusColor = '';
+            let statusIcon = '';
+            
+            if (status.connected && status.bucket_accessible) {
+                statusMessage = `✅ S3 Connection Successful!\n\nBucket: ${status.bucket_name}\nStatus: Connected and accessible`;
+                statusColor = '#28a745';
+                statusIcon = '✅';
+            } else if (status.connected && !status.bucket_accessible) {
+                statusMessage = `⚠️ S3 Connected but Bucket Issues\n\nBucket: ${status.bucket_name}\nError: ${status.error || 'Bucket not accessible'}`;
+                statusColor = '#ffc107';
+                statusIcon = '⚠️';
+            } else {
+                statusMessage = `❌ S3 Connection Failed\n\nError: ${status.error || 'Unable to connect to S3'}`;
+                statusColor = '#dc3545';
+                statusIcon = '❌';
+            }
+            
+            const modalContent = `
+                <div style="text-align: center; padding: 30px;">
+                    <div style="font-size: 4em; margin-bottom: 20px;">${statusIcon}</div>
+                    <h3 style="color: ${statusColor}; margin-bottom: 20px;">S3 Connection Test</h3>
+                    
+                    <div style="background: ${statusColor === '#28a745' ? '#d4edda' : statusColor === '#ffc107' ? '#fff3cd' : '#f8d7da'}; 
+                                border: 1px solid ${statusColor === '#28a745' ? '#c3e6cb' : statusColor === '#ffc107' ? '#ffeaa7' : '#f5c6cb'}; 
+                                border-radius: 8px; padding: 20px; margin-bottom: 20px; white-space: pre-line;">
+                        ${statusMessage}
+                    </div>
+                    
+                    <div style="display: flex; gap: 15px; justify-content: center;">
+                        <button class="btn btn-info" onclick="testS3Connection()" style="padding: 10px 20px;">
+                            🔄 Test Again
+                        </button>
+                        <button class="btn btn-secondary" onclick="closeModal('genericModal')" style="padding: 10px 20px;">
+                            ✅ Close
+                        </button>
+                    </div>
+                </div>
+            `;
+            
+            showModal('genericModal', 'S3 Connection Test Results', modalContent);
+        } else {
+            showNotification('S3 connection test failed: ' + (data.error || 'Unknown error'), 'error');
+        }
+    })
+    .catch(error => {
+        hideProgress();
+        showNotification('S3 connection test failed: ' + error.message, 'error');
+    });
+}
+
 function exportPatterns() {
     if (!currentSession) {
         showNotification('No active session', 'error');
@@ -877,6 +1356,45 @@ function exportPatterns() {
     });
 }
 
+// Manual S3 Export Function (for testing)
+function manualS3Export() {
+    const sessionId = currentSession || window.currentSession || sessionStorage.getItem('currentSession');
+    
+    if (!sessionId) {
+        showNotification('No active session', 'error');
+        return;
+    }
+    
+    if (confirm('Export current review data to S3? This will save all documents, feedback, and logs.')) {
+        showProgress('Exporting to S3...');
+        
+        fetch('/export_to_s3', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ session_id: sessionId })
+        })
+        .then(response => response.json())
+        .then(data => {
+            hideProgress();
+            
+            if (data.success && data.export_result) {
+                if (data.export_result.success) {
+                    showS3SuccessPopup(data.export_result);
+                    showNotification('Manual S3 export completed successfully!', 'success');
+                } else {
+                    showNotification('S3 export failed: ' + (data.export_result.error || 'Unknown error'), 'error');
+                }
+            } else {
+                showNotification('Export failed: ' + (data.error || 'Unknown error'), 'error');
+            }
+        })
+        .catch(error => {
+            hideProgress();
+            showNotification('Export failed: ' + error.message, 'error');
+        });
+    }
+}
+
 // Initialize when DOM is loaded
 document.addEventListener('DOMContentLoaded', function() {
     console.log('Button fixes loaded successfully');
@@ -889,4 +1407,7 @@ document.addEventListener('DOMContentLoaded', function() {
             console.warn(`Function ${onclick.split('(')[0]} not found for button:`, button);
         }
     });
+    
+    // Auto-sync session variables
+    syncSessionVariables();
 });

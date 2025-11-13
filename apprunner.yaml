@@ -17,7 +17,21 @@ run:
       value: "8080"
     - name: AWS_REGION
       value: "us-east-1"
+    - name: AWS_DEFAULT_REGION
+      value: "us-east-1"
     - name: BEDROCK_MODEL_ID
-      value: "anthropic.claude-3-5-sonnet-20241022-v2:0"
+      value: "anthropic.claude-3-7-sonnet-20250219-v1:0"
     - name: FLASK_ENV
       value: "production"
+    - name: S3_BUCKET_NAME
+      value: "felix-s3-bucket"
+    - name: S3_BASE_PATH
+      value: "tara/"
+    - name: BEDROCK_MAX_TOKENS
+      value: "8192"
+    - name: BEDROCK_TEMPERATURE
+      value: "0.7"
+    - name: REASONING_ENABLED
+      value: "true"
+    - name: REASONING_BUDGET_TOKENS
+      value: "2000"

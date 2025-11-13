@@ -323,30 +323,68 @@ AVOID:
         return "Low"
 
     def _invoke_bedrock(self, system_prompt, user_prompt):
-        """Invoke AWS Bedrock using original configuration"""
+        """Invoke AWS Bedrock using model configuration - FOR ANALYSIS ONLY"""
         try:
-            runtime = boto3.client('bedrock-runtime')
+            # Check if credentials are available
+            if not model_config.has_credentials():
+                print("⚠️ No AWS credentials found - using mock analysis response")
+                return self._mock_ai_response(user_prompt)
             
-            body = json.dumps({
-                "anthropic_version": "bedrock-2023-05-31",
-                "max_tokens": 4000,
-                "system": system_prompt,
-                "messages": [{"role": "user", "content": user_prompt}]
-            })
+            config = model_config.get_model_config()
+            
+            # Try to create Bedrock client with profile first, then fallback to default
+            runtime = None
+            try:
+                # Try with admin-abhsatsa profile
+                session = boto3.Session(profile_name='admin-abhsatsa')
+                runtime = session.client(
+                    'bedrock-runtime',
+                    region_name=config['region']
+                )
+                print(f"🔑 Using AWS profile: admin-abhsatsa")
+            except Exception as profile_error:
+                print(f"⚠️ Profile error: {profile_error}")
+                # Fallback to default session
+                runtime = boto3.client(
+                    'bedrock-runtime',
+                    region_name=config['region']
+                )
+                print(f"🔑 Using default AWS credentials")
+            
+            # Generate request body using model config
+            body = model_config.get_bedrock_request_body(system_prompt, user_prompt)
+            
+            print(f"🤖 Invoking {config['model_name']} for analysis (ID: {config['model_id']})")
             
             response = runtime.invoke_model(
                 body=body,
-                modelId='anthropic.claude-3-sonnet-20240229-v1:0',
+                modelId=config['model_id'],
                 accept="application/json",
                 contentType="application/json"
             )
             
             response_body = json.loads(response.get('body').read())
-            return response_body['content'][0]['text']
+            result = model_config.extract_response_content(response_body)
+            
+            print(f"✅ Claude analysis response received ({len(result)} chars)")
+            return result
             
         except Exception as e:
-            print(f"Bedrock error: {str(e)}")
-            # Return mock response for testing
+            print(f"❌ Bedrock analysis error: {str(e)}")
+            
+            # Provide specific error guidance
+            error_str = str(e).lower()
+            if 'credentials' in error_str or 'access' in error_str:
+                print("💡 Fix: Check AWS credentials configuration")
+            elif 'region' in error_str:
+                print("💡 Fix: Verify AWS region and Bedrock availability")
+            elif 'not found' in error_str or 'model' in error_str:
+                print("💡 Fix: Verify Claude model access in your AWS account")
+            elif 'throttling' in error_str or 'limit' in error_str:
+                print("💡 Fix: Rate limiting - try again in a moment")
+            
+            # Return mock analysis response for testing
+            print("🎭 Falling back to mock analysis response")
             return self._mock_ai_response(user_prompt)
     
 
@@ -539,6 +577,11 @@ AVOID:
         """Process chat queries with focused, concise responses"""
         print(f"Processing chat query: {query[:50]}...")
         
+        # Check if we should use real AI or mock responses
+        if not model_config.has_credentials():
+            print("⚠️ No AWS credentials - using mock chat response")
+            return self._mock_chat_response(query, context)
+        
         current_section = context.get('current_section', 'Current section')
         feedback_count = len(context.get('current_feedback', []))
         
@@ -573,8 +616,47 @@ FORMAT:
         - Professional tone"""
         
         try:
-            response = self._invoke_bedrock(system_prompt, prompt)
-            return self._format_chat_response(response)
+            # Use real Bedrock for chat
+            import boto3
+            config = model_config.get_model_config()
+            
+            # Try to create Bedrock client with profile first, then fallback to default
+            runtime = None
+            try:
+                # Try with admin-abhsatsa profile
+                session = boto3.Session(profile_name='admin-abhsatsa')
+                runtime = session.client(
+                    'bedrock-runtime',
+                    region_name=config['region']
+                )
+                print(f"🔑 Chat using AWS profile: admin-abhsatsa")
+            except Exception as profile_error:
+                print(f"⚠️ Profile error: {profile_error}")
+                # Fallback to default session
+                runtime = boto3.client(
+                    'bedrock-runtime',
+                    region_name=config['region']
+                )
+                print(f"🔑 Chat using default AWS credentials")
+            
+            body = model_config.get_bedrock_request_body(system_prompt, prompt)
+            
+            print(f"🤖 Chat query to {config['model_name']}")
+            
+            response = runtime.invoke_model(
+                body=body,
+                modelId=config['model_id'],
+                accept="application/json",
+                contentType="application/json"
+            )
+            
+            response_body = json.loads(response.get('body').read())
+            result = model_config.extract_response_content(response_body)
+            
+            print(f"✅ Claude chat response received")
+            return self._format_chat_response(result)
+            
         except Exception as e:
-            print(f"Chat processing error: {str(e)}")
+            print(f"❌ Chat processing error: {str(e)}")
+            print("🎭 Falling back to mock chat response")
             return self._mock_chat_response(query, context)

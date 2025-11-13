@@ -14,6 +14,8 @@ from utils.document_processor import DocumentProcessor
 from utils.pattern_analyzer import DocumentPatternAnalyzer
 from utils.audit_logger import AuditLogger
 from utils.learning_system import FeedbackLearningSystem
+from utils.s3_export_manager import S3ExportManager
+from utils.activity_logger import ActivityLogger
 from config.model_config import model_config
 
 app = Flask(__name__, static_folder='static')
@@ -43,6 +45,7 @@ try:
     pattern_analyzer = DocumentPatternAnalyzer()
     audit_logger = AuditLogger()
     learning_system = FeedbackLearningSystem()
+    s3_export_manager = S3ExportManager()
     
     print("AI-Prism components initialized successfully")
     
@@ -80,6 +83,7 @@ class ReviewSession:
         self.audit_logger = AuditLogger()
         self.pattern_analyzer = DocumentPatternAnalyzer()
         self.learning_system = FeedbackLearningSystem()
+        self.activity_logger = ActivityLogger(self.session_id)
 
 @app.route('/')
 def index():
@@ -146,7 +150,22 @@ def upload_document():
         sessions[session_id] = review_session
         session['session_id'] = session_id
         
-        # Log activity
+        # Log activity with comprehensive tracking
+        file_size = os.path.getsize(file_path)
+        review_session.activity_logger.log_document_upload(filename, file_size, success=True)
+        
+        if guidelines_uploaded:
+            guidelines_size = os.path.getsize(review_session.guidelines_path)
+            review_session.activity_logger.log_document_upload(review_session.guidelines_name, guidelines_size, success=True)
+        
+        review_session.activity_logger.log_session_event('documents_uploaded', {
+            'analysis_document': filename,
+            'guidelines_document': review_session.guidelines_name if guidelines_uploaded else None,
+            'sections_detected': len(sections),
+            'guidelines_preference': guidelines_preference
+        })
+        
+        # Legacy logging
         log_details = f'Analysis document {filename} uploaded with {len(sections)} sections'
         if guidelines_uploaded:
             log_details += f', Guidelines document {review_session.guidelines_name} also uploaded'
@@ -215,12 +234,34 @@ def analyze_section():
         
         print(f"ANALYZING section: {section_name} ({len(section_content)} characters)")
         
-        # Analyze with AI engine
+        # Analyze with AI engine with timing
+        analysis_start_time = datetime.now()
         try:
             print(f"Starting AI analysis for section: {section_name}")
+            review_session.activity_logger.start_operation('ai_analysis', {
+                'section': section_name,
+                'content_length': len(section_content)
+            })
+            
             analysis_result = ai_engine.analyze_section(section_name, section_content)
+            
+            analysis_duration = (datetime.now() - analysis_start_time).total_seconds()
+            feedback_count = len(analysis_result.get('feedback_items', []))
+            
+            review_session.activity_logger.complete_operation(success=True, details={
+                'feedback_generated': feedback_count,
+                'analysis_duration': analysis_duration
+            })
+            
+            review_session.activity_logger.log_ai_analysis(section_name, feedback_count, analysis_duration, success=True)
             print(f"AI analysis completed")
+            
         except Exception as ai_error:
+            analysis_duration = (datetime.now() - analysis_start_time).total_seconds()
+            
+            review_session.activity_logger.complete_operation(success=False, error=str(ai_error))
+            review_session.activity_logger.log_ai_analysis(section_name, 0, analysis_duration, success=False, error=str(ai_error))
+            
             print(f"AI analysis failed: {str(ai_error)}")
             analysis_result = {
                 'feedback_items': [],
@@ -363,7 +404,15 @@ def accept_feedback():
         # Update statistics
         stats_manager.record_acceptance(section_name, feedback_item)
         
-        # Log activity
+        # Log activity with comprehensive tracking
+        review_session.activity_logger.log_feedback_action(
+            'accepted', 
+            feedback_id, 
+            section_name, 
+            feedback_item.get('description')
+        )
+        
+        # Legacy logging
         review_session.activity_log.append({
             'timestamp': datetime.now().isoformat(),
             'action': 'FEEDBACK_ACCEPTED',
@@ -408,12 +457,21 @@ def reject_feedback():
         # Update statistics
         stats_manager.record_rejection(section_name, feedback_item)
         
-        # Log activity
+        # Log activity with comprehensive tracking
+        review_session.activity_logger.log_feedback_action(
+            'rejected', 
+            feedback_id, 
+            section_name, 
+            feedback_item.get('description')
+        )
+        
+        # Legacy logging
         review_session.activity_log.append({
             'timestamp': datetime.now().isoformat(),
             'action': 'FEEDBACK_REJECTED',
             'details': f'Rejected {feedback_item.get("type")} feedback in {section_name}'
         })
+        
         
         # Log with audit logger and learning system
         review_session.audit_logger.log('FEEDBACK_REJECTED', f'Rejected {feedback_item.get("type")} feedback in {section_name}')
@@ -526,8 +584,20 @@ def chat():
             'rejected_count': len(review_session.rejected_feedback.get(current_section, []))
         }
         
+        # Track chat response time
+        chat_start_time = datetime.now()
+        
         # AI engine now handles fallback internally
         response = ai_engine.process_chat_query(message, context)
+        
+        response_time = (datetime.now() - chat_start_time).total_seconds()
+        
+        # Log chat interaction
+        review_session.activity_logger.log_chat_interaction(
+            'user_query',
+            len(message),
+            response_time
+        )
         
         # Add AI response to history
         actual_model = model_config.get_model_config()['model_name']
@@ -821,8 +891,8 @@ def analyze_feedback_patterns(review_session):
     
     return patterns
 
-@app.route('/get_logs', methods=['GET'])
-def get_logs():
+@app.route('/get_activity_logs', methods=['GET'])
+def get_activity_logs():
     try:
         session_id = request.args.get('session_id') or session.get('session_id')
         format_type = request.args.get('format', 'json')
@@ -833,19 +903,143 @@ def get_logs():
         review_session = sessions[session_id]
         
         if format_type == 'html':
-            logs_html = review_session.audit_logger.generate_audit_report_html()
+            # Generate comprehensive HTML logs including all activities
+            activity_summary = review_session.activity_logger.get_activity_summary()
+            failed_activities = review_session.activity_logger.get_failed_activities()
+            recent_activities = review_session.activity_logger.get_recent_activities(20)
+            
+            logs_html = f"""
+            <div class="logs-container">
+                <div class="logs-header">
+                    <h3>📋 Complete Activity Log</h3>
+                    <div class="logs-summary">
+                        <span class="stat">Total: {activity_summary['total_activities']}</span>
+                        <span class="stat success">✅ Success: {activity_summary['success_count']}</span>
+                        <span class="stat failed">❌ Failed: {activity_summary['failed_count']}</span>
+                        <span class="stat rate">Success Rate: {activity_summary['success_rate']}%</span>
+                    </div>
+                </div>
+                
+                <div class="logs-sections">
+                    <div class="logs-section">
+                        <h4>🔥 Failed Activities</h4>
+                        <div class="failed-activities">
+            """
+            
+            if failed_activities:
+                for activity in failed_activities:
+                    logs_html += f"""
+                    <div class="activity-item failed">
+                        <div class="activity-header">
+                            <span class="action">{activity['action']}</span>
+                            <span class="timestamp">{activity['timestamp']}</span>
+                        </div>
+                        <div class="activity-error">❌ {activity.get('error', 'Unknown error')}</div>
+                        {f'<div class="activity-details">{activity["details"]}</div>' if activity.get('details') else ''}
+                    </div>
+                    """
+            else:
+                logs_html += '<div class="no-failures">✅ No failed activities</div>'
+            
+            logs_html += """
+                        </div>
+                    </div>
+                    
+                    <div class="logs-section">
+                        <h4>📝 Recent Activities</h4>
+                        <div class="recent-activities">
+            """
+            
+            for activity in recent_activities:
+                status_icon = {
+                    'success': '✅',
+                    'failed': '❌', 
+                    'in_progress': '⏳',
+                    'warning': '⚠️'
+                }.get(activity['status'], '📝')
+                
+                logs_html += f"""
+                <div class="activity-item {activity['status']}">
+                    <div class="activity-header">
+                        <span class="status-icon">{status_icon}</span>
+                        <span class="action">{activity['action']}</span>
+                        <span class="timestamp">{activity['timestamp']}</span>
+                    </div>
+                    {f'<div class="activity-details">{activity["details"]}</div>' if activity.get('details') else ''}
+                    {f'<div class="activity-error">{activity["error"]}</div>' if activity.get('error') else ''}
+                </div>
+                """
+            
+            logs_html += """
+                        </div>
+                    </div>
+                    
+                    <div class="logs-section">
+                        <h4>📊 Activity Breakdown</h4>
+                        <div class="activity-breakdown">
+            """
+            
+            for action, count in activity_summary['action_breakdown'].items():
+                logs_html += f'<div class="breakdown-item"><span class="action">{action.title()}</span><span class="count">{count}</span></div>'
+            
+            logs_html += """
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="logs-footer">
+                    <div class="session-info">
+                        <span>Session Duration: {session_duration} minutes</span>
+                        <span>Last Activity: {last_activity}</span>
+                    </div>
+                </div>
+            </div>
+            
+            <style>
+            .logs-container {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }}
+            .logs-header {{ margin-bottom: 20px; }}
+            .logs-summary {{ display: flex; gap: 15px; margin-top: 10px; }}
+            .stat {{ padding: 5px 10px; border-radius: 4px; font-size: 12px; font-weight: 500; }}
+            .stat.success {{ background: #d4edda; color: #155724; }}
+            .stat.failed {{ background: #f8d7da; color: #721c24; }}
+            .stat.rate {{ background: #d1ecf1; color: #0c5460; }}
+            .logs-section {{ margin-bottom: 25px; }}
+            .logs-section h4 {{ margin-bottom: 10px; color: #333; }}
+            .activity-item {{ padding: 12px; margin-bottom: 8px; border-radius: 6px; border-left: 4px solid #ddd; }}
+            .activity-item.success {{ border-left-color: #28a745; background: #f8fff9; }}
+            .activity-item.failed {{ border-left-color: #dc3545; background: #fff8f8; }}
+            .activity-item.warning {{ border-left-color: #ffc107; background: #fffdf5; }}
+            .activity-item.in_progress {{ border-left-color: #17a2b8; background: #f8fdff; }}
+            .activity-header {{ display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; }}
+            .action {{ font-weight: 600; color: #333; }}
+            .timestamp {{ font-size: 11px; color: #666; }}
+            .activity-details {{ font-size: 13px; color: #555; margin-top: 5px; }}
+            .activity-error {{ font-size: 13px; color: #dc3545; margin-top: 5px; font-weight: 500; }}
+            .no-failures {{ text-align: center; padding: 20px; color: #28a745; font-weight: 500; }}
+            .breakdown-item {{ display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px solid #eee; }}
+            .logs-footer {{ margin-top: 20px; padding-top: 15px; border-top: 1px solid #eee; }}
+            .session-info {{ display: flex; gap: 20px; font-size: 12px; color: #666; }}
+            </style>
+            """.format(
+                session_duration=activity_summary['session_duration'],
+                last_activity=activity_summary['last_activity'] or 'None'
+            )
+            
             return jsonify({'success': True, 'logs_html': logs_html})
         else:
-            logs = review_session.audit_logger.get_session_logs()
-            performance_metrics = review_session.audit_logger.get_performance_metrics()
-            activity_timeline = review_session.audit_logger.get_activity_timeline()
+            # Return JSON format with comprehensive activity data
+            activities = review_session.activity_logger.activities
+            activity_summary = review_session.activity_logger.get_activity_summary()
+            failed_activities = review_session.activity_logger.get_failed_activities()
             
             return jsonify({
-                'success': True, 
-                'logs': logs,
-                'performance_metrics': performance_metrics,
-                'activity_timeline': activity_timeline,
-                'summary': review_session.audit_logger.generate_summary_report()
+                'success': True,
+                'logs': activities,
+                'summary': activity_summary,
+                'failed_activities': failed_activities,
+                'audit_logs': review_session.audit_logger.get_session_logs(),
+                'performance_metrics': review_session.audit_logger.get_performance_metrics(),
+                'activity_timeline': review_session.audit_logger.get_activity_timeline()
             })
         
     except Exception as e:
@@ -950,6 +1144,7 @@ def complete_review():
     try:
         data = request.get_json()
         session_id = data.get('session_id') or session.get('session_id')
+        export_to_s3 = data.get('export_to_s3', False)
         
         if not session_id or session_id not in sessions:
             return jsonify({'error': 'Invalid session'}), 400
@@ -988,8 +1183,13 @@ def complete_review():
                         'author': 'User Feedback' if item.get('user_created') else 'AI Feedback'
                     })
         
-        # Create reviewed document
+        # Create reviewed document with tracking
         output_filename = f"reviewed_{review_session.document_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.docx"
+        
+        review_session.activity_logger.start_operation('document_generation', {
+            'comments_count': len(comments_data),
+            'output_filename': output_filename
+        })
         output_path = doc_processor.create_document_with_comments(
             review_session.document_path,
             comments_data,
@@ -997,19 +1197,102 @@ def complete_review():
         )
         
         if output_path:
+            file_size = os.path.getsize(output_path)
+            review_session.activity_logger.complete_operation(success=True, details={
+                'output_file': output_filename,
+                'file_size_bytes': file_size
+            })
+            
             # Log completion
+            review_session.activity_logger.log_session_event('review_completed', {
+                'comments_added': len(comments_data),
+                'output_file': output_filename,
+                'file_size_mb': round(file_size / (1024 * 1024), 2)
+            })
+            
             review_session.activity_log.append({
                 'timestamp': datetime.now().isoformat(),
                 'action': 'REVIEW_COMPLETED',
                 'details': f'Review completed with {len(comments_data)} comments added'
             })
             
-            return jsonify({
+            response_data = {
                 'success': True,
                 'output_file': output_filename,
                 'comments_count': len(comments_data)
-            })
+            }
+            
+            # Export to S3 if requested
+            if export_to_s3:
+                try:
+                    review_session.activity_logger.start_operation('s3_export', {
+                        'before_document': review_session.document_path,
+                        'after_document': output_path
+                    })
+                    
+                    export_result = s3_export_manager.export_complete_review_to_s3(
+                        review_session,
+                        review_session.document_path,  # before document
+                        output_path  # after document
+                    )
+                    response_data['s3_export'] = export_result
+                    
+                    # Log S3 export with detailed tracking
+                    if export_result.get('success'):
+                        review_session.activity_logger.complete_operation(success=True, details={
+                            'location': export_result.get('location'),
+                            'files_uploaded': export_result.get('total_files', 0),
+                            'folder_name': export_result.get('folder_name')
+                        })
+                        
+                        review_session.activity_logger.log_s3_operation(
+                            'export_complete_review',
+                            success=True,
+                            details={
+                                'location': export_result.get('location'),
+                                'files_count': export_result.get('total_files', 0),
+                                'bucket': export_result.get('bucket'),
+                                'folder_name': export_result.get('folder_name')
+                            }
+                        )
+                        
+                        review_session.activity_log.append({
+                            'timestamp': datetime.now().isoformat(),
+                            'action': 'S3_EXPORT_COMPLETED',
+                            'details': f'Complete review exported to {export_result.get("location", "S3")}'
+                        })
+                    else:
+                        review_session.activity_logger.complete_operation(success=False, error=export_result.get('error'))
+                        
+                        review_session.activity_logger.log_s3_operation(
+                            'export_complete_review',
+                            success=False,
+                            error=export_result.get('error')
+                        )
+                        
+                        review_session.activity_log.append({
+                            'timestamp': datetime.now().isoformat(),
+                            'action': 'S3_EXPORT_FAILED',
+                            'details': f'S3 export failed: {export_result.get("error", "Unknown error")}'
+                        })
+                        
+                except Exception as s3_error:
+                    review_session.activity_logger.complete_operation(success=False, error=str(s3_error))
+                    review_session.activity_logger.log_s3_operation(
+                        'export_complete_review',
+                        success=False,
+                        error=str(s3_error)
+                    )
+                    
+                    print(f"S3 export error: {str(s3_error)}")
+                    response_data['s3_export'] = {
+                        'success': False,
+                        'error': str(s3_error),
+                        'location': 'failed'
+                    }
+            return jsonify(response_data)
         else:
+            review_session.activity_logger.complete_operation(success=False, error='Failed to create reviewed document')
             return jsonify({'error': 'Failed to create reviewed document'}), 500
         
     except Exception as e:
@@ -1455,6 +1738,166 @@ def download_statistics():
     except Exception as e:
         return jsonify({'error': f'Download statistics failed: {str(e)}'}), 500
 
+@app.route('/export_to_s3', methods=['POST'])
+def export_to_s3():
+    try:
+        data = request.get_json()
+        session_id = data.get('session_id') or session.get('session_id')
+        
+        if not session_id or session_id not in sessions:
+            return jsonify({'error': 'Invalid session'}), 400
+        
+        review_session = sessions[session_id]
+        
+        # Create the reviewed document first if not exists
+        comments_data = []
+        for section_name, accepted_items in review_session.accepted_feedback.items():
+            if section_name in review_session.paragraph_indices:
+                para_indices = review_session.paragraph_indices[section_name]
+                
+                for item in accepted_items:
+                    comment_text = f"[{item.get('type', 'feedback').upper()} - {item.get('risk_level', 'Low')} Risk]\n"
+                    comment_text += f"{item.get('description', '')}\n"
+                    
+                    if item.get('suggestion'):
+                        comment_text += f"\nSuggestion: {item['suggestion']}\n"
+                    
+                    if item.get('questions'):
+                        comment_text += "\nKey Questions:\n"
+                        for i, q in enumerate(item['questions'], 1):
+                            comment_text += f"{i}. {q}\n"
+                    
+                    if item.get('hawkeye_refs'):
+                        refs = [f"#{r}" for r in item['hawkeye_refs']]
+                        comment_text += f"\nHawkeye References: {', '.join(refs)}"
+                    
+                    comments_data.append({
+                        'section': section_name,
+                        'paragraph_index': para_indices[0] if para_indices else 0,
+                        'comment': comment_text,
+                        'type': item.get('type', 'feedback'),
+                        'risk_level': item.get('risk_level', 'Low'),
+                        'author': 'User Feedback' if item.get('user_created') else 'AI Feedback'
+                    })
+        
+        # Create reviewed document
+        output_filename = f"reviewed_{review_session.document_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.docx"
+        output_path = doc_processor.create_document_with_comments(
+            review_session.document_path,
+            comments_data,
+            output_filename
+        )
+        
+        if not output_path:
+            return jsonify({'error': 'Failed to create reviewed document'}), 500
+        
+        # Export to S3 with comprehensive tracking
+        review_session.activity_logger.start_operation('s3_manual_export', {
+            'before_document': review_session.document_path,
+            'after_document': output_path,
+            'comments_count': len(comments_data)
+        })
+        
+        export_result = s3_export_manager.export_complete_review_to_s3(
+            review_session,
+            review_session.document_path,  # before document
+            output_path  # after document
+        )
+        
+        # Log S3 export attempt with detailed tracking
+        if export_result.get('success'):
+            review_session.activity_logger.complete_operation(success=True, details={
+                'location': export_result.get('location'),
+                'files_uploaded': export_result.get('total_files', 0),
+                'folder_name': export_result.get('folder_name'),
+                'bucket': export_result.get('bucket')
+            })
+            
+            review_session.activity_logger.log_export_operation(
+                'manual_s3_export',
+                file_count=export_result.get('total_files', 0),
+                location=export_result.get('location'),
+                success=True
+            )
+            
+            review_session.activity_log.append({
+                'timestamp': datetime.now().isoformat(),
+                'action': 'S3_EXPORT_COMPLETED',
+                'details': f'Complete review exported to {export_result.get("location", "S3")} - Folder: {export_result.get("folder_name", "Unknown")}'
+            })
+        else:
+            review_session.activity_logger.complete_operation(success=False, error=export_result.get('error'))
+            
+            review_session.activity_logger.log_export_operation(
+                'manual_s3_export',
+                location='failed',
+                success=False,
+                error=export_result.get('error')
+            )
+            
+            review_session.activity_log.append({
+                'timestamp': datetime.now().isoformat(),
+                'action': 'S3_EXPORT_FAILED',
+                'details': f'S3 export failed: {export_result.get("error", "Unknown error")}'
+            })
+        
+        return jsonify({
+            'success': True,
+            'export_result': export_result,
+            'output_file': output_filename,
+            'comments_count': len(comments_data)
+        })
+        
+    except Exception as e:
+        return jsonify({'error': f'S3 export failed: {str(e)}'}), 500
+
+@app.route('/test_s3_connection', methods=['GET'])
+def test_s3_connection():
+    """Test S3 connectivity and return status"""
+    try:
+        session_id = request.args.get('session_id') or session.get('session_id')
+        
+        # Test S3 connection
+        connection_status = s3_export_manager.test_s3_connection()
+        
+        # Log the test if we have a session
+        if session_id and session_id in sessions:
+            review_session = sessions[session_id]
+            review_session.activity_logger.log_s3_operation(
+                'connection_test',
+                success=connection_status.get('connected', False) and connection_status.get('bucket_accessible', False),
+                details={
+                    'bucket_name': connection_status.get('bucket_name'),
+                    'connected': connection_status.get('connected', False),
+                    'bucket_accessible': connection_status.get('bucket_accessible', False)
+                },
+                error=connection_status.get('error')
+            )
+        
+        return jsonify({
+            'success': True,
+            's3_status': connection_status,
+            'timestamp': datetime.now().isoformat()
+        })
+    except Exception as e:
+        # Log the failed test if we have a session
+        if session_id and session_id in sessions:
+            review_session = sessions[session_id]
+            review_session.activity_logger.log_s3_operation(
+                'connection_test',
+                success=False,
+                error=str(e)
+            )
+        
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            's3_status': {
+                'connected': False,
+                'error': f'Test failed: {str(e)}'
+            }
+        }), 500
+
 @app.route('/clear_all_user_feedback', methods=['POST'])
 def clear_all_user_feedback():
     try:
@@ -1488,6 +1931,75 @@ def clear_all_user_feedback():
         
     except Exception as e:
         return jsonify({'error': f'Clear all user feedback failed: {str(e)}'}), 500
+
+@app.route('/export_activity_logs', methods=['GET'])
+def export_activity_logs():
+    try:
+        session_id = request.args.get('session_id') or session.get('session_id')
+        format_type = request.args.get('format', 'json')
+        
+        if not session_id or session_id not in sessions:
+            return jsonify({'error': 'Invalid session'}), 400
+        
+        review_session = sessions[session_id]
+        
+        # Export activity logs
+        export_data = review_session.activity_logger.export_activities()
+        
+        if format_type == 'csv':
+            import csv
+            import io
+            
+            output = io.StringIO()
+            writer = csv.writer(output)
+            
+            # Write headers
+            writer.writerow(['Timestamp', 'Action', 'Status', 'Details', 'Error'])
+            
+            # Write activities
+            for activity in export_data['activities']:
+                writer.writerow([
+                    activity.get('timestamp', ''),
+                    activity.get('action', ''),
+                    activity.get('status', ''),
+                    str(activity.get('details', '')),
+                    activity.get('error', '')
+                ])
+            
+            output.seek(0)
+            return output.getvalue(), 200, {
+                'Content-Type': 'text/csv',
+                'Content-Disposition': f'attachment; filename=activity_logs_{datetime.now().strftime("%Y%m%d_%H%M%S")}.csv'
+            }
+        
+        elif format_type == 'txt':
+            output = f"AI-Prism Activity Logs\n"
+            output += f"Generated: {export_data['export_timestamp']}\n"
+            output += f"Session ID: {export_data['session_id']}\n"
+            output += f"Total Activities: {export_data['summary']['total_activities']}\n"
+            output += "=" * 50 + "\n\n"
+            
+            for activity in export_data['activities']:
+                output += f"[{activity.get('timestamp', '')}] {activity.get('action', '').upper()}\n"
+                output += f"Status: {activity.get('status', '').upper()}\n"
+                if activity.get('details'):
+                    output += f"Details: {activity.get('details', '')}\n"
+                if activity.get('error'):
+                    output += f"Error: {activity.get('error', '')}\n"
+                output += "-" * 30 + "\n\n"
+            
+            return output, 200, {
+                'Content-Type': 'text/plain',
+                'Content-Disposition': f'attachment; filename=activity_logs_{datetime.now().strftime("%Y%m%d_%H%M%S")}.txt'
+            }
+        
+        else:  # JSON format
+            return jsonify(export_data), 200, {
+                'Content-Disposition': f'attachment; filename=activity_logs_{datetime.now().strftime("%Y%m%d_%H%M%S")}.json'
+            }
+        
+    except Exception as e:
+        return jsonify({'error': f'Export activity logs failed: {str(e)}'}), 500
 
 if __name__ == '__main__':
     try:

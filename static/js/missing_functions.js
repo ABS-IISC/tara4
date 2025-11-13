@@ -83,6 +83,10 @@ function useGuidelinesPreference(preference) {
     const guidelinesFile = window.tempGuidelinesFile;
     
     uploadAndAnalyze(analysisFile, guidelinesFile, preference);
+    
+    // Clean up temp variables
+    window.tempAnalysisFile = null;
+    window.tempGuidelinesFile = null;
 }
 
 function uploadAndAnalyze(analysisFile, guidelinesFile, guidelinesPreference) {
@@ -115,8 +119,13 @@ function uploadAndAnalyze(analysisFile, guidelinesFile, guidelinesPreference) {
     })
     .then(data => {
         if (data.success) {
+            // Set session in multiple places to ensure compatibility
             window.currentSession = data.session_id;
+            currentSession = data.session_id; // For button_fixes.js compatibility
+            sessionStorage.setItem('currentSession', data.session_id);
+            
             window.sections = data.sections;
+            sections = data.sections; // For button_fixes.js compatibility
             
             populateSectionSelect(data.sections);
             showMainContent();
@@ -1308,6 +1317,43 @@ function resetHighlightingTutorial() {
 }
 
 console.log('Missing functions implementation loaded successfully');
+
+// Debug function to check session status
+function checkSessionStatus() {
+    const sessionInfo = {
+        windowCurrentSession: window.currentSession,
+        currentSession: typeof currentSession !== 'undefined' ? currentSession : 'undefined',
+        sessionStorage: sessionStorage.getItem('currentSession'),
+        sections: window.sections ? window.sections.length : 0,
+        windowSections: window.sections,
+        sectionData: window.sectionData ? Object.keys(window.sectionData).length : 0
+    };
+    
+    console.log('Session Status:', sessionInfo);
+    
+    const modalContent = `
+        <div style="padding: 20px;">
+            <h3 style="color: #4f46e5; margin-bottom: 20px;">🔍 Session Debug Information</h3>
+            <div style="background: #f8f9ff; padding: 15px; border-radius: 8px; font-family: monospace; font-size: 12px;">
+                <div><strong>window.currentSession:</strong> ${sessionInfo.windowCurrentSession || 'null'}</div>
+                <div><strong>currentSession:</strong> ${sessionInfo.currentSession}</div>
+                <div><strong>sessionStorage:</strong> ${sessionInfo.sessionStorage || 'null'}</div>
+                <div><strong>sections count:</strong> ${sessionInfo.sections}</div>
+                <div><strong>sectionData count:</strong> ${sessionInfo.sectionData}</div>
+            </div>
+            <div style="margin-top: 20px; text-align: center;">
+                <button class="btn btn-primary" onclick="closeModal('genericModal')" style="padding: 10px 20px;">Close</button>
+            </div>
+        </div>
+    `;
+    
+    showModal('genericModal', 'Session Debug', modalContent);
+    
+    return sessionInfo;
+}
+
+// Make it globally available
+window.checkSessionStatus = checkSessionStatus;
 
 // Quick custom feedback function for the static form in feedback panel
 function addQuickCustomFeedback() {
