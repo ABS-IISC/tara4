@@ -53,16 +53,62 @@ function saveAICustomFeedback(aiId) {
         return;
     }
     
+    // Ensure global variables exist
+    if (!window.currentSession) {
+        showNotification('No active session found', 'error');
+        return;
+    }
+    
+    if (!window.sections || window.currentSectionIndex < 0) {
+        showNotification('No section selected', 'error');
+        return;
+    }
+    
     // Find the AI feedback item for reference
-    const aiItem = window.sectionData?.[sections[currentSectionIndex]]?.feedback?.find(item => item.id === aiId);
-    const aiReference = aiItem ? `${aiItem.type}: ${aiItem.description.substring(0, 50)}...` : 'AI Suggestion';
+    let aiItem = null;
+    let aiReference = 'AI Suggestion';
+    
+    try {
+        if (window.sectionData && window.sections[window.currentSectionIndex]) {
+            const sectionName = window.sections[window.currentSectionIndex];
+            if (window.sectionData[sectionName] && window.sectionData[sectionName].feedback) {
+                aiItem = window.sectionData[sectionName].feedback.find(item => item.id === aiId);
+                if (aiItem) {
+                    aiReference = `${aiItem.type}: ${aiItem.description.substring(0, 50)}...`;
+                }
+            }
+        }
+    } catch (error) {
+        console.warn('Error finding AI item reference:', error);
+    }
+    
+    // Create the feedback item for immediate local logging
+    const feedbackItem = {
+        type: type,
+        category: category,
+        description: description,
+        section: window.sections[window.currentSectionIndex],
+        timestamp: new Date().toISOString(),
+        session_id: window.currentSession,
+        user_created: true,
+        ai_reference: aiReference,
+        ai_id: aiId,
+        id: `ai_custom_${aiId}_${Date.now()}`,
+        risk_level: type === 'critical' ? 'High' : type === 'important' ? 'Medium' : 'Low'
+    };
+    
+    // Add to local history immediately for live logging
+    if (!window.userFeedbackHistory) {
+        window.userFeedbackHistory = [];
+    }
+    window.userFeedbackHistory.push(feedbackItem);
     
     fetch('/add_custom_feedback', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-            session_id: currentSession,
-            section_name: sections[currentSectionIndex],
+            session_id: window.currentSession,
+            section_name: window.sections[window.currentSectionIndex],
             type: type,
             category: category,
             description: description,
@@ -73,26 +119,71 @@ function saveAICustomFeedback(aiId) {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            showNotification('Custom feedback added to AI suggestion!', 'success');
+            showNotification('✨ Custom feedback added to AI suggestion!', 'success');
             
-            // Add to local history
-            const feedbackItem = data.feedback_item;
-            feedbackItem.section = sections[currentSectionIndex];
-            userFeedbackHistory.push(feedbackItem);
+            // Update the feedback item with server data if available
+            if (data.feedback_item && data.feedback_item.id) {
+                feedbackItem.id = data.feedback_item.id;
+                // Update the item in history
+                const index = window.userFeedbackHistory.findIndex(item =>
+                    item.timestamp === feedbackItem.timestamp && item.ai_id === aiId
+                );
+                if (index !== -1) {
+                    window.userFeedbackHistory[index] = feedbackItem;
+                }
+            }
             
-            displayUserFeedback(feedbackItem);
+            // Display the user feedback immediately in current section
+            if (typeof displayUserFeedback === 'function') {
+                displayUserFeedback(feedbackItem);
+            } else if (typeof window.displayUserFeedback === 'function') {
+                window.displayUserFeedback(feedbackItem);
+            }
+            
+            // Hide the custom form after successful save
             cancelAICustom(aiId);
-            updateStatistics();
-            updateAllCustomFeedbackList();
             
-            // Immediately refresh the custom feedback section logs
-            refreshUserFeedbackList();
+            // Update statistics
+            if (typeof updateStatistics === 'function') {
+                updateStatistics();
+            }
+            
+            // Automatically update "All My Custom Feedback" section with live logging
+            if (typeof updateAllCustomFeedbackList === 'function') {
+                updateAllCustomFeedbackList();
+            } else if (typeof window.updateAllCustomFeedbackList === 'function') {
+                window.updateAllCustomFeedbackList();
+            }
+            
+            // Trigger real-time logs update for immediate reflection in "All My Custom Feedback"
+            if (window.updateRealTimeFeedbackLogs) {
+                window.updateRealTimeFeedbackLogs();
+            }
+            
+            // Refresh the user feedback list display
+            if (typeof refreshUserFeedbackList === 'function') {
+                refreshUserFeedbackList();
+            } else if (typeof window.refreshUserFeedbackList === 'function') {
+                window.refreshUserFeedbackList();
+            }
+            
+            // Update button states to show count
+            if (typeof updateAICustomButtonStates === 'function') {
+                updateAICustomButtonStates();
+            }
+            
+            console.log('✅ AI Custom feedback added and logged to "All My Custom Feedback":', feedbackItem);
         } else {
-            showNotification(data.error || 'Add feedback failed', 'error');
+            // Remove from local history if server failed
+            window.userFeedbackHistory = window.userFeedbackHistory.filter(item => item.id !== feedbackItem.id);
+            showNotification(data.error || 'Failed to add custom feedback to AI suggestion', 'error');
         }
     })
     .catch(error => {
-        showNotification('Add feedback failed: ' + error.message, 'error');
+        // Remove from local history if network failed
+        window.userFeedbackHistory = window.userFeedbackHistory.filter(item => item.id !== feedbackItem.id);
+        showNotification('Failed to add custom feedback: ' + error.message, 'error');
+        console.error('AI Custom feedback error:', error);
     });
 }
 
@@ -121,8 +212,9 @@ function clearAICustomFeedback(aiId, event) {
         if (descTextarea) descTextarea.value = '';
         
         // Remove any related user feedback from the current section
-        const currentSectionName = sections[currentSectionIndex];
-        if (userFeedbackHistory && currentSectionName) {
+        const currentSectionName = window.sections && window.currentSectionIndex >= 0 ?
+            window.sections[window.currentSectionIndex] : null;
+        if (window.userFeedbackHistory && currentSectionName) {
             // Count items to be removed
             const itemsToRemove = userFeedbackHistory.filter(item => 
                 item.section === currentSectionName && item.ai_id === aiId
@@ -160,13 +252,14 @@ function clearAICustomFeedback(aiId, event) {
  * Clear all custom feedback for the current section
  */
 function clearAllSectionCustomFeedback() {
-    if (!currentSession || currentSectionIndex < 0) {
+    if (!window.currentSession || !window.sections || window.currentSectionIndex < 0) {
         showNotification('No active section', 'error');
         return;
     }
     
-    const currentSectionName = sections[currentSectionIndex];
-    const sectionFeedback = userFeedbackHistory.filter(item => item.section === currentSectionName);
+    const currentSectionName = window.sections[window.currentSectionIndex];
+    const sectionFeedback = window.userFeedbackHistory ?
+        window.userFeedbackHistory.filter(item => item.section === currentSectionName) : [];
     
     if (sectionFeedback.length === 0) {
         showNotification('No custom feedback to clear in this section', 'info');
@@ -175,7 +268,9 @@ function clearAllSectionCustomFeedback() {
     
     if (confirm(`Are you sure you want to clear all ${sectionFeedback.length} custom feedback items from "${currentSectionName}"?`)) {
         // Remove from history
-        userFeedbackHistory = userFeedbackHistory.filter(item => item.section !== currentSectionName);
+        if (window.userFeedbackHistory) {
+            window.userFeedbackHistory = window.userFeedbackHistory.filter(item => item.section !== currentSectionName);
+        }
         
         // Clear display
         const userFeedbackDisplay = document.getElementById('userFeedbackDisplay');
@@ -234,10 +329,10 @@ function toggleAllAICustomForms(show = false) {
  * @returns {number} Count of custom feedback items
  */
 function getAICustomFeedbackCount(aiId) {
-    if (!userFeedbackHistory || !sections[currentSectionIndex]) return 0;
+    if (!window.userFeedbackHistory || !window.sections || window.currentSectionIndex < 0) return 0;
     
-    const currentSectionName = sections[currentSectionIndex];
-    return userFeedbackHistory.filter(item => 
+    const currentSectionName = window.sections[window.currentSectionIndex];
+    return window.userFeedbackHistory.filter(item =>
         item.section === currentSectionName && item.ai_id === aiId
     ).length;
 }
@@ -277,13 +372,13 @@ function updateAICustomButtonStates() {
  * Update the section custom feedback counter
  */
 function updateSectionCustomFeedbackCounter() {
-    if (typeof sections === 'undefined' || typeof currentSectionIndex === 'undefined' || currentSectionIndex < 0) {
+    if (!window.sections || typeof window.currentSectionIndex === 'undefined' || window.currentSectionIndex < 0) {
         return;
     }
     
-    const currentSectionName = sections[currentSectionIndex];
-    const sectionFeedbackCount = userFeedbackHistory ? 
-        userFeedbackHistory.filter(item => item.section === currentSectionName).length : 0;
+    const currentSectionName = window.sections[window.currentSectionIndex];
+    const sectionFeedbackCount = window.userFeedbackHistory ?
+        window.userFeedbackHistory.filter(item => item.section === currentSectionName).length : 0;
     
     const counter = document.getElementById('customFeedbackCounter');
     const countSpan = document.getElementById('customCount');

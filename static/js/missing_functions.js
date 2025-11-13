@@ -158,10 +158,19 @@ function showMainContent() {
     const mainContent = document.getElementById('mainContent');
     const statisticsPanel = document.getElementById('statisticsPanel');
     const actionButtons = document.getElementById('actionButtons');
+    const customFeedbackSection = document.getElementById('customFeedbackSection');
     
     if (mainContent) mainContent.style.display = 'grid';
     if (statisticsPanel) statisticsPanel.style.display = 'block';
     if (actionButtons) actionButtons.style.display = 'flex';
+    
+    // CRITICAL: Show the custom feedback section in the highlighted area
+    if (customFeedbackSection) {
+        customFeedbackSection.style.display = 'block';
+        console.log('✅ Custom feedback section made visible');
+    } else {
+        console.error('❌ Custom feedback section not found - check ID: customFeedbackSection');
+    }
     
     updateStatistics();
 }
@@ -476,6 +485,51 @@ function displayFeedback(feedbackItems, sectionName) {
                 <div class="feedback-actions">
                     <button class="btn btn-success" onclick="acceptFeedback('${item.id}', event)">✓ Accept</button>
                     <button class="btn btn-danger" onclick="rejectFeedback('${item.id}', event)">✗ Reject</button>
+                    <button class="btn btn-warning revert-btn" onclick="revertFeedback('${item.id}', event)">🔄 Revert</button>
+                    <button class="btn btn-info" onclick="addCustomToAI('${item.id}', event)">✨ Add Custom</button>
+                    <button class="btn btn-warning" onclick="clearAICustomFeedback('${item.id}', event)" style="display: none;">🧹 Clear Custom</button>
+                </div>
+                
+                <!-- Custom feedback form for this AI suggestion -->
+                <div id="custom-${item.id}" class="ai-custom-feedback" style="display: none; margin-top: 15px; padding: 15px; background: linear-gradient(135deg, #f8f9ff 0%, #e3f2fd 100%); border-radius: 10px; border: 2px solid #4f46e5;">
+                    <h4 style="color: #4f46e5; margin-bottom: 15px;">✨ Add Your Custom Feedback</h4>
+                    
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+                        <div>
+                            <label style="font-weight: 600; color: #555; margin-bottom: 5px; display: block;">🏷️ Type:</label>
+                            <select id="aiCustomType-${item.id}" style="width: 100%; padding: 8px; border: 2px solid #4f46e5; border-radius: 6px;">
+                                <option value="suggestion">Suggestion</option>
+                                <option value="important">Important</option>
+                                <option value="critical">Critical</option>
+                                <option value="positive">Positive</option>
+                                <option value="question">Question</option>
+                                <option value="clarification">Clarification</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label style="font-weight: 600; color: #555; margin-bottom: 5px; display: block;">📁 Category:</label>
+                            <select id="aiCustomCategory-${item.id}" style="width: 100%; padding: 8px; border: 2px solid #4f46e5; border-radius: 6px;">
+                                <option value="Initial Assessment">Initial Assessment</option>
+                                <option value="Investigation Process">Investigation Process</option>
+                                <option value="Root Cause Analysis">Root Cause Analysis</option>
+                                <option value="Documentation and Reporting">Documentation and Reporting</option>
+                                <option value="Seller Classification">Seller Classification</option>
+                                <option value="Enforcement Decision-Making">Enforcement Decision-Making</option>
+                                <option value="Quality Control">Quality Control</option>
+                                <option value="Communication Standards">Communication Standards</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div style="margin-bottom: 15px;">
+                        <label style="font-weight: 600; color: #555; margin-bottom: 5px; display: block;">📝 Your Custom Feedback:</label>
+                        <textarea id="aiCustomDesc-${item.id}" placeholder="Add your thoughts, additional context, or specific observations about this AI suggestion..." style="width: 100%; height: 80px; padding: 10px; border: 2px solid #4f46e5; border-radius: 6px; resize: vertical;"></textarea>
+                    </div>
+                    
+                    <div style="text-align: center;">
+                        <button class="btn btn-success" onclick="saveAICustomFeedback('${item.id}')" style="margin: 5px; padding: 8px 16px; border-radius: 20px; font-weight: 600;">💾 Save Custom Feedback</button>
+                        <button class="btn btn-secondary" onclick="cancelAICustom('${item.id}')" style="margin: 5px; padding: 8px 16px; border-radius: 20px;">❌ Cancel</button>
+                    </div>
                 </div>
             </div>
         `;
@@ -571,9 +625,66 @@ function updateFeedbackStatus(feedbackId, status) {
         
         actions.innerHTML = `
             <span style="color: ${statusColor}; font-weight: bold;">${statusText}</span>
+            <button class="btn btn-warning revert-btn" onclick="revertFeedback('${feedbackId}', event)" style="font-size: 12px; padding: 5px 10px; margin-left: 10px;">🔄 Revert</button>
         `;
         feedbackItem.style.opacity = '0.7';
     }
+}
+
+/**
+ * Revert feedback to its original pending state
+ * @param {string} feedbackId - The feedback item ID
+ * @param {Event} event - The click event
+ */
+function revertFeedback(feedbackId, event) {
+    if (event) event.stopPropagation();
+    
+    // Send revert request to server
+    fetch('/revert_feedback', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            session_id: window.currentSession,
+            section_name: window.sections[window.currentSectionIndex],
+            feedback_id: feedbackId
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Restore original feedback actions
+            const feedbackItem = document.querySelector(`[data-feedback-id="${feedbackId}"]`);
+            if (feedbackItem && window.feedbackStates[feedbackId]) {
+                const actions = feedbackItem.querySelector('.feedback-actions');
+                actions.innerHTML = window.feedbackStates[feedbackId].originalHtml;
+                feedbackItem.style.opacity = '1';
+                
+                window.feedbackStates[feedbackId].status = 'pending';
+                
+                showNotification('Feedback reverted to original state', 'success');
+                updateStatistics();
+            }
+        } else {
+            showNotification(data.error || 'Revert failed', 'error');
+        }
+    })
+    .catch(error => {
+        // Fallback: revert locally even if server call fails
+        const feedbackItem = document.querySelector(`[data-feedback-id="${feedbackId}"]`);
+        if (feedbackItem && window.feedbackStates[feedbackId]) {
+            const actions = feedbackItem.querySelector('.feedback-actions');
+            actions.innerHTML = window.feedbackStates[feedbackId].originalHtml;
+            feedbackItem.style.opacity = '1';
+            
+            window.feedbackStates[feedbackId].status = 'pending';
+            
+            showNotification('Feedback reverted locally', 'info');
+            updateStatistics();
+        }
+        console.warn('Server revert failed, reverted locally:', error);
+    });
 }
 
 function updateRiskIndicator(feedbackItems) {
@@ -799,8 +910,43 @@ function addCustomFeedback() {
     .then(data => {
         if (data.success) {
             showNotification('Custom feedback added!', 'success');
+            
+            // Create feedback item for display and logging
+            const feedbackItem = {
+                id: data.feedback_item.id,
+                type: type,
+                category: category,
+                description: description,
+                section: window.sections[window.currentSectionIndex],
+                timestamp: new Date().toISOString(),
+                user_created: true,
+                risk_level: type === 'critical' ? 'High' : type === 'important' ? 'Medium' : 'Low'
+            };
+            
+            // Add to user feedback history
+            if (!window.userFeedbackHistory) {
+                window.userFeedbackHistory = [];
+            }
+            window.userFeedbackHistory.push(feedbackItem);
+            
+            // Display the feedback
+            if (typeof window.displayUserFeedback === 'function') {
+                window.displayUserFeedback(feedbackItem);
+            }
+            
+            // Clear the form
             document.getElementById('customDescription').value = '';
+            
+            // Update all displays including real-time logs
             updateStatistics();
+            
+            if (typeof window.updateAllCustomFeedbackList === 'function') {
+                window.updateAllCustomFeedbackList();
+            }
+            
+            if (typeof window.refreshUserFeedbackList === 'function') {
+                window.refreshUserFeedbackList();
+            }
         } else {
             showNotification(data.error || 'Add feedback failed', 'error');
         }
@@ -1041,6 +1187,10 @@ document.addEventListener('DOMContentLoaded', function() {
         sectionSelect.addEventListener('change', function() {
             const selectedIndex = this.selectedIndex - 1;
             if (selectedIndex >= 0) {
+                // Save current section highlights before switching
+                if (typeof saveCurrentSectionHighlights === 'function') {
+                    saveCurrentSectionHighlights();
+                }
                 loadSection(selectedIndex);
             }
         });
@@ -1056,6 +1206,28 @@ document.addEventListener('DOMContentLoaded', function() {
             button.textContent = '☀️ Light Mode';
             button.className = 'btn btn-warning';
         }
+    }
+    
+    // Initialize text highlighting if available
+    if (typeof enableTextSelection === 'function') {
+        // Enable text selection after a short delay to ensure DOM is ready
+        setTimeout(enableTextSelection, 500);
+    }
+    
+    // Initialize user feedback display
+    setTimeout(() => {
+        if (typeof updateAllCustomFeedbackList === 'function') {
+            updateAllCustomFeedbackList();
+        }
+    }, 1000);
+    
+    // Show text highlighting tutorial on first visit
+    const hasSeenHighlightingPopup = localStorage.getItem('hasSeenTextHighlightingPopup');
+    if (!hasSeenHighlightingPopup && typeof showTextHighlightingFeature === 'function') {
+        setTimeout(() => {
+            showTextHighlightingFeature();
+            localStorage.setItem('hasSeenTextHighlightingPopup', 'true');
+        }, 2000);
     }
 });
 
@@ -1136,3 +1308,97 @@ function resetHighlightingTutorial() {
 }
 
 console.log('Missing functions implementation loaded successfully');
+
+// Quick custom feedback function for the static form in feedback panel
+function addQuickCustomFeedback() {
+    const type = document.getElementById('quickCustomType')?.value;
+    const category = document.getElementById('quickCustomCategory')?.value;
+    const description = document.getElementById('quickCustomDescription')?.value?.trim();
+    
+    if (!description) {
+        showNotification('Please enter your feedback description', 'error');
+        document.getElementById('quickCustomDescription')?.focus();
+        return;
+    }
+    
+    if (!window.currentSession) {
+        showNotification('No active session. Please upload a document first.', 'error');
+        return;
+    }
+    
+    if (!window.sections || window.currentSectionIndex < 0) {
+        showNotification('No section selected. Please select a section first.', 'error');
+        return;
+    }
+    
+    fetch('/add_custom_feedback', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            session_id: window.currentSession,
+            section_name: window.sections[window.currentSectionIndex],
+            type: type,
+            category: category,
+            description: description
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showNotification('✨ Custom feedback added successfully!', 'success');
+            
+            // Clear the form
+            document.getElementById('quickCustomDescription').value = '';
+            
+            // Create feedback item for local history
+            const feedbackItem = {
+                id: data.feedback_item.id,
+                type: type,
+                category: category,
+                description: description,
+                section: window.sections[window.currentSectionIndex],
+                timestamp: new Date().toISOString(),
+                user_created: true,
+                risk_level: type === 'critical' ? 'High' : type === 'important' ? 'Medium' : 'Low'
+            };
+            
+            // Add to user feedback history
+            if (!window.userFeedbackHistory) {
+                window.userFeedbackHistory = [];
+            }
+            window.userFeedbackHistory.push(feedbackItem);
+            
+            // Display the feedback using available functions
+            if (typeof window.displayUserFeedback === 'function') {
+                window.displayUserFeedback(feedbackItem);
+            } else if (typeof displayUserFeedback === 'function') {
+                displayUserFeedback(feedbackItem);
+            }
+            
+            // Update all displays including real-time logs
+            updateStatistics();
+            
+            if (typeof window.updateAllCustomFeedbackList === 'function') {
+                window.updateAllCustomFeedbackList();
+            } else if (typeof updateAllCustomFeedbackList === 'function') {
+                updateAllCustomFeedbackList();
+            }
+            
+            if (typeof window.updateRealTimeFeedbackLogs === 'function') {
+                window.updateRealTimeFeedbackLogs();
+            }
+            
+            if (typeof window.refreshUserFeedbackList === 'function') {
+                window.refreshUserFeedbackList();
+            }
+        } else {
+            showNotification(data.error || 'Failed to add custom feedback', 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Add quick custom feedback error:', error);
+        showNotification('Failed to add custom feedback: ' + error.message, 'error');
+    });
+}

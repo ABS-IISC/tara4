@@ -1,9 +1,9 @@
 // Text Highlighting and Commenting Functions
-let currentHighlightColor = 'yellow';
-let highlightedTexts = [];
-let highlightCounter = 0;
-let currentSelectedText = '';
-let currentSelectedRange = null;
+window.currentHighlightColor = window.currentHighlightColor || 'yellow';
+window.highlightedTexts = window.highlightedTexts || [];
+window.highlightCounter = window.highlightCounter || 0;
+window.currentSelectedText = window.currentSelectedText || '';
+window.currentSelectedRange = window.currentSelectedRange || null;
 
 // Set highlight color and enable selection mode
 function setHighlightColor(color) {
@@ -49,7 +49,7 @@ function saveHighlightedText() {
             id: highlightId,
             text: currentSelectedText,
             color: currentHighlightColor,
-            section: sections[currentSectionIndex],
+            section: window.sections && window.currentSectionIndex >= 0 ? window.sections[window.currentSectionIndex] : 'Unknown',
             timestamp: new Date().toISOString(),
             comments: []
         };
@@ -88,7 +88,9 @@ function clearHighlights() {
         });
         
         // Clear highlight data
-        const currentSectionName = sections[currentSectionIndex];
+        const currentSectionName = window.sections && window.currentSectionIndex >= 0 ?
+            window.sections[window.currentSectionIndex] : null;
+        if (!currentSectionName) return;
         const highlightIds = highlightedTexts.filter(h => h.section === currentSectionName).map(h => h.id);
         
         // Remove highlights for current section
@@ -101,8 +103,8 @@ function clearHighlights() {
         });
         
         // Remove from user feedback history
-        if (userFeedbackHistory) {
-            userFeedbackHistory = userFeedbackHistory.filter(item => 
+        if (window.userFeedbackHistory) {
+            window.userFeedbackHistory = window.userFeedbackHistory.filter(item =>
                 !(item.section === currentSectionName && item.highlight_id)
             );
         }
@@ -238,8 +240,8 @@ function removeHighlight(highlightId) {
         highlightedTexts = highlightedTexts.filter(h => h.id !== highlightId);
         
         // Remove related feedback
-        if (userFeedbackHistory) {
-            userFeedbackHistory = userFeedbackHistory.filter(item => item.highlight_id !== highlightId);
+        if (window.userFeedbackHistory) {
+            window.userFeedbackHistory = window.userFeedbackHistory.filter(item => item.highlight_id !== highlightId);
         }
         
         updateAllCustomFeedbackList();
@@ -362,8 +364,8 @@ function saveHighlightComment(highlightId) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-            session_id: currentSession,
-            section_name: sections[currentSectionIndex],
+            session_id: window.currentSession,
+            section_name: window.sections && window.currentSectionIndex >= 0 ? window.sections[window.currentSectionIndex] : 'Unknown',
             type: type,
             category: category,
             description: `[Highlighted: "${highlightData.text.substring(0, 50)}${highlightData.text.length > 50 ? '...' : ''}"] ${description}`,
@@ -380,7 +382,7 @@ function saveHighlightComment(highlightId) {
                 type: type,
                 category: category,
                 description: `[Highlighted: "${highlightData.text.substring(0, 50)}${highlightData.text.length > 50 ? '...' : ''}"] ${description}`,
-                section: sections[currentSectionIndex],
+                section: window.sections && window.currentSectionIndex >= 0 ? window.sections[window.currentSectionIndex] : 'Unknown',
                 timestamp: new Date().toISOString(),
                 user_created: true,
                 highlight_id: highlightId,
@@ -389,7 +391,10 @@ function saveHighlightComment(highlightId) {
             };
             
             // Add to user feedback history
-            userFeedbackHistory.push(feedbackItem);
+            if (!window.userFeedbackHistory) {
+                window.userFeedbackHistory = [];
+            }
+            window.userFeedbackHistory.push(feedbackItem);
             
             // Display the feedback
             displayUserFeedback(feedbackItem);
@@ -466,7 +471,9 @@ function changeHighlightColor(highlightId, newColor) {
         highlightData.color = newColor;
         
         // Save to session storage
-        const currentSectionName = sections[currentSectionIndex];
+        const currentSectionName = window.sections && window.currentSectionIndex >= 0 ?
+            window.sections[window.currentSectionIndex] : null;
+        if (!currentSectionName) return;
         const sectionHighlights = highlightedTexts.filter(h => h.section === currentSectionName);
         sessionStorage.setItem(`highlights_${currentSectionName}`, JSON.stringify(sectionHighlights));
         
@@ -477,8 +484,8 @@ function changeHighlightColor(highlightId, newColor) {
 
 // Save current section highlights to session storage
 function saveCurrentSectionHighlights() {
-    if (currentSectionIndex >= 0 && sections[currentSectionIndex]) {
-        const currentSectionName = sections[currentSectionIndex];
+    if (window.currentSectionIndex >= 0 && window.sections && window.sections[window.currentSectionIndex]) {
+        const currentSectionName = window.sections[window.currentSectionIndex];
         const sectionHighlights = highlightedTexts.filter(h => h.section === currentSectionName);
         
         // Store highlights in session storage
