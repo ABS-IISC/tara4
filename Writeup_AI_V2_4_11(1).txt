@@ -1147,36 +1147,50 @@ def analyze_section_with_ai(section_name, section_content, doc_type="Full Write-
         - Clear action items and ownership
         """
     
-    prompt = f"""Analyze this section "{section_name}" from a {doc_type} document using the Hawkeye investigation framework.
+    prompt = f"""You are an expert document reviewer conducting a thorough analysis using the Hawkeye investigation framework. Analyze the section "{section_name}" from a {doc_type} document.
 
 {section_specific_guidance}
 
-SECTION CONTENT:
+SECTION CONTENT TO ANALYZE:
 {section_content[:3000]}
 
-Provide feedback following the 20-point Hawkeye checklist. For each feedback item, include:
-1. Specific questions from the Hawkeye checklist that should be addressed
-2. References to relevant Hawkeye checkpoint numbers (#1-20)
-3. Examples from the case studies when applicable
-4. Risk classification (High/Medium/Low)
+ANALYSIS INSTRUCTIONS:
+1. Read the section content carefully and identify potential issues, gaps, or improvements
+2. Apply the Hawkeye 20-point checklist mental model systematically
+3. Focus on substantive feedback that adds value to the investigation
+4. Prioritize findings by risk level and impact
+5. Provide actionable suggestions with clear next steps
 
-Return feedback in this JSON format:
+FEEDBACK CRITERIA:
+- CRITICAL: Major gaps, compliance issues, or high-risk findings that require immediate attention
+- IMPORTANT: Significant improvements needed that affect quality or completeness
+- SUGGESTION: Minor enhancements or best practice recommendations
+- POSITIVE: Acknowledge strong elements that meet or exceed standards
+
+REQUIRED OUTPUT FORMAT (STRICT JSON):
 {{
     "feedback_items": [
         {{
-            "id": "unique_id",
+            "id": "unique_sequential_id_like_FB001",
             "type": "critical|important|suggestion|positive",
-            "category": "category matching Hawkeye sections",
-            "description": "Clear description referencing Hawkeye criteria",
-            "suggestion": "Specific suggestion based on Hawkeye guidelines",
-            "example": "Example from case studies or Hawkeye checklist",
-            "questions": ["Question 1 from Hawkeye?", "Question 2?"],
-            "hawkeye_refs": [1, 11, 12],
+            "category": "select_from_hawkeye_sections",
+            "description": "Clear, specific description of the issue or finding (2-3 sentences max)",
+            "suggestion": "Concrete, actionable recommendation for improvement",
+            "example": "Specific example or reference from Hawkeye guidelines if applicable",
+            "questions": ["Specific question 1?", "Specific question 2?"],
+            "hawkeye_refs": [relevant_checkpoint_numbers_1_to_20],
             "risk_level": "High|Medium|Low",
-            "confidence": 0.95
+            "confidence": 0.85
         }}
     ]
-}}"""
+}}
+
+IMPORTANT:
+- Return ONLY valid JSON with no additional text before or after
+- Each feedback item must be substantive and actionable
+- Limit to maximum 5 high-quality feedback items per section
+- Ensure all JSON properties are present for each item
+- Use specific Hawkeye checkpoint numbers (1-20) in hawkeye_refs array"""
     
     system_prompt = "You are an expert document reviewer following the Hawkeye investigation mental models for CT EE guidelines."
     

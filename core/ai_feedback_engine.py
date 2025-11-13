@@ -2,10 +2,61 @@ import json
 import re
 import boto3
 import os
+import sys
 import time
 from datetime import datetime
 from collections import defaultdict
-from config.model_config import model_config
+
+# Add current directory to Python path for imports
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+try:
+    from config.model_config import model_config
+except ImportError:
+    # Fallback if config module not found
+    print("⚠️ Config module not found, creating fallback configuration")
+    
+    class FallbackModelConfig:
+        def get_model_config(self):
+            return {
+                'model_id': os.environ.get('BEDROCK_MODEL_ID', 'anthropic.claude-3-5-sonnet-20240620-v1:0'),
+                'model_name': 'Claude 3.5 Sonnet',
+                'region': os.environ.get('AWS_REGION', 'us-east-1'),
+                'max_tokens': int(os.environ.get('BEDROCK_MAX_TOKENS', '8192')),
+                'temperature': float(os.environ.get('BEDROCK_TEMPERATURE', '0.7')),
+                'anthropic_version': 'bedrock-2023-05-31'
+            }
+        
+        def has_credentials(self):
+            try:
+                import boto3
+                session = boto3.Session()
+                credentials = session.get_credentials()
+                return credentials is not None and credentials.access_key and credentials.secret_key
+            except:
+                return False
+        
+        def get_bedrock_request_body(self, system_prompt, user_prompt):
+            config = self.get_model_config()
+            body = {
+                "anthropic_version": config['anthropic_version'],
+                "max_tokens": config['max_tokens'],
+                "temperature": config['temperature'],
+                "system": system_prompt,
+                "messages": [{"role": "user", "content": user_prompt}]
+            }
+            return json.dumps(body)
+        
+        def extract_response_content(self, response_body):
+            try:
+                content = response_body.get('content', [])
+                if content and len(content) > 0:
+                    return content[0].get('text', '')
+                return response_body.get('completion', response_body.get('message', ''))
+            except:
+                return "Error extracting response content"
+    
+    model_config = FallbackModelConfig()
 
 class AIFeedbackEngine:
     def __init__(self):

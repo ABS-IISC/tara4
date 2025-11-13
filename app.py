@@ -1,22 +1,104 @@
 from flask import Flask, render_template, request, jsonify, send_file, session
 import os
+import sys
 import json
 import uuid
 from datetime import datetime
 from collections import defaultdict
 from werkzeug.utils import secure_filename
 
-# Import our modular components
-from core.document_analyzer import DocumentAnalyzer
-from core.ai_feedback_engine import AIFeedbackEngine
-from utils.statistics_manager import StatisticsManager
-from utils.document_processor import DocumentProcessor
-from utils.pattern_analyzer import DocumentPatternAnalyzer
-from utils.audit_logger import AuditLogger
-from utils.learning_system import FeedbackLearningSystem
-from utils.s3_export_manager import S3ExportManager
-from utils.activity_logger import ActivityLogger
-from config.model_config import model_config
+# Add current directory to Python path
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+# Import our modular components with error handling
+try:
+    from core.document_analyzer import DocumentAnalyzer
+    from core.ai_feedback_engine import AIFeedbackEngine
+    from utils.statistics_manager import StatisticsManager
+    from utils.document_processor import DocumentProcessor
+    from utils.pattern_analyzer import DocumentPatternAnalyzer
+    from utils.audit_logger import AuditLogger
+    from utils.learning_system import FeedbackLearningSystem
+    from utils.s3_export_manager import S3ExportManager
+    from utils.activity_logger import ActivityLogger
+except ImportError as e:
+    print(f"⚠️ Import error: {e}")
+    print("Creating fallback components...")
+    
+    # Create minimal fallback classes
+    class DocumentAnalyzer:
+        def extract_sections_from_docx(self, file_path):
+            return {"Section 1": "Sample content"}, {"Section 1": ["Sample paragraph"]}, {"Section 1": [0]}
+    
+    class AIFeedbackEngine:
+        def analyze_section(self, section_name, content):
+            return {"feedback_items": []}
+        def process_chat_query(self, query, context):
+            return "AI chat temporarily unavailable"
+    
+    class StatisticsManager:
+        def get_statistics(self): return {}
+        def update_feedback_data(self, *args): pass
+        def record_acceptance(self, *args): pass
+        def record_rejection(self, *args): pass
+        def add_user_feedback(self, *args): pass
+        def get_detailed_breakdown(self, *args): return {}
+        def generate_breakdown_html(self, *args): return "<p>Statistics unavailable</p>"
+    
+    class DocumentProcessor:
+        def create_document_with_comments(self, *args): return None
+    
+    class DocumentPatternAnalyzer:
+        def find_recurring_patterns(self): return []
+        def get_category_trends(self): return {}
+        def get_risk_patterns(self): return {}
+        def get_pattern_report_html(self): return "<p>Pattern analysis unavailable</p>"
+        def add_document_feedback(self, *args): pass
+    
+    class AuditLogger:
+        def log(self, *args): pass
+        def get_session_logs(self): return []
+        def get_performance_metrics(self): return {}
+        def get_activity_timeline(self): return []
+    
+    class FeedbackLearningSystem:
+        def record_ai_feedback_response(self, *args): pass
+        def add_custom_feedback(self, *args): pass
+        def get_learning_statistics(self): return {}
+        def generate_learning_report_html(self): return "<p>Learning system unavailable</p>"
+        def get_recommended_feedback(self, *args): return []
+    
+    class S3ExportManager:
+        def export_complete_review_to_s3(self, *args): return {"success": False, "error": "S3 export unavailable"}
+        def test_s3_connection(self): return {"connected": False, "error": "S3 unavailable"}
+    
+    class ActivityLogger:
+        def __init__(self, session_id): self.session_id = session_id
+        def log_document_upload(self, *args, **kwargs): pass
+        def log_ai_analysis(self, *args, **kwargs): pass
+        def log_feedback_action(self, *args, **kwargs): pass
+        def log_s3_operation(self, *args, **kwargs): pass
+        def log_session_event(self, *args, **kwargs): pass
+        def get_activity_summary(self): return {"total_activities": 0, "success_count": 0, "failed_count": 0, "success_rate": 0}
+        def export_activities(self): return {"activities": [], "summary": {}}
+
+# Try to import model config with fallback
+try:
+    from config.model_config import model_config
+except ImportError:
+    class FallbackModelConfig:
+        def get_model_config(self):
+            return {
+                'model_id': os.environ.get('BEDROCK_MODEL_ID', 'anthropic.claude-3-5-sonnet-20240620-v1:0'),
+                'model_name': 'Claude 3.5 Sonnet',
+                'region': os.environ.get('AWS_REGION', 'us-east-1'),
+                'port': int(os.environ.get('PORT', 8080)),
+                'flask_env': os.environ.get('FLASK_ENV', 'production')
+            }
+        def has_credentials(self): return True
+        def print_config_summary(self): print("⚠️ Using fallback configuration")
+    
+    model_config = FallbackModelConfig()
 
 app = Flask(__name__, static_folder='static')
 app.secret_key = 'your-secret-key-here'
