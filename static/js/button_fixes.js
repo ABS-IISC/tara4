@@ -834,18 +834,23 @@ function showUserFeedbackManager() {
     showNotification('User feedback manager loaded', 'info');
 }
 
+// DEPRECATED: toggleDarkMode() is now handled by core_fixes.js
+// This function is disabled to prevent conflicts
+// Dark mode functionality is managed exclusively by core_fixes.js
+/*
 function toggleDarkMode() {
     isDarkMode = !isDarkMode;
     document.body.classList.toggle('dark-mode', isDarkMode);
-    
+
     const button = document.getElementById('darkModeToggle');
     if (button) {
         button.textContent = isDarkMode ? '☀️ Light Mode' : '🌙 Dark Mode';
         button.className = isDarkMode ? 'btn btn-warning' : 'btn btn-secondary';
     }
-    
+
     localStorage.setItem('darkMode', isDarkMode.toString());
 }
+*/
 
 function showShortcuts() {
     const modal = document.getElementById('shortcutsModal');

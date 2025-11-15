@@ -1,0 +1,1505 @@
+
+import pandas as pd
+import base64
+import json
+from datetime import datetime
+import boto3
+import threading
+import os
+import re
+import traceback
+import ipywidgets as widgets
+from IPython.display import display, HTML, clear_output, FileLink, Javascript
+import time
+from pathlib import Path
+import asyncio
+import uuid
+from collections import defaultdict
+import queue
+import zipfile
+import shutil
+from lxml import etree
+
+# Install required packages if not already installed
+try:
+    import docx
+except ImportError:
+    !pip install python-docx --quiet
+    import docx
+
+try:
+    from lxml import etree
+except ImportError:
+    !pip install lxml --quiet
+    from lxml import etree
+
+from docx import Document
+from docx.shared import RGBColor, Pt
+from docx.enum.text import WD_PARAGRAPH_ALIGNMENT
+from docx.oxml import parse_xml
+from docx.oxml.ns import nsdecls, qn
+
+# Global variables
+guidelines_content = None
+hawkeye_checklist = None
+current_session = None
+document_sections = {}
+current_section_index = 0
+accepted_feedback = defaultdict(list)
+rejected_feedback = defaultdict(list)
+user_feedback = defaultdict(list)
+ai_feedback_cache = {}
+current_section_feedback = []
+review_completed = False
+chat_history = []
+
+# Define paths to guidelines documents
+GUIDELINES_PATH = "CT_EE_Review_Guidelines.docx"
+HAWKEYE_PATH = "/home/ec2-user/SageMaker/Hawkeye_checklisttt.docx"
+
+# Hawkeye checklist mapping
+HAWKEYE_SECTIONS = {
+    1: "Initial Assessment",
+    2: "Investigation Process", 
+    3: "Seller Classification",
+    4: "Enforcement Decision-Making",
+    5: "Additional Verification (High-Risk Cases)",
+    6: "Multiple Appeals Handling",
+    7: "Account Hijacking Prevention",
+    8: "Funds Management",
+    9: "REs-Q Outreach Process",
+    10: "Sentiment Analysis",
+    11: "Root Cause Analysis",
+    12: "Preventative Actions",
+    13: "Documentation and Reporting",
+    14: "Cross-Team Collaboration",
+    15: "Quality Control",
+    16: "Continuous Improvement",
+    17: "Communication Standards",
+    18: "Performance Metrics",
+    19: "Legal and Compliance",
+    20: "New Service Launch Considerations"
+}
+
+# Standard writeup sections to look for - Updated based on the document
+STANDARD_SECTIONS = [
+    "Executive Summary",
+    "Background",
+    "Timeline of Events",
+    "Resolving Actions",
+    "Root Causes (RC) and Preventative Actions (PA)",
+    "Root Cause",
+    "Preventative Actions",
+    "Investigation Process",
+    "Seller Classification",
+    "Documentation and Reporting",
+    "Impact Assessment",
+    "Timeline",
+    "Recommendations",
+    "Executive Summary",
+    "Timeline of Events",
+]
+
+# Sections to exclude from analysis
+EXCLUDED_SECTIONS = [
+    "Original Email",
+    "Email Correspondence",
+    "Raw Data",
+    "Logs",
+    "Attachments",
+    "From:",
+    "Sent:",
+    "To:",
+    "Cc:",
+    "Subject:"
+]
+
+class AuditLogger:
+    def __init__(self, log_file="writeup_automation_audit.log"):
+        self.log_file = log_file
+        self.log_queue = queue.Queue()
+        self.user_id = str(uuid.uuid4())[:8]  # Generate a unique session ID
+        self.session_start = datetime.now()
+        
+        # Start logging thread
+        self.logging_thread = threading.Thread(target=self._log_worker)
+        self.logging_thread.daemon = True
+        self.logging_thread.start()
+        
+        # Log session start
+        self.log("SESSION_START", f"New review session started")
+    
+    def _log_worker(self):
+        """Background thread to handle logging"""
+        while True:
+            try:
+                # Get log entry from queue
+                timestamp, level, action, details = self.log_queue.get(timeout=1)
+                
+                # Format log entry
+                log_entry = f"{timestamp.isoformat()} | {self.user_id} | {level} | {action} | {details}\n"
+                
+                # Write to log file
+                with open(self.log_file, 'a') as f:
+                    f.write(log_entry)
+                
+                self.log_queue.task_done()
+            except queue.Empty:
+                # No log entries for 1 second, continue checking
+                continue
+            except Exception as e:
+                # Log error but don't crash thread
+                print(f"Logging error: {str(e)}")
+    
+    def log(self, action, details, level="INFO"):
+        """Add a log entry to the queue"""
+        timestamp = datetime.now()
+        self.log_queue.put((timestamp, level, action, details))
+    
+    def get_session_logs(self):
+        """Get logs for current session (useful for UI display)"""
+        if not os.path.exists(self.log_file):
+            return []
+            
+        session_logs = []
+        with open(self.log_file, 'r') as f:
+            for line in f:
+                parts = line.strip().split(' | ')
+                if len(parts) >= 5 and parts[1] == self.user_id:
+                    timestamp = parts[0]
+                    level = parts[2]
+                    action = parts[3]
+                    details = ' | '.join(parts[4:])
+                    
+                    session_logs.append({
+                        'timestamp': timestamp,
+                        'level': level,
+                        'action': action,
+                        'details': details
+                    })
+        
+        return session_logs
+    
+    def generate_audit_report(self):
+        """Generate an HTML audit report for the current session"""
+        logs = self.get_session_logs()
+        
+        html = f"""
+        <div style="padding: 20px; background: white; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.05);" class="dark-mode-panel">
+            <h3>📋 Audit Log for Session {self.user_id}</h3>
+            <p>Session started: {self.session_start.strftime('%Y-%m-%d %H:%M:%S')}</p>
+            <p>Total actions logged: {len(logs)}</p>
+            
+            <div style="max-height: 400px; overflow-y: auto; margin-top: 15px;">
+                <table style="width: 100%; border-collapse: collapse;">
+                    <tr>
+                        <th style="text-align: left; padding: 8px; border-bottom: 2px solid #ddd;">Time</th>
+                        <th style="text-align: left; padding: 8px; border-bottom: 2px solid #ddd;">Level</th>
+                        <th style="text-align: left; padding: 8px; border-bottom: 2px solid #ddd;">Action</th>
+                        <th style="text-align: left; padding: 8px; border-bottom: 2px solid #ddd;">Details</th>
+                    </tr>
+        """
+        
+        for log in logs:
+            level_color = "#2ecc71" if log['level'] == "INFO" else "#e74c3c" if log['level'] == "ERROR" else "#f39c12"
+            
+            html += f"""
+                <tr>
+                    <td style="text-align: left; padding: 8px; border-bottom: 1px solid #ddd;">{log['timestamp'].split('T')[1].split('.')[0] if 'T' in log['timestamp'] else log['timestamp']}</td>
+                    <td style="text-align: left; padding: 8px; border-bottom: 1px solid #ddd; color: {level_color};">{log['level']}</td>
+                    <td style="text-align: left; padding: 8px; border-bottom: 1px solid #ddd;">{log['action']}</td>
+                    <td style="text-align: left; padding: 8px; border-bottom: 1px solid #ddd;">{log['details']}</td>
+                </tr>
+            """
+        
+        html += """
+                </table>
+            </div>
+        </div>
+        """
+        
+        return html
+
+class DocumentPatternAnalyzer:
+    def __init__(self):
+        self.feedback_history = {}  # Store feedback across multiple documents
+        self.pattern_cache = {}     # Cache identified patterns
+        
+    def add_document_feedback(self, doc_name, feedback_items):
+        """Add feedback from a document to the analyzer"""
+        self.feedback_history[doc_name] = feedback_items
+        # Invalidate cache when new data is added
+        self.pattern_cache = {}
+        
+    def find_recurring_patterns(self, threshold=2):
+        """Identify recurring feedback patterns across documents"""
+        if 'recurring_patterns' in self.pattern_cache:
+            return self.pattern_cache['recurring_patterns']
+            
+        # Count occurrences of similar feedback
+        pattern_counts = defaultdict(int)
+        pattern_examples = defaultdict(list)
+        
+        for doc_name, feedback_items in self.feedback_history.items():
+            for item in feedback_items:
+                # Create a normalized key for the feedback
+                category = item.get('category', '').lower()
+                # Get the first sentence of the description (as a pattern identifier)
+                description = item.get('description', '').lower().split('.')[0]
+                pattern_key = f"{category}:{description[:50]}"
+                
+                pattern_counts[pattern_key] += 1
+                if len(pattern_examples[pattern_key]) < 3:  # Keep up to 3 examples
+                    pattern_examples[pattern_key].append({
+                        'document': doc_name,
+                        'description': item.get('description'),
+                        'risk_level': item.get('risk_level')
+                    })
+        
+        # Filter to patterns that meet the threshold
+        recurring_patterns = []
+        for pattern_key, count in pattern_counts.items():
+            if count >= threshold:
+                category, description = pattern_key.split(':', 1)
+                recurring_patterns.append({
+                    'pattern': description,
+                    'category': category,
+                    'occurrence_count': count,
+                    'examples': pattern_examples[pattern_key]
+                })
+        
+        # Sort by occurrence count (descending)
+        recurring_patterns.sort(key=lambda x: x['occurrence_count'], reverse=True)
+        
+        # Cache the results
+        self.pattern_cache['recurring_patterns'] = recurring_patterns
+        return recurring_patterns
+    
+    def get_pattern_report_html(self):
+        """Generate an HTML report of the patterns"""
+        patterns = self.find_recurring_patterns()
+        
+        if not patterns:
+            return "<p>No recurring patterns found yet. Review more documents to identify patterns.</p>"
+        
+        html = """
+        <div style="padding: 15px; background: white; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.05);" class="dark-mode-panel">
+            <h3>📊 Recurring Feedback Patterns</h3>
+            <p>The following patterns have been identified across multiple documents:</p>
+            <div style="max-height: 400px; overflow-y: auto;">
+        """
+        
+        for i, pattern in enumerate(patterns):
+            html += f"""
+            <div style="margin: 15px 0; padding: 10px; border-left: 4px solid #667eea; background: #f8f9ff;" class="dark-mode-feedback-item">
+                <h4>Pattern #{i+1}: {pattern['category'].title()}</h4>
+                <p><strong>Description:</strong> {pattern['pattern']}</p>
+                <p><strong>Occurrences:</strong> {pattern['occurrence_count']} documents</p>
+                <details>
+                    <summary>Examples</summary>
+                    <ul>
+            """
+            
+            for example in pattern['examples']:
+                html += f"""
+                <li>
+                    <strong>{example['document']}:</strong> 
+                    <span style="color: {'#e74c3c' if example['risk_level'] == 'High' else '#f39c12' if example['risk_level'] == 'Medium' else '#3498db'}">
+                        {example['risk_level']} risk
+                    </span> - 
+                    {example['description']}
+                </li>
+                """
+            
+            html += """
+                    </ul>
+                </details>
+            </div>
+            """
+        
+        html += """
+            </div>
+        </div>
+        """
+        
+        return html
+
+class FeedbackLearningSystem:
+    def __init__(self, storage_file="custom_feedback_training.json"):
+        self.storage_file = storage_file
+        self.feedback_data = self._load_feedback_data()
+        
+    def _load_feedback_data(self):
+        """Load existing feedback training data"""
+        if os.path.exists(self.storage_file):
+            try:
+                with open(self.storage_file, 'r') as f:
+                    return json.load(f)
+            except json.JSONDecodeError:
+                return {
+                    "custom_feedback": [],
+                    "accepted_ai_feedback": [],
+                    "rejected_ai_feedback": [],
+                    "section_patterns": {}
+                }
+        else:
+            return {
+                "custom_feedback": [],
+                "accepted_ai_feedback": [],
+                "rejected_ai_feedback": [],
+                "section_patterns": {}
+            }
+    
+    def _save_feedback_data(self):
+        """Save the feedback data"""
+        with open(self.storage_file, 'w') as f:
+            json.dump(self.feedback_data, f)
+    
+    def add_custom_feedback(self, feedback_item, section_name):
+        """Add custom feedback for learning"""
+        feedback_entry = feedback_item.copy()
+        feedback_entry["section_type"] = section_name
+        feedback_entry["timestamp"] = datetime.now().isoformat()
+        
+        self.feedback_data["custom_feedback"].append(feedback_entry)
+        
+        # Update section patterns
+        if section_name not in self.feedback_data["section_patterns"]:
+            self.feedback_data["section_patterns"][section_name] = {
+                "feedback_types": {},
+                "total_count": 0
+            }
+        
+        section_data = self.feedback_data["section_patterns"][section_name]
+        section_data["total_count"] += 1
+        
+        feedback_type = feedback_item.get("type", "suggestion")
+        category = feedback_item.get("category", "general")
+        
+        key = f"{feedback_type}:{category}"
+        if key not in section_data["feedback_types"]:
+            section_data["feedback_types"][key] = {
+                "count": 0,
+                "examples": []
+            }
+        
+        section_data["feedback_types"][key]["count"] += 1
+        if len(section_data["feedback_types"][key]["examples"]) < 3:  # Keep up to 3 examples
+            section_data["feedback_types"][key]["examples"].append({
+                "description": feedback_item.get("description", ""),
+                "timestamp": feedback_entry["timestamp"]
+            })
+        
+        self._save_feedback_data()
+    
+    def record_ai_feedback_response(self, feedback_item, section_name, accepted):
+        """Record user response to AI feedback"""
+        feedback_entry = feedback_item.copy()
+        feedback_entry["section_type"] = section_name
+        feedback_entry["timestamp"] = datetime.now().isoformat()
+        
+        if accepted:
+            self.feedback_data["accepted_ai_feedback"].append(feedback_entry)
+        else:
+            self.feedback_data["rejected_ai_feedback"].append(feedback_entry)
+        
+        self._save_feedback_data()
+    
+    def get_recommended_feedback(self, section_name, content):
+        """Get recommended feedback based on past patterns"""
+        if section_name not in self.feedback_data["section_patterns"]:
+            return []
+        
+        section_data = self.feedback_data["section_patterns"][section_name]
+        if section_data["total_count"] < 3:  # Not enough data yet
+            return []
+        
+        # Sort feedback types by frequency
+        sorted_types = sorted(
+            section_data["feedback_types"].items(),
+            key=lambda x: x[1]["count"],
+            reverse=True
+        )
+        
+        recommendations = []
+        for type_key, type_data in sorted_types[:3]:  # Top 3 types
+            feedback_type, category = type_key.split(":")
+            
+            # Only recommend if we have examples
+            if type_data["examples"]:
+                example = type_data["examples"][0]
+                
+                recommendations.append({
+                    "type": feedback_type,
+                    "category": category,
+                    "description": f"[AI SUGGESTION BASED ON YOUR PAST FEEDBACK] {example['description']}",
+                    "confidence": min(0.5 + (type_data["count"] / section_data["total_count"]), 0.9),
+                    "learned": True,
+                    "based_on": type_data["count"]
+                })
+        
+        return recommendations
+    
+    def generate_learning_report(self):
+        """Generate an HTML report of the learning system status"""
+        html = """
+        <div style="padding: 20px; background: white; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.05);" class="dark-mode-panel">
+            <h3>🧠 AI Learning System Status</h3>
+            
+            <h4>Training Data Summary</h4>
+            <ul>
+        """
+        
+        html += f"<li>Custom feedback entries: {len(self.feedback_data['custom_feedback'])}</li>"
+        html += f"<li>Accepted AI feedback: {len(self.feedback_data['accepted_ai_feedback'])}</li>"
+        html += f"<li>Rejected AI feedback: {len(self.feedback_data['rejected_ai_feedback'])}</li>"
+        html += f"<li>Sections with learned patterns: {len(self.feedback_data['section_patterns'])}</li>"
+        
+        html += """
+            </ul>
+            
+            <h4>Section-Specific Learning</h4>
+            <div style="max-height: 300px; overflow-y: auto;">
+                <table style="width: 100%; border-collapse: collapse;">
+                    <tr>
+                        <th style="text-align: left; padding: 8px; border-bottom: 2px solid #ddd;">Section</th>
+                        <th style="text-align: left; padding: 8px; border-bottom: 2px solid #ddd;">Feedback Count</th>
+                        <th style="text-align: left; padding: 8px; border-bottom: 2px solid #ddd;">Top Pattern</th>
+                    </tr>
+        """
+        
+        for section_name, section_data in self.feedback_data["section_patterns"].items():
+            top_pattern = "None"
+            if section_data["feedback_types"]:
+                # Find top pattern
+                top_type = sorted(
+                    section_data["feedback_types"].items(),
+                    key=lambda x: x[1]["count"],
+                    reverse=True
+                )[0]
+                feedback_type, category = top_type[0].split(":")
+                top_pattern = f"{feedback_type.capitalize()} - {category}"
+            
+            html += f"""
+                <tr>
+                    <td style="text-align: left; padding: 8px; border-bottom: 1px solid #ddd;">{section_name}</td>
+                    <td style="text-align: left; padding: 8px; border-bottom: 1px solid #ddd;">{section_data["total_count"]}</td>
+                    <td style="text-align: left; padding: 8px; border-bottom: 1px solid #ddd;">{top_pattern}</td>
+                </tr>
+            """
+        
+        html += """
+                </table>
+            </div>
+            
+            <p style="margin-top: 20px;"><em>The AI continuously learns from your custom feedback and acceptance patterns to provide more relevant suggestions.</em></p>
+        </div>
+        """
+        
+        return html
+
+class WordDocumentWithComments:
+    """Helper class to add comments to Word documents"""
+    
+    def __init__(self, doc_path):
+        self.doc_path = doc_path
+        self.temp_dir = f"temp_{uuid.uuid4()}"
+        self.comments = []
+        self.comment_id = 1
+        
+    def add_comment(self, paragraph_index, comment_text, author="AI Feedback"):
+        """Add a comment to be inserted later"""
+        self.comments.append({
+            'id': self.comment_id,
+            'paragraph_index': paragraph_index,
+            'text': comment_text,
+            'author': author,
+            'date': datetime.now()
+        })
+        self.comment_id += 1
+    
+    def _create_comment_xml(self, comment):
+        """Create comment XML structure"""
+        comment_xml = f'''
+        <w:comment w:id="{comment['id']}" w:author="{comment['author']}" 
+                   w:date="{comment['date'].strftime('%Y-%m-%dT%H:%M:%S.%fZ')}" 
+                   xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+            <w:p>
+                <w:r>
+                    <w:t>{comment['text']}</w:t>
+                </w:r>
+            </w:p>
+        </w:comment>
+        '''
+        return comment_xml
+    
+    def save_with_comments(self, output_path):
+        """Save document with comments added"""
+        try:
+            # First, save a copy using python-docx
+            doc = Document(self.doc_path)
+            
+            # If no comments, just save a copy
+            if not self.comments:
+                doc.save(output_path)
+                return True
+                
+            temp_docx = f"{self.temp_dir}_temp.docx"
+            doc.save(temp_docx)
+            
+            # Unzip the docx file
+            os.makedirs(self.temp_dir, exist_ok=True)
+            with zipfile.ZipFile(temp_docx, 'r') as zip_ref:
+                zip_ref.extractall(self.temp_dir)
+            
+            # Create comments.xml if it doesn't exist
+            comments_path = os.path.join(self.temp_dir, 'word', 'comments.xml')
+            
+            # Create comments XML content
+            comments_xml = '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+            <w:comments xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+            '''
+            
+            for comment in self.comments:
+                comments_xml += self._create_comment_xml(comment)
+            
+            comments_xml += '</w:comments>'
+            
+            # Write comments.xml
+            with open(comments_path, 'w', encoding='utf-8') as f:
+                f.write(comments_xml)
+            
+            # Update document.xml to add comment references
+            doc_xml_path = os.path.join(self.temp_dir, 'word', 'document.xml')
+            
+            # Add comment relationship to document.xml.rels if needed
+            rels_path = os.path.join(self.temp_dir, 'word', '_rels', 'document.xml.rels')
+            if os.path.exists(rels_path):
+                with open(rels_path, 'r', encoding='utf-8') as f:
+                    rels_content = f.read()
+                
+                if 'comments.xml' not in rels_content:
+                    # Add comments relationship
+                    new_rel = '<Relationship Id="rIdComments" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments" Target="comments.xml"/>'
+                    rels_content = rels_content.replace('</Relationships>', f'{new_rel}</Relationships>')
+                    
+                    with open(rels_path, 'w', encoding='utf-8') as f:
+                        f.write(rels_content)
+            
+            # Update [Content_Types].xml
+            content_types_path = os.path.join(self.temp_dir, '[Content_Types].xml')
+            if os.path.exists(content_types_path):
+                with open(content_types_path, 'r', encoding='utf-8') as f:
+                    content = f.read()
+                
+                if 'comments.xml' not in content:
+                    new_type = '<Override PartName="/word/comments.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml"/>'
+                    content = content.replace('</Types>', f'{new_type}</Types>')
+                    
+                    with open(content_types_path, 'w', encoding='utf-8') as f:
+                        f.write(content)
+            
+            # Create new docx file
+            with zipfile.ZipFile(output_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+                for root, dirs, files in os.walk(self.temp_dir):
+                    for file in files:
+                        file_path = os.path.join(root, file)
+                        arcname = os.path.relpath(file_path, self.temp_dir)
+                        zipf.write(file_path, arcname)
+            
+            # Debug log
+            print(f"Added {len(self.comments)} comments to document")
+            
+            # Cleanup
+            shutil.rmtree(self.temp_dir)
+            os.remove(temp_docx)
+            
+            return True
+            
+        except Exception as e:
+            print(f"Error adding comments: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            # Cleanup on error
+            if os.path.exists(self.temp_dir):
+                shutil.rmtree(self.temp_dir)
+            if os.path.exists(temp_docx):
+                os.remove(temp_docx)
+            return False
+
+class ReviewSession:
+    def __init__(self):
+        self.session_id = str(uuid.uuid4())
+        self.start_time = datetime.now()
+        self.document_name = ""
+        self.document_content = ""
+        self.document_object = None
+        self.document_path = ""
+        self.sections = {}
+        self.section_paragraphs = {}
+        self.paragraph_indices = {}
+        self.current_section = 0
+        self.feedback_history = defaultdict(list)
+        self.section_status = {}
+
+def load_guidelines():
+    """Load the CT EE Review guidelines and Hawkeye checklist"""
+    global guidelines_content, hawkeye_checklist
+    
+    try:
+        # Load CT EE guidelines
+        if os.path.exists(GUIDELINES_PATH):
+            guidelines_content = read_docx(GUIDELINES_PATH)
+        
+        # Load Hawkeye checklist
+        if os.path.exists(HAWKEYE_PATH):
+            hawkeye_checklist = read_docx(HAWKEYE_PATH)
+        
+        return guidelines_content, hawkeye_checklist
+    except Exception as e:
+        return None, None
+
+def read_docx(file_path):
+    """Extract text from a Word document"""
+    try:
+        doc = Document(file_path)
+        full_text = []
+        
+        for para in doc.paragraphs:
+            full_text.append(para.text)
+            
+        for table in doc.tables:
+            for row in table.rows:
+                for cell in row.cells:
+                    full_text.append(cell.text)
+                    
+        return '\n'.join(full_text)
+    except Exception as e:
+        return f"Error reading document: {str(e)}"
+
+def identify_sections_with_ai(doc_text):
+    """Use AI to identify sections in the document - IMPROVED VERSION"""
+    
+    prompt = f"""You are an expert document structure analyst. Your task is to identify and extract all main sections from this business document.
+
+DOCUMENT TEXT TO ANALYZE (first 10,000 characters):
+{doc_text[:10000]}
+
+SECTION IDENTIFICATION CRITERIA:
+1. Look for clear content transitions and topic changes
+2. Identify headers that appear on their own line or introduce new topics
+3. Find common business document sections (Executive Summary, Timeline, Background, etc.)
+4. Detect text that functions as a heading even without special formatting
+5. Look for numbered or bulleted section starts
+6. Identify date-based sections or chronological content blocks
+
+COMMON SECTION PATTERNS TO LOOK FOR:
+- Executive Summary / Summary
+- Background / Context
+- Timeline of Events / Chronology
+- Investigation Process / Methodology
+- Findings / Results
+- Resolving Actions / Remediation Steps
+- Root Causes (RC) and Preventative Actions (PA)
+- Impact Assessment / Analysis
+- Recommendations / Next Steps
+- Conclusion / Closing
+
+ANALYSIS INSTRUCTIONS:
+1. Scan the document text systematically
+2. Identify clear section boundaries where topics change
+3. Extract the exact section title or create a descriptive one
+4. Find a distinctive phrase from the beginning of each section as a "line_hint"
+5. Ensure sections are in the order they appear in the document
+
+REQUIRED JSON OUTPUT:
+{{
+    "sections": [
+        {{"title": "Section Name", "line_hint": "distinctive opening phrase from section"}},
+        {{"title": "Next Section", "line_hint": "another distinctive phrase"}}
+    ]
+}}
+
+IMPORTANT:
+- Return ONLY valid JSON with no additional text
+- Use exact section titles from the document when possible
+- Line hints should be unique phrases that clearly identify section starts
+- Include ALL meaningful sections found (minimum 2, maximum 10)
+- Maintain the original document order"""
+    
+    system_prompt = """You are an expert document structure analyst with extensive experience in business document organization and content identification. You excel at recognizing section boundaries, content transitions, and organizational patterns in professional documents, even when sections lack explicit formatting or clear headers."""
+    
+    try:
+        response = invoke_aws_semantic_search(system_prompt, prompt, "Section Identification")
+        
+        # Parse the response
+        result = json.loads(response)
+        return result.get('sections', [])
+    except:
+        # If AI fails, return None to trigger fallback
+        return None
+
+def extract_document_sections_from_docx(doc):
+    """Extract sections from Word document with improved content capture"""
+    sections = {}
+    section_paragraphs = {}
+    paragraph_indices = {}
+    
+    # Collect all paragraphs with their indices
+    all_paragraphs = []
+    for idx, para in enumerate(doc.paragraphs):
+        text = para.text.strip()
+        if text:  # Only include non-empty paragraphs
+            all_paragraphs.append((idx, para, text))
+    
+    # Try to identify section headers
+    section_headers = []
+    standard_sections = STANDARD_SECTIONS
+    
+    # Look for known section names in the document
+    for idx, para, text in all_paragraphs:
+        text_lower = text.lower()
+        
+        # Check if this paragraph looks like a section header
+        if len(text) < 100:  # Section headers are generally short
+            # Check against standard section names
+            for section_name in standard_sections:
+                if section_name.lower() in text_lower:
+                    section_headers.append({
+                        'title': section_name,
+                        'idx': idx
+                    })
+                    break
+                    
+            # Check for common header patterns (single word or short phrase, possibly numbered)
+            if re.match(r'^(\d+\.? )?[A-Z][a-z]+( [A-Z][a-z]+){0,3}$', text) and len(text.split()) <= 5:
+                section_headers.append({
+                    'title': text,
+                    'idx': idx
+                })
+    
+    # Sort section headers by their position in the document
+    section_headers.sort(key=lambda x: x['idx'])
+    
+    # Extract content for each section
+    for i, header in enumerate(section_headers):
+        section_title = header['title']
+        start_idx = header['idx']
+        
+        # Determine where this section ends
+        end_idx = len(doc.paragraphs)
+        if i < len(section_headers) - 1:
+            end_idx = section_headers[i+1]['idx']
+            
+        # Collect all content between this section header and the next
+        section_content = []
+        section_paras = []
+        section_idxs = []
+        
+        # Start from the paragraph after the header
+        for idx in range(start_idx, end_idx):
+            if idx < len(doc.paragraphs):
+                para = doc.paragraphs[idx]
+                text = para.text.strip()
+                
+                # Skip section header itself and empty lines
+                if idx == start_idx or not text:
+                    continue
+                    
+                # Skip email dividers
+                if any(text.startswith(prefix) for prefix in ["From:", "Sent:", "To:", "---"]):
+                    continue
+                
+                # Add content to section
+                section_content.append(text)
+                section_paras.append(para)
+                section_idxs.append(idx)
+        
+        # Only save sections with actual content
+        if section_content:
+            # Join with double newlines for better readability
+            sections[section_title] = '\n\n'.join(section_content)
+            section_paragraphs[section_title] = section_paras
+            paragraph_indices[section_title] = section_idxs
+    
+    # If very few sections found using headers approach, try AI-based detection
+    if len(sections) < 3:
+        print("Trying AI-based section detection...")
+        
+        # Get the full document text
+        full_text = []
+        for para in doc.paragraphs:
+            text = para.text.strip()
+            if text:
+                full_text.append(text)
+        
+        doc_text = '\n'.join(full_text)
+        
+        # Get AI sections
+        ai_sections = identify_sections_with_ai(doc_text)
+        
+        if ai_sections:
+            print(f"AI identified {len(ai_sections)} potential sections")
+            
+            # Create a list of all sections with their positions
+            all_sections_info = []
+            
+            for section_info in ai_sections:
+                section_title = str(section_info.get('title', ''))
+                line_hint = str(section_info.get('line_hint', '')).lower()
+                
+                # Find the section in the document
+                section_found = False
+                section_start_idx = None
+                
+                # Look for the section start
+                for idx, para in enumerate(doc.paragraphs):
+                    text = para.text.strip().lower()
+                    
+                    # Check if this paragraph contains the section hint
+                    if not section_found and line_hint and line_hint in text:
+                        section_found = True
+                        section_start_idx = idx
+                        break
+                    
+                    # Alternative: Check if section title appears in the text
+                    if not section_found and section_title.lower() in text:
+                        section_found = True
+                        section_start_idx = idx
+                        break
+                
+                if section_found and section_start_idx is not None:
+                    all_sections_info.append({
+                        'title': section_title,
+                        'start_idx': section_start_idx
+                    })
+            
+            # Sort sections by their position in the document
+            all_sections_info.sort(key=lambda x: x['start_idx'])
+            
+            # Process each section - capture everything between this section's start and next section's start
+            for i, section_info in enumerate(all_sections_info):
+                section_title = section_info['title']
+                start_idx = section_info['start_idx']
+                
+                # Find where this section ends (either at next section or end of document)
+                end_idx = len(doc.paragraphs)
+                if i < len(all_sections_info) - 1:
+                    end_idx = all_sections_info[i+1]['start_idx']
+                
+                # Collect all content and paragraphs in this section
+                current_content = []
+                current_paragraphs = []
+                current_indices = []
+                
+                # Include all paragraphs from start to end of section
+                for idx in range(start_idx, end_idx):
+                    if idx < len(doc.paragraphs):
+                        para = doc.paragraphs[idx]
+                        text = para.text.strip()
+                        
+                        # Include non-empty paragraphs
+                        if text:
+                            # Skip email dividers that might be in the middle of a section
+                            if any(text.startswith(prefix) for prefix in ["From:", "Sent:", "To:", "---"]):
+                                continue
+                                
+                            current_content.append(text)
+                            current_paragraphs.append(para)
+                            current_indices.append(idx)
+                
+                # Save the section if we found content
+                if current_content:
+                    # Use double newlines for readability
+                    sections[section_title] = '\n\n'.join(current_content)
+                    section_paragraphs[section_title] = current_paragraphs
+                    paragraph_indices[section_title] = current_indices
+    
+    # If still no sections found, create one generic section with all content
+    if not sections:
+        print("No sections found. Creating a single document section.")
+        current_section = "Document Content"
+        current_content = []
+        current_paragraphs = []
+        current_indices = []
+        
+        for idx, para in enumerate(doc.paragraphs):
+            text = para.text.strip()
+            if text:
+                current_content.append(text)
+                current_paragraphs.append(para)
+                current_indices.append(idx)
+        
+        if current_content:
+            sections[current_section] = '\n\n'.join(current_content)
+            section_paragraphs[current_section] = current_paragraphs
+            paragraph_indices[current_section] = current_indices
+    
+    print(f"✅ Extracted {len(sections)} sections: {list(sections.keys())}")
+    
+    # Debug section content
+    for section_name, content in sections.items():
+        print(f"Section '{section_name}' has {len(content)} characters")
+    
+    return sections, section_paragraphs, paragraph_indices
+
+def get_hawkeye_reference(category, content):
+    """Map feedback to relevant Hawkeye checklist items"""
+    references = []
+    
+    # Keywords mapping to Hawkeye sections
+    keyword_mapping = {
+        1: ["customer experience", "cx impact", "customer trust", "buyer impact"],
+        2: ["investigation", "sop", "enforcement decision", "abuse pattern"],
+        3: ["seller classification", "good actor", "bad actor", "confused actor"],
+        4: ["enforcement", "violation", "warning", "suspension"],
+        5: ["verification", "supplier", "authenticity", "documentation"],
+        6: ["appeal", "repeat", "retrospective"],
+        7: ["hijacking", "security", "authentication", "secondary user"],
+        8: ["funds", "disbursement", "financial"],
+        9: ["outreach", "communication", "clarification"],
+        10: ["sentiment", "escalation", "health safety", "legal threat"],
+        11: ["root cause", "process gap", "system failure"],
+        12: ["preventative", "solution", "improvement", "mitigation"],
+        13: ["documentation", "reporting", "background"],
+        14: ["cross-team", "collaboration", "engagement"],
+        15: ["quality", "audit", "review", "performance"],
+        16: ["continuous improvement", "training", "update"],
+        17: ["communication standard", "messaging", "clarity"],
+        18: ["metrics", "tracking", "measurement"],
+        19: ["legal", "compliance", "regulation"],
+        20: ["launch", "pilot", "rollback"]
+    }
+    
+    content_lower = content.lower()
+    category_lower = category.lower()
+    
+    for section_num, keywords in keyword_mapping.items():
+        for keyword in keywords:
+            if keyword in content_lower or keyword in category_lower:
+                references.append({
+                    'number': section_num,
+                    'name': HAWKEYE_SECTIONS[section_num]
+                })
+                break
+    
+    return references[:3]  # Return top 3 most relevant references
+
+def classify_risk_level(feedback_item):
+    """Classify risk level based on Hawkeye criteria"""
+    high_risk_indicators = [
+        "counterfeit", "fraud", "manipulation", "multiple violation",
+        "immediate action", "legal", "health safety", "bad actor"
+    ]
+    
+    medium_risk_indicators = [
+        "pattern", "violation", "enforcement", "remediation",
+        "correction", "warning"
+    ]
+    
+    content_lower = f"{feedback_item.get('description', '')} {feedback_item.get('category', '')}".lower()
+    
+    for indicator in high_risk_indicators:
+        if indicator in content_lower:
+            return "High"
+    
+    for indicator in medium_risk_indicators:
+        if indicator in content_lower:
+            return "Medium"
+    
+    return "Low"
+
+def invoke_aws_semantic_search(system_prompt, user_prompt, operation_name="LLM Analysis"):
+    """AWS Bedrock invocation with Hawkeye guidelines - IMPROVED VERSION"""
+    global guidelines_content, hawkeye_checklist
+    
+    if guidelines_content is None or hawkeye_checklist is None:
+        guidelines_content, hawkeye_checklist = load_guidelines()
+    
+    # Enhanced system prompt with better role definition
+    enhanced_system_prompt = """You are a senior investigation analyst and document review specialist with deep expertise in the Hawkeye investigation methodology. You apply rigorous analytical frameworks to evaluate document quality, completeness, and compliance with established investigation standards. Your responses are precise, actionable, and aligned with best practices in professional investigation and risk assessment."""
+    
+    if hawkeye_checklist and "Section Identification" not in operation_name:
+        truncated_hawkeye = hawkeye_checklist[:30000]
+        enhanced_system_prompt = f"""{enhanced_system_prompt}
+
+COMPREHENSIVE HAWKEYE INVESTIGATION FRAMEWORK:
+{truncated_hawkeye}
+
+ROLE: You are a senior investigation analyst trained in the Hawkeye methodology. Apply this 20-point checklist systematically in your analysis.
+
+APPROACH:
+1. Use Hawkeye mental models to evaluate document quality and completeness
+2. Reference specific checklist items (numbered 1-20) in your feedback
+3. Focus on investigation best practices and compliance standards
+4. Provide evidence-based recommendations aligned with framework principles
+5. Maintain consistency with established investigation protocols
+
+Always cite relevant Hawkeye checkpoint numbers when providing feedback."""
+    
+    runtime = boto3.client('bedrock-runtime')
+    
+    body = json.dumps({
+        "anthropic_version": "bedrock-2023-05-31",
+        "max_tokens": 4000,
+        "system": enhanced_system_prompt,
+        "messages": [{"role": "user", "content": user_prompt}]
+    })
+    
+    try:
+        response = runtime.invoke_model(
+            body=body,
+            modelId='anthropic.claude-3-sonnet-20240229-v1:0',
+            accept="application/json",
+            contentType="application/json"
+        )
+        
+        response_body = json.loads(response.get('body').read())
+        return response_body['content'][0]['text']
+        
+    except Exception as e:
+        # Return mock data for testing
+        time.sleep(1)  # Simulate API delay
+        
+        if "Section Identification" in operation_name:
+            return json.dumps({
+                "sections": [
+                    {"title": "Executive Summary", "line_hint": "executive summary"},
+                    {"title": "Timeline of Events", "line_hint": "timeline"},
+                    {"title": "Resolving Actions", "line_hint": "resolving actions"},
+                    {"title": "Root Causes (RC) and Preventative Actions (PA)", "line_hint": "root cause"},
+                    {"title": "Customer Impact", "line_hint": "customer impact"},
+                    
+                ]
+            })
+        
+        if "chat" in operation_name.lower():
+            return "Based on the Hawkeye guidelines, I can help you understand the feedback better. The 20-point checklist emphasizes thorough investigation and customer impact assessment. What specific aspect would you like me to clarify?"
+        
+        return json.dumps({
+            "feedback_items": [
+                {
+                    "id": "FB001",
+                    "type": "critical",
+                    "category": "investigation process",
+                    "description": "Missing evaluation of customer experience (CX) impact. How might this abuse affect customer trust and satisfaction?",
+                    "suggestion": "Add analysis of potential negative reviews, returns, or complaints that could result from this issue",
+                    "example": "Consider both immediate and long-term effects on customer trust as outlined in Hawkeye #1",
+                    "questions": [
+                        "Have you evaluated the customer experience (CX) impact?",
+                        "Did you consider how this affects buyer trust?"
+                    ],
+                    "confidence": 0.95
+                },
+                {
+                    "id": "FB002",
+                    "type": "important",
+                    "category": "root cause analysis",
+                    "description": "Root cause analysis lacks identification of process gaps that allowed this issue",
+                    "suggestion": "Include analysis of weaknesses in current procedures and suggest improvements",
+                    "example": "Reference the case study about ex-Amazon employee account compromise",
+                    "questions": [
+                        "What process gaps allowed this issue to occur?",
+                        "Are there system failures that contributed?"
+                    ],
+                    "confidence": 0.85
+                }
+            ]
+        })
+
+def analyze_section_with_ai(section_name, section_content, doc_type="Full Write-up"):
+    """Analyze a single section with Hawkeye framework - IMPROVED VERSION"""
+    
+    cache_key = f"{section_name}_{hash(section_content)}"
+    if cache_key in ai_feedback_cache:
+        return ai_feedback_cache[cache_key]
+    
+    # Customize prompts based on section type
+    section_specific_guidance = ""
+    
+    section_name_lower = section_name.lower()
+    
+    if "timeline" in section_name_lower:
+        section_specific_guidance = """
+        For Timeline sections, focus on:
+        - Chronological accuracy and completeness
+        - Missing critical events
+        - Time gaps that need explanation
+        - Correlation with enforcement actions
+        - Clear date formatting and consistency
+        """
+    elif "resolving action" in section_name_lower:
+        section_specific_guidance = """
+        For Resolving Actions, focus on:
+        - Completeness of resolution steps
+        - Validation of actions taken
+        - Impact on affected parties
+        - Follow-up mechanisms
+        - Clear ownership and completion dates
+        """
+    elif "root cause" in section_name_lower or "preventative action" in section_name_lower:
+        section_specific_guidance = """
+        For Root Causes and Preventative Actions, focus on:
+        - Depth of root cause analysis (use 5 Whys)
+        - Systemic vs symptomatic causes
+        - Actionability of preventative measures
+        - Long-term effectiveness
+        - Process improvements needed
+        - Clear ownership and ECDs (Estimated Completion Dates)
+        - Placeholder identification and completion
+        """
+    elif "executive summary" in section_name_lower or "summary" in section_name_lower:
+        section_specific_guidance = """
+        For Executive Summary, focus on:
+        - Completeness of key points coverage
+        - Clarity and conciseness
+        - Accurate representation of findings
+        - Clear statement of impact and outcomes
+        - Action items highlighted
+        """
+    elif "background" in section_name_lower:
+        section_specific_guidance = """
+        For Background sections, focus on:
+        - Context clarity and completeness
+        - Relevance of historical information
+        - Key milestones and decision points
+        - Policy or guideline references
+        - Clarity on whether this is a pilot or established process
+        """
+    else:
+        section_specific_guidance = """
+        General section analysis focusing on:
+        - Completeness and clarity
+        - Alignment with Hawkeye investigation standards
+        - Evidence and documentation quality
+        - Clear action items and ownership
+        """
+    
+    prompt = f"""You are an expert document reviewer conducting a thorough analysis using the Hawkeye investigation framework. Analyze the section "{section_name}" from a {doc_type} document.
+
+{section_specific_guidance}
+
+SECTION CONTENT TO ANALYZE:
+{section_content[:3000]}
+
+ANALYSIS INSTRUCTIONS:
+1. Read the section content carefully and identify potential issues, gaps, or improvements
+2. Apply the Hawkeye 20-point checklist mental model systematically
+3. Focus on substantive feedback that adds value to the investigation
+4. Prioritize findings by risk level and impact
+5. Provide actionable suggestions with clear next steps
+
+FEEDBACK CRITERIA:
+- CRITICAL: Major gaps, compliance issues, or high-risk findings that require immediate attention
+- IMPORTANT: Significant improvements needed that affect quality or completeness
+- SUGGESTION: Minor enhancements or best practice recommendations
+- POSITIVE: Acknowledge strong elements that meet or exceed standards
+
+REQUIRED OUTPUT FORMAT (STRICT JSON):
+{{
+    "feedback_items": [
+        {{
+            "id": "unique_sequential_id_like_FB001",
+            "type": "critical|important|suggestion|positive",
+            "category": "select_from_hawkeye_sections",
+            "description": "Clear, specific description of the issue or finding (2-3 sentences max)",
+            "suggestion": "Concrete, actionable recommendation for improvement",
+            "example": "Specific example or reference from Hawkeye guidelines if applicable",
+            "questions": ["Specific question 1?", "Specific question 2?"],
+            "hawkeye_refs": [relevant_checkpoint_numbers_1_to_20],
+            "risk_level": "High|Medium|Low",
+            "confidence": 0.85
+        }}
+    ]
+}}
+
+IMPORTANT: 
+- Return ONLY valid JSON with no additional text before or after
+- Each feedback item must be substantive and actionable
+- Limit to maximum 5 high-quality feedback items per section
+- Ensure all JSON properties are present for each item
+- Use specific Hawkeye checkpoint numbers (1-20) in hawkeye_refs array"""
+    
+    system_prompt = "You are a senior document review specialist with deep expertise in the Hawkeye investigation methodology. You apply rigorous analytical frameworks to evaluate document quality, completeness, and compliance with established investigation standards."
+    
+    response = invoke_aws_semantic_search(system_prompt, prompt, f"Hawkeye Analysis: {section_name}")
+    
+    try:
+        result = json.loads(response)
+    except:
+        json_match = re.search(r'\{.*\}', response, re.DOTALL)
+        if json_match:
+            try:
+                result = json.loads(json_match.group(0))
+            except:
+                result = {"feedback_items": []}
+        else:
+            result = {"feedback_items": []}
+    
+    # Enhance with Hawkeye references if not provided
+    for item in result.get('feedback_items', []):
+        if 'hawkeye_refs' not in item:
+            refs = get_hawkeye_reference(item.get('category', ''), item.get('description', ''))
+            item['hawkeye_refs'] = [ref['number'] for ref in refs]
+        
+        if 'risk_level' not in item:
+            item['risk_level'] = classify_risk_level(item)
+    
+    ai_feedback_cache[cache_key] = result
+    return result
+
+def process_chat_query(query, context):
+    """Process chat query with context awareness - IMPROVED VERSION"""
+    global current_session, hawkeye_checklist, current_section_feedback
+    
+    # Build context for the chat
+    context_info = f"""
+    Current Section: {context.get('current_section', 'None')}
+    Current Feedback Items: {len(current_section_feedback)}
+    Document Type: Full Write-up
+    """
+    
+    if current_section_feedback:
+        context_info += "\nCurrent Section Feedback Summary:\n"
+        for item in current_section_feedback[:3]:  # Show first 3 items
+            context_info += f"- {item['type']}: {item['description'][:100]}...\n"
+    
+    prompt = f"""You are an expert AI assistant specializing in document review using the comprehensive Hawkeye investigation framework. You provide precise, actionable guidance to help users improve their document analysis and investigation processes.
+
+CURRENT CONTEXT:
+{context_info}
+
+HAWKEYE FRAMEWORK OVERVIEW:
+The 20-point Hawkeye checklist covers:
+1. Initial Assessment - Evaluate customer experience (CX) impact
+2. Investigation Process - Challenge existing SOPs and procedures  
+3. Seller Classification - Identify good/bad/confused actors
+4. Enforcement Decision-Making - Appropriate response selection
+5. Additional Verification - High-risk case protocols
+6. Multiple Appeals Handling - Repeat offense management
+7. Account Hijacking Prevention - Security measures
+8. Funds Management - Financial impact control
+9. REs-Q Outreach Process - Communication standards
+10. Sentiment Analysis - Escalation risk assessment
+11. Root Cause Analysis - Systematic problem identification
+12. Preventative Actions - Future mitigation strategies
+13. Documentation and Reporting - Record keeping standards
+14. Cross-Team Collaboration - Stakeholder engagement
+15. Quality Control - Review and validation processes
+16. Continuous Improvement - Learning integration
+17. Communication Standards - Clear messaging protocols
+18. Performance Metrics - Success measurement
+19. Legal and Compliance - Regulatory alignment
+20. New Service Launch Considerations - Implementation planning
+
+USER QUESTION: {query}
+
+RESPONSE GUIDELINES:
+- Provide specific, actionable advice
+- Reference relevant Hawkeye checkpoint numbers when applicable
+- Use concrete examples when helpful
+- Keep responses focused and practical
+- Maintain professional investigative perspective
+- Address the question directly and comprehensively"""
+    
+    system_prompt = "You are an expert AI assistant specializing in the Hawkeye investigation framework. You provide clear, actionable guidance to help users understand and apply the 20-point checklist effectively in their document review processes."
+    
+    response = invoke_aws_semantic_search(system_prompt, prompt, "Chat Assistant")
+    
+    return response
+
+def create_dark_mode_toggle():
+    """Create a dark mode toggle button with styling"""
+    dark_mode_toggle = widgets.ToggleButton(
+        value=False,
+        description='🌙 Dark Mode',
+        tooltip='Toggle dark/light mode',
+        icon='moon',
+        layout={'width': '140px'}
+    )
+    
+    # Define the style change function
+    def on_dark_mode_toggle(change):
+        if change['new']:  # Dark mode enabled
+            dark_css = """
+            <style>
+                /* Global styles */
+                .jp-RenderedHTMLCommon { color: #e0e0e0 !important; }
+                .widget-label { color: #e0e0e0 !important; }
+                .widget-inline-hbox { background: #222 !important; }
+                .widget-html-content { background: #222 !important; color: #e0e0e0 !important; }
+                .p-Widget { background-color: #222 !important; }
+                .jupyter-widgets.widget-tab > .p-TabBar .p-TabBar-tab { color: #e0e0e0 !important; }
+                .jupyter-widgets.widget-tab > .p-TabBar { background-color: #333 !important; }
+                .widget-tab > .p-TabBar .p-TabBar-tab.p-mod-current { 
+                    color: white !important;
+                    background-color: #444 !important;
+                    border-top: 3px solid #555 !important;
+                }
+                
+                /* Custom classes */
+                .dark-mode-panel { 
+                    background: #2a2a2a !important; 
+                    border-color: #444 !important; 
+                    color: #e0e0e0 !important; 
+                    box-shadow: 0 2px 8px rgba(0,0,0,0.5) !important;
+                }
+                .dark-mode-header { 
+                    background: linear-gradient(135deg, #333 0%, #222 100%) !important;
+                    border-bottom: 1px solid #555 !important;
+                }
+                .dark-mode-feedback-item { 
+                    background: #333 !important; 
+                    border-color: #555 !important;
+                    box-shadow: 0 1px 3px rgba(0,0,0,0.3) !important;
+                }
+                .dark-mode-chat { background: #2a2a2a !important; }
+                .dark-mode-stats { background: #2a2a2a !important; }
+                
+                /* Button colors */
+                .jupyter-button.mod-primary {
+                    background-color: #555 !important;
+                    color: #ffffff !important;
+                    border-color: #666 !important;
+                }
+                .jupyter-button.mod-info {
+                    background-color: #444 !important;
+                    color: #ffffff !important;
+                    border-color: #555 !important;
+                }
+                .jupyter-button.mod-success {
+                    background-color: #2c5e2e !important;
+                    color: #ffffff !important;
+                    border-color: #3a7a3d !important;
+                }
+                .jupyter-button.mod-warning {
+                    background-color: #855522 !important;
+                    color: #ffffff !important;
+                    border-color: #976633 !important;
+                }
+                .jupyter-button.mod-danger {
+                    background-color: #7a2828 !important;
+                    color: #ffffff !important;
+                    border-color: #8a3333 !important;
+                }
+                
+                /* Chat message styles */
+                .user-message {
+                    background: #444 !important;
+                    border-left: 3px solid #666 !important;
+                }
+                .assistant-message {
+                    background: #333 !important;
+                    border-left: 3px solid #555 !important;
+                }
+                
+                /* Input fields */
+                .widget-text input,
+                .widget-textarea textarea {
+                    background: #333 !important;
+                    color: #e0e0e0 !important;
+                    border: 1px solid #555 !important;
+                }
+                
+                /* Status and risk indicators */
+                .high-risk { background: #7a2828 !important; }
+                .medium-risk { background: #855522 !important; }
+                .low-risk { background: #2c5e2e !important; }
+
+                /* Dialog backgrounds */
+                .shortcuts-help, .faq-content {
+                    background: #2a2a2a !important;
+                    color: #e0e0e0 !important;
+                    border-color: #444 !important;
+                }
+                
+                /* Tables in dialogs */
+                .shortcuts-help table, .faq-content table {
+                    border-color: #444 !important;
+                }
+                .shortcuts-help th, .faq-content th {
+                    background: #333 !important;
+                    color: #e0e0e0 !important;
+                }
+                .shortcuts-help td, .faq-content td {
+                    border-color: #444 !important;
+                }
+                
+                /* Hawkeye refs tags */
+                .hawkeye-ref {
+                    background: #444 !important;
+                    color: #e0e0e0 !important;
+                }
+                
+                /* Details/summary elements */
+                details summary {
+                    color: #e0e0e0 !important;
+                    background: #333 !important;
+                }
+                
+                /* Selection highlighting */
+                ::selection {
+                    background-color: #555 !important;
+                    color: white !important;
+                }
+            </style>
+            """
+            display(HTML(dark_css))
+            dark_mode_toggle.description = '☀️ Light Mode'
+            dark_mode_toggle.icon = 'sun'
+        else:  # Light mode enabled
+            light_css = """
+            <style>
+                /* Global styles */
+                .jp-RenderedHTMLCommon { color: #333 !important; }
+                .widget-label { color: #333 !important; }
+                .widget-inline-hbox { background: #ffffff !important; }
+                .widget-html-content { background: #ffffff !important; color: #333 !important; }
+                .p-Widget { background-color: #ffffff !important; }
+                .jupyter-widgets.widget-tab > .p-TabBar .p-TabBar-tab { color: #333 !important; }
+                .jupyter-widgets.widget-tab > .p-TabBar { background-color: #f8f8f8 !important; }
+                
+                /* Reset custom classes */
+                .dark-mode-panel { 
+                    background: #ffffff !important; 
+                    border-color: #e0e0e0 !important; 
+                    color: #333 !important;
+                    box-shadow: 0 2px 8px rgba(0,0,0,0.1) !important;
+                }
+                .dark-mode-header { 
+                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+                    border-bottom: none !important;
+                }
+                .dark-mode-feedback-item { 
+                    background: #f8f9ff !important; 
+                    border-color: #e0e0e0 !important;
+                    box-shadow: 0 1px 3px rgba(0,0,0,0.1) !important;
+                }
+                .dark-mode-chat { background: #f9f9f9 !important; }
+                .dark-mode-stats { background: #ffffff !important; }
+                
+                /* Reset button colors to defaults */
+                .jupyter-button.mod-primary {
+                    background-color: #2196f3 !important;
+                    color: #ffffff !important;
+                    border-color: #2196f3 !important;
+                }
+                .jupyter-button.mod-info {
+                    background-color: #00bcd4 !important;
+                    color: #ffffff !important;
+                    border-color: #00bcd4 !important;
+                }
+                .jupyter-button.mod-success {
+                    background-color: #4caf50 !important;
+                    color: #ffffff !important;
+                    border-color: #4caf50 !important;
+                }
+                .jupyter-button.mod-warning {
+                    background-color: #ff9800 !important;
+                    color: #ffffff !important;
+                    border-color: #ff9800 !important;
+                }
+                .jupyter-button.mod-danger {
+                    background-color: #f44336 !important;
+                    color: #ffffff !important;
+                    border-color: #f44336 !important;

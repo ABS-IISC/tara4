@@ -142,26 +142,61 @@ class DocumentAnalyzer:
         """Use AI to identify document sections"""
         full_text = '\n'.join([para.text.strip() for para in doc.paragraphs if para.text.strip()])
         
-        prompt = f"""Analyze this document and identify all main sections. Look for:
-1. Section headers that appear on their own line
-2. Headers that introduce new topics or phases
-3. Common business document sections like Executive Summary, Timeline, Background, etc.
+        prompt = f"""You are a senior document structure analyst with comprehensive expertise in business document organization, professional investigation reports, and CT EE investigation documentation standards. Your specialized task is to systematically identify and extract all main sections from this professional investigation document using established analytical frameworks.
 
-Document text (first 10000 characters):
+DOCUMENT TEXT FOR SYSTEMATIC ANALYSIS (first 10,000 characters):
 {full_text[:10000]}
 
-Return sections in JSON format:
+COMPREHENSIVE SECTION IDENTIFICATION METHODOLOGY:
+1. Content Transition Analysis - Identify clear content transitions and investigative topic changes that indicate distinct section boundaries
+2. Header Recognition - Locate headers that appear on dedicated lines or introduce new investigative topics, methodologies, or findings
+3. Standard Section Detection - Find common professional document sections (Executive Summary, Timeline, Background, Analysis, etc.)
+4. Functional Heading Identification - Detect text that functions as organizational headings even without explicit formatting
+5. Structural Pattern Recognition - Look for numbered, bulleted, or hierarchical section starts that organize investigative content
+6. Chronological Content Mapping - Identify date-based sections or chronological content blocks that structure the investigation
+7. Investigation-Specific Section Recognition - Recognize specialized investigation sections (Root Cause, Preventative Actions, Impact Assessment, etc.)
+
+PROFESSIONAL CT EE INVESTIGATION SECTION PATTERNS (COMPREHENSIVE LIST):
+- Executive Summary / Investigation Summary / Key Findings Summary
+- Background / Context / Issue Description / Problem Statement
+- Timeline of Events / Chronology / Event Sequence / Incident Timeline
+- Investigation Process / Methodology / Analysis Approach / Investigation Framework
+- Findings / Results / Conclusions / Investigation Outcomes
+- Resolving Actions / Remediation Steps / Actions Taken / Corrective Measures
+- Root Causes (RC) and Preventative Actions (PA) / Root Cause Analysis
+- Impact Assessment / Business Impact / Customer Impact / Operational Impact
+- Recommendations / Next Steps / Future Actions / Strategic Recommendations
+- Conclusion / Closing / Lessons Learned / Investigation Closure
+- Stakeholder Communication / Notification Process / Escalation Procedures
+- Quality Assurance / Validation / Verification Process
+
+SYSTEMATIC ANALYSIS INSTRUCTIONS:
+1. Document Scanning - Systematically scan the document text from beginning to end using professional document analysis techniques
+2. Boundary Identification - Identify clear section boundaries where investigative topics, methodologies, or focus areas change
+3. Title Extraction - Extract the exact section title from the document when clearly identifiable, maintaining professional terminology
+4. Distinctive Phrase Identification - Find a unique, distinctive phrase from the beginning of each section as a "line_hint" for precise location
+5. Sequential Organization - Ensure sections are listed in the exact order they appear in the original document structure
+6. Content Validation - Focus exclusively on substantial investigative content sections (exclude headers, footers, metadata, administrative content)
+
+STRICT JSON OUTPUT SPECIFICATION:
 {{
     "sections": [
-        {{"title": "Executive Summary", "line_hint": "Our investigation revealed"}},
-        {{"title": "Timeline of Events", "line_hint": "On 19-Oct-2011"}},
-        {{"title": "Resolving Actions", "line_hint": "1. We acknowledged"}},
-        {{"title": "Root Causes (RC) and Preventative Actions (PA)", "line_hint": "RC1: Limited visibility"}}
+        {{"title": "Professional Section Name", "line_hint": "distinctive opening phrase from section content"}},
+        {{"title": "Next Section Title", "line_hint": "unique identifying phrase from section start"}}
     ]
-}}"""
+}}
+
+MANDATORY COMPLIANCE REQUIREMENTS:
+- Return EXCLUSIVELY valid JSON format with no additional text, explanations, or commentary before or after
+- Use exact section titles from the document when clearly identifiable (maintain professional terminology and formatting)
+- Line hints must be unique, distinctive phrases that clearly and unambiguously identify section starting points
+- Include ALL meaningful investigative sections found (minimum 2 sections, maximum 12 sections for comprehensive coverage)
+- Maintain the original document sequential order exactly as it appears in the source material
+- Ensure each identified section contains substantial, meaningful investigative content (exclude administrative or formatting elements)
+- Prioritize professional investigation terminology and standard section naming conventions"""
         
         try:
-            response = self._invoke_bedrock("You are an expert at identifying document structure.", prompt)
+            response = self._invoke_bedrock("You are an expert document structure analyst with extensive experience in business document organization and content identification. You excel at recognizing section boundaries, content transitions, and organizational patterns in professional documents, even when sections lack explicit formatting or clear headers.", prompt)
             result = json.loads(response)
             return result.get('sections', [])
         except:

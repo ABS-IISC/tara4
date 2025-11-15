@@ -12,9 +12,11 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 try:
     from config.model_config import model_config
+    from config import ai_prompts
 except ImportError:
     # Fallback if config module not found
     print("⚠️ Config module not found, creating fallback configuration")
+    ai_prompts = None
     
     class FallbackModelConfig:
         def get_model_config(self):
@@ -122,57 +124,15 @@ class AIFeedbackEngine:
         if cache_key in self.feedback_cache:
             return self.feedback_cache[cache_key]
 
-        # Get section-specific guidance
-        section_guidance = self._get_section_guidance(section_name)
-        
-        prompt = f"""TASK: Analyze "{section_name}" for CT EE investigation quality.
-
-{section_guidance}
-
-CONTENT:
-{content[:2000]}
-
-REQUIREMENTS:
-• Find 2-3 specific gaps only (not generic issues)
-• Focus on missing critical elements
-• Provide direct, actionable fixes
-• Reference Hawkeye checkpoints
-• Be concise - max 1-2 sentences per item
-
-FORMAT:
-{{
-    "feedback_items": [
-        {{
-            "id": "unique_id",
-            "type": "critical|important|suggestion",
-            "category": "Investigation|Root Cause|Documentation|Timeline|Evidence",
-            "description": "Specific missing element or gap (max 100 chars)",
-            "suggestion": "Direct action to fix (max 80 chars)",
-            "questions": ["Key question to address?"],
-            "hawkeye_refs": [checkpoint_numbers],
-            "risk_level": "High|Medium|Low",
-            "confidence": 0.85
-        }}
-    ]
-}}"""
-
-        system_prompt = f"""You are a CT EE investigation specialist. Provide focused, actionable analysis.
-
-{self.hawkeye_checklist}
-
-RULES:
-• Maximum 3 feedback items
-• Each item must be specific to this content
-• Focus on critical gaps only
-• Keep descriptions under 100 characters
-• Suggestions must be actionable
-• Reference relevant Hawkeye checkpoints
-
-AVOID:
-• Generic advice
-• Lengthy explanations
-• Minor issues
-• Repetitive points"""
+        # Use prompts from config/ai_prompts.py if available
+        if ai_prompts:
+            prompt = ai_prompts.build_section_analysis_prompt(section_name, content[:2500], doc_type)
+            system_prompt = ai_prompts.build_enhanced_system_prompt(self.hawkeye_checklist) + "\n\n" + ai_prompts.SECTION_ANALYSIS_SYSTEM_PROMPT
+        else:
+            # Fallback to basic prompts if config not available
+            section_guidance = self._get_section_guidance(section_name)
+            prompt = f"Analyze section '{section_name}' with content: {content[:2500]}"
+            system_prompt = "You are an investigation analyst. Provide JSON feedback."
 
         response = self._invoke_bedrock(system_prompt, prompt)
         
@@ -264,53 +224,26 @@ AVOID:
         
         # Update result with validated items
         result['feedback_items'] = validated_items
-        
-        # Cache the result
-        self.feedback_cache[cache_key] = result
-        
+
+        # Only cache successful results (not errors or fallbacks)
+        # This prevents caching mock/fallback responses that would persist after fixes
+        if not result.get('error') and not result.get('fallback'):
+            self.feedback_cache[cache_key] = result
+            print(f"💾 Result cached for future requests")
+        else:
+            print(f"⚠️ Skipping cache for fallback/error response")
+
         print(f"✅ Analysis complete: {len(validated_items)} focused feedback items (max 3)")
         return result
 
     def _get_section_guidance(self, section_name):
         """Get focused section-specific analysis guidance"""
-        section_lower = section_name.lower()
-        
-        if "timeline" in section_lower:
-            return """TIMELINE FOCUS:
-• Missing timestamps (DD-MMM-YYYY format)
-• Gaps >24hrs without explanation
-• Unclear event ownership
-• Critical events missing"""
-        elif "resolving action" in section_lower:
-            return """RESOLVING ACTIONS FOCUS:
-• Incomplete resolution steps
-• Missing validation evidence
-• Unclear ownership/dates
-• No impact assessment"""
-        elif "root cause" in section_lower or "preventative action" in section_lower:
-            return """ROOT CAUSE FOCUS:
-• Lacks 5-whys depth
-• Addresses symptoms not causes
-• Vague preventative actions
-• Missing success metrics"""
-        elif "executive summary" in section_lower or "summary" in section_lower:
-            return """SUMMARY FOCUS:
-• Missing quantified impact
-• Unclear root cause statement
-• Incomplete action summary
-• Not executive-ready"""
-        elif "background" in section_lower:
-            return """BACKGROUND FOCUS:
-• Context unclear/irrelevant
-• Missing key milestones
-• Process maturity unclear
-• No policy references"""
+        # Use prompts from config/ai_prompts.py if available
+        if ai_prompts:
+            return ai_prompts.get_section_specific_guidance(section_name)
         else:
-            return """GENERAL FOCUS:
-• Information gaps
-• Evidence quality issues
-• Unclear accountability
-• Missing customer impact"""
+            # Fallback guidance
+            return "Analyze section for completeness and clarity"
 
     def _get_hawkeye_references(self, category, description):
         """Map feedback to relevant Hawkeye checklist items"""
@@ -377,7 +310,11 @@ AVOID:
         """Invoke AWS Bedrock using model configuration - FOR ANALYSIS ONLY"""
         try:
             # Check if credentials are available
-            if not model_config.has_credentials():
+            print(f"🔍 Checking AWS credentials for document analysis...")
+            has_creds = model_config.has_credentials()
+            print(f"🔍 Credentials check result: {has_creds}")
+
+            if not has_creds:
                 print("⚠️ No AWS credentials found - using mock analysis response")
                 return self._mock_ai_response(user_prompt)
             
@@ -516,22 +453,25 @@ AVOID:
             })
     
     def _format_chat_response(self, response):
-        """Format chat response for better structure and readability"""
+        """Format chat response with proper HTML formatting - COMPLETE response, no truncation"""
+        # IMPORTANT: User wants COMPLETE responses, no truncation
+        # Keep ALL content from Claude
+
         # Ensure proper line breaks and formatting
         formatted = response.replace('\n\n', '<br><br>')
         formatted = formatted.replace('\n', '<br>')
-        
+
         # Add proper spacing for bullet points
         formatted = formatted.replace('• ', '<br>• ')
         formatted = formatted.replace('- ', '<br>• ')
-        
+
         # Format bold text
         formatted = formatted.replace('**', '<strong>').replace('**', '</strong>')
-        
+
         # Clean up extra breaks
         formatted = formatted.replace('<br><br><br>', '<br><br>')
-        
-        return formatted
+
+        return formatted.strip()
     
     def _truncate_text(self, text, max_length):
         """Truncate text to specified length with ellipsis"""
@@ -625,52 +565,46 @@ AVOID:
 
 
     def process_chat_query(self, query, context):
-        """Process chat queries with focused, concise responses"""
+        """Process chat queries with multi-model fallback support"""
         print(f"Processing chat query: {query[:50]}...")
-        
+
         # Check if we should use real AI or mock responses
         if not model_config.has_credentials():
             print("⚠️ No AWS credentials - using mock chat response")
             return self._mock_chat_response(query, context)
-        
+
         current_section = context.get('current_section', 'Current section')
         feedback_count = len(context.get('current_feedback', []))
-        
-        prompt = f"""QUESTION: {query}
-SECTION: {current_section}
-FEEDBACK ITEMS: {feedback_count}
 
-HAWKEYE CHECKPOINTS:
-{self.hawkeye_checklist[:500]}...
+        # Use prompts from config/ai_prompts.py if available
+        if ai_prompts:
+            # Build context info for the prompt
+            context_info = f"""Current Section: {current_section}
+Current Feedback Items: {feedback_count}
+Document Type: Full Write-up"""
 
-RESPONSE RULES:
-• Max 100 words
-• Use bullet points
-• Be specific to the question
-• Reference 1-2 Hawkeye checkpoints if relevant
-• End with one follow-up question
-• No lengthy explanations
+            prompt = ai_prompts.build_chat_query_prompt(query, context_info)
+            system_prompt = ai_prompts.CHAT_ASSISTANT_SYSTEM_PROMPT
+        else:
+            # Fallback prompts
+            prompt = f"Answer this query: {query}"
+            system_prompt = "You are a helpful assistant."
 
-FORMAT:
-**[Topic]**
-• Point 1
-• Point 2
-**Next:** Follow-up question?"""
-        
-        system_prompt = """You are AI-Prism providing concise CT EE investigation guidance.
-        
-        Rules:
-        - Maximum 100 words
-        - Bullet points only
-        - Direct answers
-        - One follow-up question
-        - Professional tone"""
-        
+        # Check if multi-model chat is enabled
+        enable_multi_model = os.environ.get('CHAT_ENABLE_MULTI_MODEL', 'true').lower() == 'true'
+
+        if enable_multi_model:
+            return self._process_chat_with_fallback(system_prompt, prompt, query, context)
+        else:
+            return self._process_chat_single_model(system_prompt, prompt, query, context)
+
+    def _process_chat_single_model(self, system_prompt, prompt, query, context):
+        """Process chat with single primary model"""
         try:
             # Use real Bedrock for chat
             import boto3
             config = model_config.get_model_config()
-            
+
             # Try to create Bedrock client with profile first, then fallback to default
             runtime = None
             try:
@@ -689,25 +623,212 @@ FORMAT:
                     region_name=config['region']
                 )
                 print(f"🔑 Chat using default AWS credentials")
-            
+
             body = model_config.get_bedrock_request_body(system_prompt, prompt)
-            
+
             print(f"🤖 Chat query to {config['model_name']}")
-            
+
             response = runtime.invoke_model(
                 body=body,
                 modelId=config['model_id'],
                 accept="application/json",
                 contentType="application/json"
             )
-            
+
             response_body = json.loads(response.get('body').read())
             result = model_config.extract_response_content(response_body)
-            
+
             print(f"✅ Claude chat response received")
             return self._format_chat_response(result)
-            
+
         except Exception as e:
             print(f"❌ Chat processing error: {str(e)}")
             print("🎭 Falling back to mock chat response")
             return self._mock_chat_response(query, context)
+
+    def _process_chat_with_fallback(self, system_prompt, prompt, query, context):
+        """Process chat with automatic model fallback"""
+        import boto3
+        from botocore.exceptions import ClientError
+
+        config = model_config.get_model_config()
+
+        # Build list of models to try
+        models_to_try = []
+
+        # Add primary model
+        models_to_try.append({
+            'name': config['model_name'],
+            'id': config['model_id'],
+            'priority': 1
+        })
+
+        # Add fallback models from environment
+        fallback_env = os.environ.get('BEDROCK_FALLBACK_MODELS', '')
+        if fallback_env:
+            fallback_ids = [m.strip() for m in fallback_env.split(',')]
+            for idx, fallback_id in enumerate(fallback_ids):
+                base_name = model_config._extract_base_model(fallback_id)
+                model_info = model_config.SUPPORTED_MODELS.get(base_name, {})
+                models_to_try.append({
+                    'name': model_info.get('name', base_name),
+                    'id': fallback_id,
+                    'priority': idx + 2
+                })
+
+        # Add default fallback models
+        for idx, base_name in enumerate(config['fallback_models']):
+            fallback_id = model_config.get_fallback_model_id(base_name)
+            # Avoid duplicates
+            if not any(m['id'] == fallback_id for m in models_to_try):
+                model_info = model_config.SUPPORTED_MODELS.get(base_name, {})
+                models_to_try.append({
+                    'name': model_info.get('name', base_name),
+                    'id': fallback_id,
+                    'priority': len(models_to_try) + 1
+                })
+
+        print(f"🔄 Multi-model chat enabled - {len(models_to_try)} models available")
+
+        # Create Bedrock runtime client
+        runtime = None
+        try:
+            # Try with admin-abhsatsa profile
+            session = boto3.Session(profile_name='admin-abhsatsa')
+            runtime = session.client('bedrock-runtime', region_name=config['region'])
+            print(f"🔑 Chat using AWS profile: admin-abhsatsa")
+        except Exception:
+            runtime = boto3.client('bedrock-runtime', region_name=config['region'])
+            print(f"🔑 Chat using default AWS credentials")
+
+        # Try each model in priority order
+        for model in models_to_try:
+            try:
+                print(f"🤖 Trying chat with {model['name']} (Priority {model['priority']})")
+
+                # Create request body
+                body = json.dumps({
+                    "anthropic_version": "bedrock-2023-05-31",
+                    "max_tokens": config.get('max_tokens', 8192),
+                    "temperature": config.get('temperature', 0.7),
+                    "system": system_prompt,
+                    "messages": [{"role": "user", "content": prompt}]
+                })
+
+                response = runtime.invoke_model(
+                    body=body,
+                    modelId=model['id'],
+                    accept="application/json",
+                    contentType="application/json"
+                )
+
+                response_body = json.loads(response.get('body').read())
+                result = model_config.extract_response_content(response_body)
+
+                print(f"✅ Chat successful with {model['name']}")
+                return self._format_chat_response(result)
+
+            except ClientError as e:
+                error_code = e.response['Error']['Code']
+                error_msg = e.response['Error']['Message']
+                print(f"⚠️ {model['name']} failed ({error_code}): {error_msg[:100]}")
+
+                # If this is the last model, fall back to mock
+                if model == models_to_try[-1]:
+                    print("❌ All models failed - falling back to mock response")
+                    return self._mock_chat_response(query, context)
+
+                # Otherwise, try the next model
+                continue
+
+            except Exception as e:
+                print(f"⚠️ {model['name']} error: {str(e)[:100]}")
+
+                # If this is the last model, fall back to mock
+                if model == models_to_try[-1]:
+                    print("❌ All models failed - falling back to mock response")
+                    return self._mock_chat_response(query, context)
+
+                # Otherwise, try the next model
+                continue
+
+        # Fallback if somehow we get here
+        print("❌ All models exhausted - falling back to mock response")
+        return self._mock_chat_response(query, context)
+
+    def test_connection(self):
+        """Test Claude AI connection and return status"""
+        import time
+        start_time = time.time()
+
+        try:
+            # Check if credentials are available
+            if not model_config.has_credentials():
+                return {
+                    'connected': False,
+                    'error': 'No AWS credentials found',
+                    'model': 'None',
+                    'response_time': 0
+                }
+
+            config = model_config.get_model_config()
+
+            # Create Bedrock runtime client
+            runtime = None
+            try:
+                # Try with admin-abhsatsa profile
+                session = boto3.Session(profile_name='admin-abhsatsa')
+                runtime = session.client(
+                    'bedrock-runtime',
+                    region_name=config['region']
+                )
+                print(f"🔑 Testing with AWS profile: admin-abhsatsa")
+            except Exception:
+                # Fallback to default session
+                runtime = boto3.client(
+                    'bedrock-runtime',
+                    region_name=config['region']
+                )
+                print(f"🔑 Testing with default AWS credentials")
+
+            # Simple test prompt
+            test_prompt = "Respond with 'OK' if you can read this message."
+            system_prompt = "You are Claude AI. Respond concisely."
+
+            body = model_config.get_bedrock_request_body(system_prompt, test_prompt)
+
+            print(f"🤖 Testing connection to {config['model_name']} (ID: {config['model_id']})")
+
+            response = runtime.invoke_model(
+                body=body,
+                modelId=config['model_id'],
+                accept="application/json",
+                contentType="application/json"
+            )
+
+            response_body = json.loads(response.get('body').read())
+            result = model_config.extract_response_content(response_body)
+
+            response_time = time.time() - start_time
+
+            print(f"✅ Claude connection test successful ({response_time:.2f}s)")
+
+            return {
+                'connected': True,
+                'model': config['model_name'],
+                'model_id': config['model_id'],
+                'response_time': round(response_time, 2),
+                'test_response': result[:50] + '...' if len(result) > 50 else result,
+                'region': config['region']
+            }
+
+        except Exception as e:
+            response_time = time.time() - start_time
+            print(f"❌ Claude connection test failed: {str(e)}")
+
+            return {
+                'connected': False,
+                'error': str(e),
+                'model': config.get('model_name', 'Unknown') if 'config' in locals() else 'Unknown',
+                'response_time': round(response_time, 2)
+            }

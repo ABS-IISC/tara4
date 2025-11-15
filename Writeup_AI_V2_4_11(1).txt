@@ -708,9 +708,7 @@ Return the sections in this JSON format:
 }}
 """
     
-    system_prompt = """You are an expert at identifying document structure and sections in business documents. 
-    Focus on finding all meaningful sections even if they don't have special formatting. 
-    Look for content transitions and section headers that organize the document."""
+    system_prompt = """You are an expert document structure analyst with extensive experience in business document organization and content identification. You excel at recognizing section boundaries, content transitions, and organizational patterns in professional documents, even when sections lack explicit formatting or clear headers."""
     
     try:
         response = invoke_aws_semantic_search(system_prompt, prompt, "Section Identification")
@@ -999,15 +997,26 @@ def invoke_aws_semantic_search(system_prompt, user_prompt, operation_name="LLM A
     if guidelines_content is None or hawkeye_checklist is None:
         guidelines_content, hawkeye_checklist = load_guidelines()
     
-    enhanced_system_prompt = system_prompt
+    # Enhanced system prompt with better role definition
+    enhanced_system_prompt = """You are a senior investigation analyst and document review specialist with deep expertise in the Hawkeye investigation methodology. You apply rigorous analytical frameworks to evaluate document quality, completeness, and compliance with established investigation standards. Your responses are precise, actionable, and aligned with best practices in professional investigation and risk assessment."""
+    
     if hawkeye_checklist and "Section Identification" not in operation_name:
         truncated_hawkeye = hawkeye_checklist[:30000]
-        enhanced_system_prompt = f"""{system_prompt}
+        enhanced_system_prompt = f"""{enhanced_system_prompt}
 
-HAWKEYE INVESTIGATION CHECKLIST:
+COMPREHENSIVE HAWKEYE INVESTIGATION FRAMEWORK:
 {truncated_hawkeye}
 
-Apply these Hawkeye investigation mental models in your analysis. Reference specific checklist items when providing feedback."""
+ROLE: You are a senior investigation analyst trained in the Hawkeye methodology. Apply this 20-point checklist systematically in your analysis.
+
+APPROACH:
+1. Use Hawkeye mental models to evaluate document quality and completeness
+2. Reference specific checklist items (numbered 1-20) in your feedback
+3. Focus on investigation best practices and compliance standards
+4. Provide evidence-based recommendations aligned with framework principles
+5. Maintain consistency with established investigation protocols
+
+Always cite relevant Hawkeye checkpoint numbers when providing feedback."""
     
     runtime = boto3.client('bedrock-runtime')
     
@@ -1192,7 +1201,7 @@ IMPORTANT:
 - Ensure all JSON properties are present for each item
 - Use specific Hawkeye checkpoint numbers (1-20) in hawkeye_refs array"""
     
-    system_prompt = "You are an expert document reviewer following the Hawkeye investigation mental models for CT EE guidelines."
+    system_prompt = "You are a senior document review specialist with deep expertise in the Hawkeye investigation methodology. You apply rigorous analytical frameworks to evaluate document quality, completeness, and compliance with established investigation standards."
     
     response = invoke_aws_semantic_search(system_prompt, prompt, f"Hawkeye Analysis: {section_name}")
     
@@ -1254,7 +1263,7 @@ USER QUESTION: {query}
 
 Provide a helpful, specific response that references the Hawkeye guidelines when relevant. Be concise but thorough."""
     
-    system_prompt = "You are an expert assistant for the Hawkeye document review system."
+    system_prompt = "You are an expert AI assistant specializing in the Hawkeye investigation framework. You provide clear, actionable guidance to help users understand and apply the 20-point checklist effectively in their document review processes."
     
     response = invoke_aws_semantic_search(system_prompt, prompt, "Chat Assistant")
     

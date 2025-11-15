@@ -398,16 +398,21 @@ function saveHighlightComment(highlightId) {
             
             // Display the feedback
             displayUserFeedback(feedbackItem);
-            
+
             // Update statistics
             updateStatistics();
-            
+
             // Update all custom feedback list
             updateAllCustomFeedbackList();
-            
+
+            // Update real-time logs (Fix for Issue #11 and #12)
+            if (window.updateRealTimeFeedbackLogs) {
+                window.updateRealTimeFeedbackLogs();
+            }
+
             // Close modal
             closeModal('genericModal');
-            
+
             showNotification('Highlight comment saved successfully!', 'success');
         } else {
             showNotification('Failed to save highlight comment: ' + (data.error || 'Unknown error'), 'error');

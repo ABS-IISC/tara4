@@ -162,14 +162,9 @@ function updateCustomFeedbackSectionDisplay() {
         
         // Clear and redisplay
         userFeedbackDisplay.innerHTML = '';
-        
-        if (sectionFeedback.length === 0) {
-            userFeedbackDisplay.innerHTML = `
-                <div style="text-align: center; padding: 20px; color: #666; font-style: italic;">
-                    📝 No custom feedback added for this section yet.
-                </div>
-            `;
-        } else {
+
+        // Only display existing feedback, no "empty state" message
+        if (sectionFeedback.length > 0) {
             sectionFeedback.forEach(feedback => displayUserFeedback(feedback));
         }
     }

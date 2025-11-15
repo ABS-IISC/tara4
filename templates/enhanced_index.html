@@ -2097,7 +2097,7 @@
 
         <!-- Dark Mode Toggle in Corner -->
         <div style="position: fixed; top: 20px; right: 20px; z-index: 1000;">
-            <button class="btn btn-secondary" onclick="toggleDarkMode()" id="darkModeToggle">🌙 Dark Mode</button>
+            <button class="btn btn-secondary" id="darkModeToggle">🌙 Dark Mode</button>
         </div>
 
         <!-- Controls -->
@@ -2108,13 +2108,12 @@
             <button class="btn btn-info" onclick="showPatterns()">📊 Patterns</button>
             <button class="btn btn-info" onclick="showActivityLogs()">📋 Activity Logs</button>
             <button class="btn btn-info" onclick="showLearning()">🧠 Learning</button>
-            <button class="btn btn-primary" onclick="showTextHighlightingFeature()" title="Learn how to use text highlighting and commenting features">🎨 Text Highlighting Feature</button>
+            <button class="btn btn-primary" onclick="showTextHighlightingGuide()" title="Learn how to use text highlighting and commenting features">🎨 Text Highlighting Feature</button>
             <button class="btn btn-info" onclick="showCustomFeedbackHelp()" title="Learn how to add custom feedback to AI suggestions">✨ Custom Feedback Help</button>
             <button class="btn btn-warning" onclick="resetSession()">🔄 Reset</button>
-            <button class="btn btn-secondary" onclick="checkSessionStatus()" title="Debug session information">🔍 Debug Session</button>
-            <button class="btn btn-info" onclick="setTestSession()" title="Create test session for debugging">🧪 Test Session</button>
-            <button class="btn btn-warning" onclick="testCompleteReview()" title="Test complete review function">🧪 Test Review</button>
+
             <button class="btn btn-info" onclick="testS3Connection()" title="Test S3 connectivity">☁️ Test S3</button>
+            <button class="btn btn-info" onclick="testClaudeConnection()" title="Test Claude AI connectivity">🤖 Test Claude</button>
         </div>
 
         <!-- Upload Area - Always Visible -->
@@ -2231,8 +2230,8 @@
                             <select class="section-select" id="sectionSelect">
                                 <option value="">Select a section...</option>
                             </select>
-                            <button class="btn btn-secondary" onclick="previousSection()">← Previous</button>
-                            <button class="btn btn-secondary" onclick="nextSection()">Next →</button>
+                            <button class="btn btn-secondary" onclick="previousSection()" id="prevSectionBtn">← Previous</button>
+                            <button class="btn btn-secondary" onclick="nextSection()" id="nextSectionBtn">Next →</button>
                             <div class="risk-indicator" id="riskIndicator"></div>
                             <div id="customFeedbackCounter" style="background: #3498db; color: white; padding: 5px 10px; border-radius: 15px; font-size: 0.8em; font-weight: 600; display: none;">
                                 📝 Custom: <span id="customCount">0</span>
@@ -2284,7 +2283,17 @@
                         </div>
                         
                         <div id="feedbackContainer" style="order: 2;">
-                            <p>Select a section to view AI-generated feedback...</p>
+                            <div style="text-align: center; padding: 40px; background: linear-gradient(135deg, #f8f9ff 0%, #e3f2fd 100%); border-radius: 15px; border: 2px solid #4f46e5;">
+                                <div style="font-size: 3em; margin-bottom: 20px; animation: analyzing 2s infinite;">🔍</div>
+                                <h3 style="color: #4f46e5; margin-bottom: 10px;">Ready to Analyze</h3>
+                                <p style="color: #666;">Select a section to start AI-powered analysis</p>
+                            </div>
+                            <style>
+                                @keyframes analyzing {
+                                    0%, 100% { transform: scale(1) rotate(0deg); opacity: 1; }
+                                    50% { transform: scale(1.2) rotate(15deg); opacity: 0.8; }
+                                }
+                            </style>
                         </div>
                         
                         <!-- Custom feedback form moved below main content -->
@@ -2615,9 +2624,11 @@
         }
     </style>
 
+    <script src="/static/js/clean_fixes.js"></script>
     <script src="/static/js/app.js"></script>
     <script src="/static/js/button_fixes.js"></script>
     <script src="/static/js/missing_functions.js"></script>
+    <script src="/static/js/progress_functions.js"></script>
     <script src="/static/js/text_highlighting.js"></script>
     <script src="/static/js/custom_feedback_functions.js"></script>
     <script src="/static/js/user_feedback_management.js"></script>
@@ -2625,7 +2636,8 @@
     <script src="/static/js/text_highlight_comments.js"></script>
     <script src="/static/js/enhanced_help_system.js"></script>
     <script src="/static/js/custom_feedback_fix.js"></script>
-    <script src="/static/js/session_test.js"></script>
+    <!-- Core fixes MUST load last to override conflicts -->
+    <script src="/static/js/core_fixes.js"></script>
     <script>
         // Global variables - using window scope to avoid conflicts with other JS files
         window.currentSession = window.currentSession || null;
@@ -2822,11 +2834,16 @@
                 setupEventListeners();
                 setupKeyboardShortcuts();
                 setupDragAndDrop();
-                loadDarkModePreference();
-                
+                // loadDarkModePreference() is now handled by core_fixes.js
+
                 // Initialize progress tracking
                 window.currentAnalysisStep = 0;
                 window.sectionData = {};
+                
+                // Ensure startAnalysis is available globally
+                if (typeof window.startAnalysis === 'undefined' && typeof startAnalysis !== 'undefined') {
+                    window.startAnalysis = startAnalysis;
+                }
                 
                 showNotification('🌟 AI-Prism loaded successfully! Upload a document to begin analysis.', 'success');
                 
@@ -2954,18 +2971,10 @@
                 }
             });
         }
-        
-        function loadDarkModePreference() {
-            const savedDarkMode = localStorage.getItem('darkMode');
-            if (savedDarkMode === 'true') {
-                isDarkMode = true;
-                document.body.classList.add('dark-mode');
-                const button = document.getElementById('darkModeToggle');
-                if (button) {
-                    button.textContent = '☀️ Light Mode';
-                    button.className = 'btn btn-warning';
-                }
-            }
+
+        // loadDarkModePreference() is now handled by core_fixes.js
+        // Removed duplicate implementation to fix dark mode functionality
+
         // Ensure custom feedback section is shown when main content loads
         function ensureCustomFeedbackVisible() {
             const customFeedbackSection = document.getElementById('customFeedbackSection');
@@ -3015,22 +3024,7 @@
                 ensureCustomFeedbackVisible();
             };
         }
-        
-        }
-        
-        function toggleDarkMode() {
-            isDarkMode = !isDarkMode;
-            document.body.classList.toggle('dark-mode', isDarkMode);
-            
-            const button = document.getElementById('darkModeToggle');
-            if (button) {
-                button.textContent = isDarkMode ? '☀️ Light Mode' : '🌙 Dark Mode';
-                button.className = isDarkMode ? 'btn btn-warning' : 'btn btn-secondary';
-            }
-            
-            localStorage.setItem('darkMode', isDarkMode.toString());
-        }
-        
+
         function showShortcuts() {
             const modal = document.getElementById('shortcutsModal');
             if (modal) modal.style.display = 'block';
@@ -3239,110 +3233,15 @@
             document.getElementById('startupModal').style.display = 'none';
         }
         
-        function showTextHighlightingFeature() {
-            const modalContent = `
-                <div style="text-align: center; padding: 20px; max-height: 80vh; overflow-y: auto;">
-                    <h3 style="color: #4f46e5; margin-bottom: 25px; font-size: 1.8em;">🎨 Text Highlighting & Commenting Feature Guide</h3>
-                    
-                    <div style="background: linear-gradient(135deg, #f8f9ff 0%, #e3f2fd 100%); padding: 25px; border-radius: 15px; margin-bottom: 25px; border: 3px solid #4f46e5; box-shadow: 0 8px 25px rgba(79, 70, 229, 0.2);">
-                        <h4 style="color: #4f46e5; margin-bottom: 20px; font-size: 1.4em;">📝 Complete Usage Guide:</h4>
-                        
-                        <div style="text-align: left; margin-bottom: 20px;">
-                            <div style="display: grid; grid-template-columns: 1fr; gap: 15px;">
-                                <div style="background: white; padding: 15px; border-radius: 10px; border-left: 5px solid #4f46e5; box-shadow: 0 3px 10px rgba(0,0,0,0.1);">
-                                    <h5 style="color: #4f46e5; margin-bottom: 10px;">🎨 Step 1: Choose Your Highlight Color</h5>
-                                    <p style="margin: 0; color: #555;">Click any color button in the highlight toolbar: Yellow, Green, Blue, Red, or Gray. Each color can represent different types of feedback.</p>
-                                </div>
-                                
-                                <div style="background: white; padding: 15px; border-radius: 10px; border-left: 5px solid #10b981; box-shadow: 0 3px 10px rgba(0,0,0,0.1);">
-                                    <h5 style="color: #10b981; margin-bottom: 10px;">📝 Step 2: Select Text in Document</h5>
-                                    <p style="margin: 0; color: #555;">Use your mouse to select any text in the document. Text gets highlighted automatically with your chosen color.</p>
-                                </div>
-                                
-                                <div style="background: white; padding: 15px; border-radius: 10px; border-left: 5px solid #ec4899; box-shadow: 0 3px 10px rgba(0,0,0,0.1);">
-                                    <h5 style="color: #ec4899; margin-bottom: 10px;">💬 Step 3: Add Comment</h5>
-                                    <p style="margin: 0; color: #555;">A comment dialog opens automatically. Add your feedback about the highlighted text and save it.</p>
-                                </div>
-                                
-                                <div style="background: white; padding: 15px; border-radius: 10px; border-left: 5px solid #f59e0b; box-shadow: 0 3px 10px rgba(0,0,0,0.1);">
-                                    <h5 style="color: #f59e0b; margin-bottom: 10px;">✏️ Step 4: Update Comments</h5>
-                                    <p style="margin: 0; color: #555;">Use "Update Comments" button to view and edit all existing highlighted comments in the section.</p>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <div style="background: white; padding: 20px; border-radius: 12px; border-left: 5px solid #10b981; margin-bottom: 20px;">
-                            <h4 style="color: #10b981; margin-bottom: 15px;">🔧 Button Functions:</h4>
-                            <div style="display: grid; grid-template-columns: 1fr; gap: 8px;">
-                                <div style="padding: 8px; background: #f0fff4; border-radius: 6px; font-size: 0.9em;">
-                                    <strong>🟡🟢🔵🔴⚪ Color Buttons:</strong> Select highlight color before selecting text
-                                </div>
-                                <div style="padding: 8px; background: #f0fff4; border-radius: 6px; font-size: 0.9em;">
-                                    <strong>💬 Add Comment:</strong> Add comment to currently selected text
-                                </div>
-                                <div style="padding: 8px; background: #f0fff4; border-radius: 6px; font-size: 0.9em;">
-                                    <strong>✏️ Update Comments:</strong> View and edit all existing highlighted comments
-                                </div>
-                                <div style="padding: 8px; background: #f0fff4; border-radius: 6px; font-size: 0.9em;">
-                                    <strong>🧹 Clear All:</strong> Remove all highlights and comments from section
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <div style="background: rgba(79, 70, 229, 0.1); padding: 20px; border-radius: 12px; margin-bottom: 20px;">
-                            <h5 style="color: #4f46e5; margin-bottom: 15px; font-size: 1.2em;">💡 Advanced Tips & Best Practices:</h5>
-                            <div style="text-align: left; color: #555; line-height: 1.7;">
-                                • <strong>Color Coding:</strong> Use different colors for different feedback types (e.g., Yellow for suggestions, Red for critical issues)<br>
-                                • <strong>Automatic Integration:</strong> All highlighted comments automatically appear in your "Custom Feedback" section<br>
-                                • <strong>Click to Edit:</strong> Click any existing highlight to view, edit, or add additional comments<br>
-                                • <strong>Persistent Storage:</strong> Your highlights are saved with your review session<br>
-                                • <strong>Export Ready:</strong> Highlighted feedback is included in your final document export<br>
-                                • <strong>Section Specific:</strong> Highlights are organized by document section for easy navigation
-                            </div>
-                        </div>
-                        
-                        <div style="background: white; padding: 15px; border-radius: 10px; border: 2px solid #ec4899; margin-bottom: 20px;">
-                            <h4 style="color: #ec4899; margin-bottom: 10px;">💬 Comment Types Available:</h4>
-                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; font-size: 0.9em;">
-                                <div style="text-align: center; padding: 8px; background: #fdf2f8; border-radius: 5px;"><strong>Suggestion</strong></div>
-                                <div style="text-align: center; padding: 8px; background: #fdf2f8; border-radius: 5px;"><strong>Important</strong></div>
-                                <div style="text-align: center; padding: 8px; background: #fdf2f8; border-radius: 5px;"><strong>Critical</strong></div>
-                                <div style="text-align: center; padding: 8px; background: #fdf2f8; border-radius: 5px;"><strong>Question</strong></div>
-                                <div style="text-align: center; padding: 8px; background: #fdf2f8; border-radius: 5px;"><strong>Clarification</strong></div>
-                            </div>
-                        </div>
-                        
-                        <div style="background: linear-gradient(135deg, #e8f5e8 0%, #d4edda 100%); padding: 15px; border-radius: 10px; border: 2px solid #28a745;">
-                            <h5 style="color: #28a745; margin-bottom: 10px;">✨ Why Use Text Highlighting?</h5>
-                            <div style="text-align: left; color: #155724; font-size: 0.95em; line-height: 1.6;">
-                                ✓ Provide precise, context-specific feedback<br>
-                                ✓ Visually organize your review comments<br>
-                                ✓ Create a clear audit trail of your analysis<br>
-                                ✓ Enhance collaboration with specific text references<br>
-                                ✓ All comments automatically appear in "Custom Feedback" logs
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div style="display: flex; gap: 15px; justify-content: center; flex-wrap: wrap;">
-                        <button class="btn btn-primary" onclick="closeModal('genericModal')" style="padding: 12px 25px; border-radius: 20px; font-weight: 600;">
-                            ✨ Start Using Highlights
-                        </button>
-                        <button class="btn btn-info" onclick="resetHighlightingTutorial()" style="padding: 12px 25px; border-radius: 20px;">
-                            🔄 Reset Tutorial
-                        </button>
-                    </div>
-                </div>
-            `;
-            
-            showModal('genericModal', 'Text Highlighting Feature Guide', modalContent);
-        }
+        // Function removed - now handled by clean_fixes.js
         
         function resetHighlightingTutorial() {
             localStorage.removeItem('hasSeenTextHighlightingPopup');
             showNotification('Tutorial reset! The startup popup will show again on next page load.', 'success');
             closeModal('genericModal');
         }
+        
+        // startAnalysis function now handled by clean_fixes.js
         
         // Missing placeholder functions
         function showTutorial() { showNotification('Tutorial functionality not implemented yet', 'info'); }
@@ -3351,17 +3250,104 @@
             if (modal) modal.style.display = 'block';
         }
         function showPatterns() { showNotification('Pattern analysis functionality not implemented yet', 'info'); }
-        function showActivityLogs() {
-            // Check multiple session sources
-            const sessionId = window.currentSession || (typeof currentSession !== 'undefined' ? currentSession : null) || sessionStorage.getItem('currentSession');
+        
+        // Ensure showMainContent function exists
+        function showMainContent() {
+            const mainContent = document.getElementById('mainContent');
+            const statisticsPanel = document.getElementById('statisticsPanel');
+            const actionButtons = document.getElementById('actionButtons');
+            const customFeedbackSection = document.getElementById('customFeedbackSection');
             
-            if (!sessionId) {
-                showNotification('No active session. Please upload a document first.', 'error');
+            if (mainContent) mainContent.style.display = 'grid';
+            if (statisticsPanel) statisticsPanel.style.display = 'block';
+            if (actionButtons) actionButtons.style.display = 'flex';
+            if (customFeedbackSection) customFeedbackSection.style.display = 'block';
+            
+            console.log('Main content displayed');
+        }
+        
+        // Ensure loadSection function exists
+        function loadSection(index) {
+            if (!sections || index < 0 || index >= sections.length) {
+                console.error('Invalid section index:', index);
                 return;
             }
             
-            console.log('Loading activity logs for session:', sessionId);
+            currentSectionIndex = index;
+            const sectionName = sections[index];
             
+            console.log('Loading section:', sectionName, 'Index:', index);
+            
+            // Update section selector
+            const sectionSelect = document.getElementById('sectionSelect');
+            if (sectionSelect) {
+                sectionSelect.selectedIndex = index + 1;
+            }
+            
+            // Update document content
+            const documentContent = document.getElementById('documentContent');
+            if (documentContent) {
+                documentContent.innerHTML = `
+                    <div style="padding: 20px; text-align: center;">
+                        <h2 style="color: #4f46e5; margin-bottom: 15px;">📄 ${sectionName}</h2>
+                        <p style="color: #666;">Section content would be displayed here...</p>
+                    </div>
+                `;
+            }
+            
+            // Show feedback container with loading animation
+            const feedbackContainer = document.getElementById('feedbackContainer');
+            if (feedbackContainer) {
+                feedbackContainer.innerHTML = `
+                    <div style="text-align: center; padding: 40px; background: linear-gradient(135deg, #f8f9ff 0%, #e3f2fd 100%); border-radius: 15px; border: 2px solid #4f46e5;">
+                        <div style="font-size: 3em; margin-bottom: 20px; animation: analyzing 2s infinite;">🔍</div>
+                        <h3 style="color: #4f46e5; margin-bottom: 10px;">Ready to Analyze</h3>
+                        <p style="color: #666;">Select a section to start AI-powered analysis</p>
+                    </div>
+                `;
+            }
+        }
+        // Ensure updateStatistics function exists
+        function updateStatistics() {
+            console.log('Statistics updated');
+        }
+        
+        function showActivityLogs() {
+            // Check multiple session sources
+            const sessionId = window.currentSession || (typeof currentSession !== 'undefined' ? currentSession : null) || sessionStorage.getItem('currentSession');
+
+            if (!sessionId) {
+                // Show helpful modal instead of just error (Fix for Issue #10)
+                const modalContent = `
+                    <div style="text-align: center; padding: 40px;">
+                        <div style="font-size: 3em; margin-bottom: 20px;">📋</div>
+                        <h3 style="color: #4f46e5; margin-bottom: 20px;">No Session Active</h3>
+                        <p style="color: #666; margin-bottom: 30px;">Upload a document to start tracking activity logs.</p>
+                        <button class="btn btn-primary" onclick="closeModal('genericModal')" style="padding: 12px 25px; border-radius: 20px;">Got it!</button>
+                    </div>
+                `;
+                showModal('genericModal', 'Activity Logs', modalContent);
+                return;
+            }
+
+            // Show loading state (Fix for Issue #10)
+            const loadingContent = `
+                <div style="text-align: center; padding: 40px;">
+                    <div style="font-size: 3em; margin-bottom: 20px; animation: pulse 1.5s infinite;">📋</div>
+                    <h3 style="color: #4f46e5; margin-bottom: 20px;">Loading Activity Logs...</h3>
+                    <div style="background: #f0f0f0; height: 8px; border-radius: 4px; overflow: hidden; max-width: 300px; margin: 0 auto;">
+                        <div style="background: linear-gradient(90deg, #4f46e5, #7c3aed); height: 100%; width: 100%; animation: loading 2s infinite;"></div>
+                    </div>
+                </div>
+                <style>
+                    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+                    @keyframes loading { 0% { transform: translateX(-100%); } 100% { transform: translateX(100%); } }
+                </style>
+            `;
+            showModal('genericModal', 'Activity Logs', loadingContent);
+
+            console.log('Loading activity logs for session:', sessionId);
+
             fetch(`/get_activity_logs?session_id=${sessionId}&format=html`)
             .then(response => {
                 if (!response.ok) {
@@ -3375,12 +3361,20 @@
                 } else if (data.success && data.logs) {
                     displayActivityLogsModal(data.logs, data.summary);
                 } else {
-                    showNotification('Failed to load activity logs: ' + (data.error || 'Unknown error'), 'error');
+                    throw new Error(data.error || 'Failed to load logs');
                 }
             })
             .catch(error => {
                 console.error('Activity logs error:', error);
-                showNotification('Failed to load activity logs: ' + error.message, 'error');
+                const errorContent = `
+                    <div style="text-align: center; padding: 40px;">
+                        <div style="font-size: 3em; margin-bottom: 20px;">❌</div>
+                        <h3 style="color: #ef4444; margin-bottom: 20px;">Failed to Load Logs</h3>
+                        <p style="color: #666; margin-bottom: 30px;">${error.message}</p>
+                        <button class="btn btn-primary" onclick="closeModal('genericModal')" style="padding: 12px 25px; border-radius: 20px;">Close</button>
+                    </div>
+                `;
+                showModal('genericModal', 'Activity Logs Error', errorContent);
             });
         }
         
@@ -4259,13 +4253,16 @@
         function sendChatMessage() {
             const input = document.getElementById('chatInput');
             const message = input.value.trim();
-            
+
             if (!message) {
                 showNotification('Please enter a message', 'warning');
                 return;
             }
-            
-            if (!currentSession) {
+
+            // Check for session in multiple scopes (same as activity logs)
+            const sessionId = window.currentSession || currentSession || sessionStorage.getItem('currentSession');
+
+            if (!sessionId) {
                 showNotification('No active session. Please upload a document first.', 'error');
                 return;
             }
@@ -4284,7 +4281,7 @@
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
-                    session_id: currentSession,
+                    session_id: sessionId,
                     message: message,
                     current_section: sections[currentSectionIndex] || '',
                     ai_model: currentAIModel
@@ -4349,19 +4346,8 @@
         }
 
         // Note: Main initialization is handled above
-        
-        function loadDarkModePreference() {
-            const savedDarkMode = localStorage.getItem('darkMode');
-            if (savedDarkMode === 'true') {
-                isDarkMode = true;
-                document.body.classList.add('dark-mode');
-                const button = document.getElementById('darkModeToggle');
-                if (button) {
-                    button.textContent = '☀️ Light Mode';
-                    button.className = 'btn btn-warning';
-                }
-            }
-        }
+        // loadDarkModePreference() is now handled by core_fixes.js
+        // Removed duplicate implementation to fix dark mode functionality
 
         function setupEventListeners() {
             // File input changes
@@ -6350,29 +6336,37 @@
         function sendChatMessage() {
             const input = document.getElementById('chatInput');
             const message = input.value.trim();
-            
+
             if (!message) return;
-            
+
+            // Check for session in multiple scopes (CRITICAL FIX)
+            const sessionId = window.currentSession || currentSession || sessionStorage.getItem('currentSession');
+
+            if (!sessionId) {
+                showNotification('Please upload a document first to start chatting.', 'error');
+                return;
+            }
+
             // Add user message to chat
             addChatMessage(message, 'user');
             input.value = '';
-            
+
             // Add thinking message
             addChatMessage('🤔 Thinking...', 'assistant', true);
-            
-            sendChatWithFallback(message, 0);
+
+            sendChatWithFallback(message, 0, sessionId);
         }
-        
-        function sendChatWithFallback(message, modelIndex) {
+
+        function sendChatWithFallback(message, modelIndex, sessionId) {
             const modelToUse = modelFallbackOrder[modelIndex] || currentAIModel;
-            
+
             fetch('/chat', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
-                    session_id: currentSession,
+                    session_id: sessionId,
                     message: message,
                     current_section: sections[currentSectionIndex],
                     ai_model: modelToUse
@@ -6392,7 +6386,7 @@
                     // Try next model in fallback order
                     showNotification(`${availableModels[modelToUse]} failed, trying ${availableModels[modelFallbackOrder[modelIndex + 1]]}...`, 'info');
                     addChatMessage('🤔 Switching to backup AI model...', 'assistant', true);
-                    setTimeout(() => sendChatWithFallback(message, modelIndex + 1), 1000);
+                    setTimeout(() => sendChatWithFallback(message, modelIndex + 1, sessionId), 1000);
                 } else {
                     addChatMessage('Sorry, all AI models are currently unavailable. Please try again later.', 'assistant');
                 }
@@ -6405,7 +6399,7 @@
                     if (thinkingMessage) {
                         thinkingMessage.innerHTML = '<strong>🤖 AI-Prism:</strong><br>🤔 Switching to backup AI model...';
                     }
-                    setTimeout(() => sendChatWithFallback(message, modelIndex + 1), 1000);
+                    setTimeout(() => sendChatWithFallback(message, modelIndex + 1, sessionId), 1000);
                 } else {
                     const thinkingMessage = document.querySelector('.chat-message.thinking');
                     if (thinkingMessage) {
@@ -6479,16 +6473,23 @@
             
             const lastUserMessage = chatMessages[chatMessages.length - 1];
             const messageText = lastUserMessage.textContent.replace('You:', '').trim();
-            
+
+            // Check for session
+            const sessionId = window.currentSession || currentSession || sessionStorage.getItem('currentSession');
+            if (!sessionId) {
+                showNotification('Please upload a document first.', 'error');
+                return;
+            }
+
             // Remove last assistant response
             const assistantMessages = document.querySelectorAll('.chat-message.assistant');
             if (assistantMessages.length > 1) { // Keep the welcome message
                 assistantMessages[assistantMessages.length - 1].remove();
             }
-            
+
             // Regenerate with current model
             addChatMessage('🤔 Regenerating response...', 'assistant', true);
-            sendChatWithFallback(messageText, currentModelIndex);
+            sendChatWithFallback(messageText, currentModelIndex, sessionId);
         }
 
         function addChatMessage(message, sender, isThinking = false, aiModel = null) {
@@ -6585,19 +6586,8 @@
             showNotification(`Downloading statistics as ${format.toUpperCase()}...`, 'info');
         }
 
-        function toggleDarkMode() {
-            isDarkMode = !isDarkMode;
-            document.body.classList.toggle('dark-mode', isDarkMode);
-            
-            const button = document.getElementById('darkModeToggle');
-            if (button) {
-                button.textContent = isDarkMode ? '☀️ Light Mode' : '🌙 Dark Mode';
-                button.className = isDarkMode ? 'btn btn-warning' : 'btn btn-secondary';
-            }
-            
-            // Save preference
-            localStorage.setItem('darkMode', isDarkMode.toString());
-        }
+        // toggleDarkMode() is now handled by core_fixes.js
+        // Removed duplicate implementation to fix dark mode functionality
 
         function showShortcuts() {
             document.getElementById('shortcutsModal').style.display = 'block';
@@ -8294,5 +8284,10 @@
             }
         }
     </script>
+
+    <!-- Global function fixes for Issues #1-4 and #9-13 -->
+    <!-- NOTE: Removed duplicate script loads to prevent function override conflicts -->
+    <!-- All necessary functions are properly defined in global_function_fixes.js -->
+    <script src="{{ url_for('static', filename='js/global_function_fixes.js') }}"></script>
 </body>
 </html>

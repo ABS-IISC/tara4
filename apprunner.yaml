@@ -13,25 +13,106 @@ run:
     port: 8080
     env: PORT
   env:
+    # ========================================
+    # APPLICATION CONFIGURATION
+    # ========================================
     - name: PORT
       value: "8080"
+    - name: FLASK_ENV
+      value: "production"
+
+    # ========================================
+    # AWS BEDROCK CONFIGURATION
+    # ========================================
     - name: AWS_REGION
       value: "us-east-1"
     - name: AWS_DEFAULT_REGION
       value: "us-east-1"
+
+    # ========================================
+    # CLAUDE MODEL CONFIGURATION
+    # Primary Model: Claude 3.5 Sonnet (App Runner Compatible)
+    #
+    # Available Models (All Generations):
+    # CLAUDE 4.5 (Latest):
+    #   - claude-sonnet-4-5-20250929 (Sonnet 4.5 - Highest capability)
+    #   - claude-haiku-4-5-20251001 (Haiku 4.5 - Fast & capable)
+    # CLAUDE 4.1:
+    #   - claude-opus-4-1-20250805 (Opus 4.1 - Premium)
+    # CLAUDE 4:
+    #   - claude-sonnet-4-20250514 (Sonnet 4)
+    #   - claude-opus-4-20250514 (Opus 4)
+    # CLAUDE 3.7:
+    #   - claude-3-7-sonnet-20250219 (Sonnet 3.7)
+    # CLAUDE 3.5:
+    #   - claude-3-5-sonnet-20240620 (Recommended - On-demand)
+    #   - claude-3-5-sonnet-20241022 (Alternative - v2)
+    #   - claude-3-5-haiku-20241022 (Fast)
+    # CLAUDE 3:
+    #   - claude-3-opus-20240229 (Premium)
+    #   - claude-3-sonnet-20240229 (Balanced)
+    #   - claude-3-haiku-20240307 (Fast, low cost)
+    #
+    # Format Options:
+    #   - anthropic.MODEL-NAME (Standard - single region)
+    #   - us.anthropic.MODEL-NAME (Cross-region inference profile)
+    # ========================================
     - name: BEDROCK_MODEL_ID
       value: "anthropic.claude-3-5-sonnet-20240620-v1:0"
-    - name: FLASK_ENV
-      value: "production"
-    - name: S3_BUCKET_NAME
-      value: "felix-s3-bucket"
-    - name: S3_BASE_PATH
-      value: "tara/"
+
+    # Fallback models (comma-separated, in priority order)
+    # Try newest models first, then stable 3.5, then fast models
+    - name: BEDROCK_FALLBACK_MODELS
+      value: "anthropic.claude-sonnet-4-5-20250929-v1:0,anthropic.claude-3-5-sonnet-20241022-v2:0,anthropic.claude-3-7-sonnet-20250219-v1:0,anthropic.claude-3-5-haiku-20241022-v1:0,anthropic.claude-3-sonnet-20240229-v1:0,anthropic.claude-3-haiku-20240307-v1:0"
+
+    # Enable automatic model fallback on failure
+    - name: ENABLE_MODEL_FALLBACK
+      value: "true"
+
+    # Use cross-region inference profiles (us.anthropic. prefix)
+    # Cross-region profiles work across all AWS regions
+    - name: USE_CROSS_REGION_INFERENCE
+      value: "false"
+
+    # ========================================
+    # MODEL PARAMETERS
+    # ========================================
     - name: BEDROCK_MAX_TOKENS
       value: "8192"
     - name: BEDROCK_TEMPERATURE
       value: "0.7"
+    - name: BEDROCK_TIMEOUT
+      value: "30"
+    - name: BEDROCK_RETRY_ATTEMPTS
+      value: "2"
+    - name: BEDROCK_RETRY_DELAY
+      value: "1.0"
+
+    # ========================================
+    # REASONING CONFIGURATION (Claude 3.7+ only)
+    # Note: Reasoning is automatically disabled for models that don't support it
+    # ========================================
     - name: REASONING_ENABLED
-      value: "true"
+      value: "false"
     - name: REASONING_BUDGET_TOKENS
       value: "2000"
+
+    # ========================================
+    # S3 STORAGE CONFIGURATION
+    # ========================================
+    - name: S3_BUCKET_NAME
+      value: "felix-s3-bucket"
+    - name: S3_BASE_PATH
+      value: "tara/"
+    - name: S3_REGION
+      value: "us-east-1"
+
+    # ========================================
+    # MULTI-MODEL CHAT CONFIGURATION
+    # Enable chatbot to try multiple models automatically
+    # Priority: Newest -> Stable -> Fast
+    # ========================================
+    - name: CHAT_ENABLE_MULTI_MODEL
+      value: "true"
+    - name: CHAT_MODEL_PRIORITY
+      value: "claude-sonnet-4-5,claude-haiku-4-5,claude-opus-4-1,claude-sonnet-4,claude-3-7-sonnet,claude-3-5-sonnet,claude-3-5-haiku,claude-3-opus,claude-3-sonnet,claude-3-haiku"

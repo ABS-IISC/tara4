@@ -1935,13 +1935,26 @@ def export_to_s3():
 
 @app.route('/test_s3_connection', methods=['GET'])
 def test_s3_connection():
-    """Test S3 connectivity and return status"""
+    """Test S3 connectivity and return detailed status"""
     try:
         session_id = request.args.get('session_id') or session.get('session_id')
-        
+
         # Test S3 connection
         connection_status = s3_export_manager.test_s3_connection()
-        
+
+        # Add detailed configuration information
+        detailed_status = {
+            **connection_status,
+            'region': os.environ.get('S3_REGION', 'us-east-1'),
+            'connection_type': 'AWS Bedrock SDK (boto3)',
+            'base_path': s3_export_manager.base_path,
+            'full_path': f"s3://{connection_status.get('bucket_name', 'unknown')}/{s3_export_manager.base_path}",
+            'credentials_source': 'AWS Profile (admin-abhsatsa)' if os.environ.get('AWS_PROFILE') else 'Environment Variables',
+            'service': 'Amazon S3',
+            'sdk_version': 'boto3',
+            'access_permissions': 'Read/Write' if connection_status.get('bucket_accessible') else 'None'
+        }
+
         # Log the test if we have a session
         if session_id and session_id in sessions:
             review_session = sessions[session_id]
@@ -1955,10 +1968,10 @@ def test_s3_connection():
                 },
                 error=connection_status.get('error')
             )
-        
+
         return jsonify({
             'success': True,
-            's3_status': connection_status,
+            's3_status': detailed_status,
             'timestamp': datetime.now().isoformat()
         })
     except Exception as e:
@@ -1980,12 +1993,81 @@ def test_s3_connection():
             }
         }), 500
 
+@app.route('/test_claude_connection', methods=['GET'])
+def test_claude_connection():
+    """Test Claude AI connectivity and return detailed status"""
+    try:
+        session_id = request.args.get('session_id') or session.get('session_id')
+
+        # Test Claude connection with a simple test prompt
+        test_response = ai_engine.test_connection()
+
+        # Get model configuration for additional details
+        from config.model_config import model_config
+        config = model_config.get_model_config()
+
+        # Add detailed configuration information
+        detailed_status = {
+            **test_response,
+            'connection_type': 'AWS Bedrock Runtime',
+            'service': 'Amazon Bedrock',
+            'sdk_version': 'boto3',
+            'region': config.get('region', 'us-east-1'),
+            'max_tokens': config.get('max_tokens', 8192),
+            'temperature': config.get('temperature', 0.7),
+            'reasoning_enabled': config.get('reasoning_enabled', False),
+            'anthropic_version': config.get('anthropic_version', 'bedrock-2023-05-31'),
+            'supports_reasoning': config.get('supports_reasoning', False),
+            'fallback_models': config.get('fallback_models', []),
+            'credentials_source': 'AWS Profile (admin-abhsatsa)' if os.environ.get('AWS_PROFILE') else 'Environment Variables'
+        }
+
+        # Log the test if we have a session
+        if session_id and session_id in sessions:
+            review_session = sessions[session_id]
+            review_session.activity_logger.log_activity(
+                'Claude Connection Test',
+                {
+                    'status': 'success' if test_response['connected'] else 'failed',
+                    'model': test_response.get('model', 'unknown'),
+                    'response_time': test_response.get('response_time', 0)
+                },
+                category='AI'
+            )
+
+        return jsonify({
+            'success': True,
+            'claude_status': detailed_status,
+            'timestamp': datetime.now().isoformat()
+        })
+    except Exception as e:
+        # Log the failed test if we have a session
+        if session_id and session_id in sessions:
+            review_session = sessions[session_id]
+            review_session.activity_logger.log_activity(
+                'Claude Connection Test',
+                {
+                    'status': 'failed',
+                    'error': str(e)
+                },
+                category='AI'
+            )
+
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'claude_status': {
+                'connected': False,
+                'error': f'Test failed: {str(e)}'
+            }
+        }), 500
+
 @app.route('/clear_all_user_feedback', methods=['POST'])
 def clear_all_user_feedback():
     try:
         data = request.get_json()
         session_id = data.get('session_id') or session.get('session_id')
-        
+
         if not session_id or session_id not in sessions:
             return jsonify({'error': 'Invalid session'}), 400
         

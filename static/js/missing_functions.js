@@ -17,9 +17,9 @@ window.finalDocumentData = window.finalDocumentData || null;
 window.isDarkMode = window.isDarkMode || false;
 window.documentZoom = window.documentZoom || 100;
 
-// Core missing functions
+// Core missing functions - Updated to use new progress system
 function startAnalysis() {
-    console.log('startAnalysis called');
+    console.log('startAnalysis called - using new progress system');
     
     if (!window.analysisFile) {
         showNotification('Please select a document for analysis', 'error');
@@ -32,7 +32,14 @@ function startAnalysis() {
         startBtn.textContent = 'Starting...';
     }
     
-    handleFileSelection(window.analysisFile, window.guidelinesFile);
+    // Use the new progress system from progress_functions.js
+    if (typeof window.startAnalysis !== 'undefined' && window.startAnalysis !== startAnalysis) {
+        // Call the new progress system function
+        window.startAnalysis();
+    } else {
+        // Fallback to original system
+        handleFileSelection(window.analysisFile, window.guidelinesFile);
+    }
 }
 
 function handleFileSelection(analysisFile, guidelinesFile = null) {
@@ -215,11 +222,12 @@ function analyzeNextSection() {
     const progressDesc = document.getElementById('progressDesc');
     
     if (progressTitle) {
-        progressTitle.textContent = `🤖 AI-Prism is analyzing "${sectionName}"...`;
+        progressTitle.textContent = `🤖 Analyzing...`;
     }
-    
+
     if (progressDesc) {
-        progressDesc.textContent = `Section ${window.currentAnalysisStep + 1} of ${window.sections.length} - Applying Hawkeye framework and generating intelligent feedback`;
+        const percent = Math.round(((window.currentAnalysisStep + 1) / window.sections.length) * 100);
+        progressDesc.textContent = `${percent}% complete - Section ${window.currentAnalysisStep + 1} of ${window.sections.length}`;
     }
     
     fetch('/analyze_section', {
@@ -329,7 +337,17 @@ function completeAnalysis() {
 }
 
 function loadSection(index) {
-    console.log('loadSection called with index:', index);
+    console.log('loadSection called with index:', index, '- checking for new progress system');
+    
+    // Check if the new progress system loadSection exists
+    if (typeof window.loadSection !== 'undefined' && window.loadSection !== loadSection) {
+        console.log('Using new progress system loadSection');
+        window.loadSection(index);
+        return;
+    }
+    
+    // Fallback to original system
+    console.log('Using fallback loadSection');
     
     if (index < 0 || index >= window.sections.length) return;
     
@@ -579,6 +597,16 @@ function acceptFeedback(feedbackId, event) {
             showNotification('Feedback accepted!', 'success');
             updateFeedbackStatus(feedbackId, 'accepted');
             updateStatistics();
+
+            // Log activity for real-time display (Fix for Issue #13)
+            if (window.logAIFeedbackActivity) {
+                window.logAIFeedbackActivity(feedbackId, 'accepted');
+            }
+
+            // Update real-time logs
+            if (window.updateRealTimeFeedbackLogs) {
+                window.updateRealTimeFeedbackLogs();
+            }
         } else {
             showNotification(data.error || 'Accept failed', 'error');
         }
@@ -608,6 +636,16 @@ function rejectFeedback(feedbackId, event) {
             showNotification('Feedback rejected!', 'info');
             updateFeedbackStatus(feedbackId, 'rejected');
             updateStatistics();
+
+            // Log activity for real-time display (Fix for Issue #13)
+            if (window.logAIFeedbackActivity) {
+                window.logAIFeedbackActivity(feedbackId, 'rejected');
+            }
+
+            // Update real-time logs
+            if (window.updateRealTimeFeedbackLogs) {
+                window.updateRealTimeFeedbackLogs();
+            }
         } else {
             showNotification(data.error || 'Reject failed', 'error');
         }
@@ -816,25 +854,36 @@ function sendChatMessage() {
     
     addChatMessage(message, 'user');
     input.value = '';
-    
-    if (!window.currentSession) {
+
+    // Check for session in multiple locations (window, currentSession global, sessionStorage)
+    const sessionId = window.currentSession || (typeof currentSession !== 'undefined' ? currentSession : null) || sessionStorage.getItem('currentSession');
+
+    if (!sessionId) {
         addChatMessage('Please upload a document first to start chatting.', 'assistant');
         return;
     }
-    
+
+    // Add thinking indicator
+    const thinkingMessage = addChatMessage('🤔 Thinking...', 'assistant', true);
+
     fetch('/chat', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-            session_id: window.currentSession,
+            session_id: sessionId,
             message: message,
             current_section: window.sections[window.currentSectionIndex] || null
         })
     })
     .then(response => response.json())
     .then(data => {
+        // Remove thinking indicator
+        if (thinkingMessage && thinkingMessage.parentNode) {
+            thinkingMessage.remove();
+        }
+
         if (data.success) {
             addChatMessage(data.response, 'assistant');
         } else {
@@ -842,6 +891,10 @@ function sendChatMessage() {
         }
     })
     .catch(error => {
+        // Remove thinking indicator
+        if (thinkingMessage && thinkingMessage.parentNode) {
+            thinkingMessage.remove();
+        }
         addChatMessage('Sorry, I encountered an error. Please try again.', 'assistant');
     });
 }
@@ -852,15 +905,15 @@ function handleChatKeyPress(event) {
     }
 }
 
-function addChatMessage(message, sender) {
+function addChatMessage(message, sender, isThinking = false) {
     const container = document.getElementById('chatContainer');
-    if (!container) return;
-    
+    if (!container) return null;
+
     const messageDiv = document.createElement('div');
     messageDiv.className = `chat-message ${sender}`;
-    
+
     const timestamp = new Date().toLocaleTimeString();
-    
+
     if (sender === 'user') {
         messageDiv.innerHTML = `<strong>👤 You:</strong> <small style="opacity: 0.7;">${timestamp}</small><br>${message}`;
         messageDiv.style.background = 'linear-gradient(135deg, #10b981, #059669)';
@@ -869,7 +922,13 @@ function addChatMessage(message, sender) {
         messageDiv.style.marginLeft = 'auto';
         messageDiv.style.marginRight = '0';
     } else {
-        messageDiv.innerHTML = `<strong>🤖 AI-Prism:</strong> <small style="opacity: 0.7;">${timestamp}</small><br>${message}`;
+        // If thinking indicator, add pulsing animation
+        if (isThinking) {
+            messageDiv.innerHTML = `<strong>🤖 AI-Prism:</strong> <small style="opacity: 0.7;">${timestamp}</small><br><span style="animation: pulse 1.5s infinite;">${message}</span>`;
+            messageDiv.style.opacity = '0.8';
+        } else {
+            messageDiv.innerHTML = `<strong>🤖 AI-Prism:</strong> <small style="opacity: 0.7;">${timestamp}</small><br>${message}`;
+        }
         messageDiv.style.background = 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)';
         messageDiv.style.color = 'white';
         messageDiv.style.borderRadius = '12px';
@@ -881,9 +940,12 @@ function addChatMessage(message, sender) {
     messageDiv.style.marginBottom = '15px';
     messageDiv.style.maxWidth = '80%';
     messageDiv.style.boxShadow = '0 3px 10px rgba(0,0,0,0.2)';
-    
+
     container.appendChild(messageDiv);
     container.scrollTop = container.scrollHeight;
+
+    // Return the message element so it can be removed later (for thinking indicator)
+    return messageDiv;
 }
 
 // Custom feedback functions
@@ -1204,8 +1266,11 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
-    
-    // Load dark mode preference
+
+    // DEPRECATED: Dark mode preference loading is now handled by core_fixes.js
+    // This section is disabled to prevent conflicts
+    // Dark mode initialization is managed exclusively by core_fixes.js
+    /*
     const savedDarkMode = localStorage.getItem('darkMode');
     if (savedDarkMode === 'true') {
         window.isDarkMode = true;
@@ -1216,7 +1281,8 @@ document.addEventListener('DOMContentLoaded', function() {
             button.className = 'btn btn-warning';
         }
     }
-    
+    */
+
     // Initialize text highlighting if available
     if (typeof enableTextSelection === 'function') {
         // Enable text selection after a short delay to ensure DOM is ready
@@ -1318,42 +1384,7 @@ function resetHighlightingTutorial() {
 
 console.log('Missing functions implementation loaded successfully');
 
-// Debug function to check session status
-function checkSessionStatus() {
-    const sessionInfo = {
-        windowCurrentSession: window.currentSession,
-        currentSession: typeof currentSession !== 'undefined' ? currentSession : 'undefined',
-        sessionStorage: sessionStorage.getItem('currentSession'),
-        sections: window.sections ? window.sections.length : 0,
-        windowSections: window.sections,
-        sectionData: window.sectionData ? Object.keys(window.sectionData).length : 0
-    };
-    
-    console.log('Session Status:', sessionInfo);
-    
-    const modalContent = `
-        <div style="padding: 20px;">
-            <h3 style="color: #4f46e5; margin-bottom: 20px;">🔍 Session Debug Information</h3>
-            <div style="background: #f8f9ff; padding: 15px; border-radius: 8px; font-family: monospace; font-size: 12px;">
-                <div><strong>window.currentSession:</strong> ${sessionInfo.windowCurrentSession || 'null'}</div>
-                <div><strong>currentSession:</strong> ${sessionInfo.currentSession}</div>
-                <div><strong>sessionStorage:</strong> ${sessionInfo.sessionStorage || 'null'}</div>
-                <div><strong>sections count:</strong> ${sessionInfo.sections}</div>
-                <div><strong>sectionData count:</strong> ${sessionInfo.sectionData}</div>
-            </div>
-            <div style="margin-top: 20px; text-align: center;">
-                <button class="btn btn-primary" onclick="closeModal('genericModal')" style="padding: 10px 20px;">Close</button>
-            </div>
-        </div>
-    `;
-    
-    showModal('genericModal', 'Session Debug', modalContent);
-    
-    return sessionInfo;
-}
 
-// Make it globally available
-window.checkSessionStatus = checkSessionStatus;
 
 // Quick custom feedback function for the static form in feedback panel
 function addQuickCustomFeedback() {
