@@ -2180,9 +2180,21 @@ def test_claude_connection():
         # Test Claude connection with a simple test prompt
         test_response = ai_engine.test_connection()
 
-        # Get model configuration for additional details
-        from config.model_config import model_config
-        config = model_config.get_model_config()
+        # Get model configuration for additional details (with fallback)
+        try:
+            from config.model_config import model_config
+            config = model_config.get_model_config()
+        except (ImportError, ModuleNotFoundError):
+            # Fallback configuration if config module not found
+            config = {
+                'region': os.environ.get('AWS_REGION', 'us-east-1'),
+                'max_tokens': int(os.environ.get('BEDROCK_MAX_TOKENS', 8192)),
+                'temperature': float(os.environ.get('BEDROCK_TEMPERATURE', 0.7)),
+                'reasoning_enabled': os.environ.get('REASONING_ENABLED', 'false').lower() == 'true',
+                'anthropic_version': 'bedrock-2023-05-31',
+                'supports_reasoning': False,
+                'fallback_models': []
+            }
 
         # Add detailed configuration information
         detailed_status = {
@@ -2197,16 +2209,16 @@ def test_claude_connection():
             'anthropic_version': config.get('anthropic_version', 'bedrock-2023-05-31'),
             'supports_reasoning': config.get('supports_reasoning', False),
             'fallback_models': config.get('fallback_models', []),
-            'credentials_source': 'AWS Profile (admin-abhsatsa)' if os.environ.get('AWS_PROFILE') else 'Environment Variables'
+            'credentials_source': 'IAM Role (App Runner)' if not os.environ.get('AWS_ACCESS_KEY_ID') else 'Environment Variables'
         }
 
         # Log the test if we have a session
         if session_id and session_id in sessions:
             review_session = sessions[session_id]
+            # Use correct log_activity signature (action, details_dict)
             review_session.activity_logger.log_activity(
-                action='Claude Connection Test',
-                status='success' if test_response['connected'] else 'failed',
-                details={
+                'Claude Connection Test - Success' if test_response['connected'] else 'Claude Connection Test - Failed',
+                {
                     'model': test_response.get('model', 'unknown'),
                     'response_time': test_response.get('response_time', 0)
                 }
@@ -2219,16 +2231,18 @@ def test_claude_connection():
         })
     except Exception as e:
         # Log the failed test if we have a session
-        if session_id and session_id in sessions:
-            review_session = sessions[session_id]
-            review_session.activity_logger.log_activity(
-                'Claude Connection Test',
-                {
-                    'status': 'failed',
-                    'error': str(e)
-                },
-                category='AI'
-            )
+        try:
+            if session_id and session_id in sessions:
+                review_session = sessions[session_id]
+                # Use correct log_activity signature (action, details_dict)
+                review_session.activity_logger.log_activity(
+                    'Claude Connection Test - Error',
+                    {
+                        'error': str(e)
+                    }
+                )
+        except:
+            pass  # Don't let logging errors prevent error response
 
         return jsonify({
             'success': False,
