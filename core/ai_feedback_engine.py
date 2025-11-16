@@ -30,11 +30,25 @@ except ImportError:
             }
         
         def has_credentials(self):
+            """Check if AWS credentials are available (env vars OR IAM role)"""
             try:
                 import boto3
                 session = boto3.Session()
                 credentials = session.get_credentials()
-                return credentials is not None and credentials.access_key and credentials.secret_key
+                # For IAM roles, credentials exist but might not have direct access_key property
+                # Try to access it to force credential resolution
+                if credentials:
+                    try:
+                        _ = credentials.access_key  # Force credential fetch
+                        return True
+                    except:
+                        pass
+                # Fallback: Try creating a bedrock client as ultimate test
+                try:
+                    bedrock = boto3.client('bedrock-runtime', region_name=os.environ.get('AWS_REGION', 'us-east-1'))
+                    return True
+                except:
+                    return False
             except:
                 return False
         
@@ -331,25 +345,18 @@ class AIFeedbackEngine:
                 return self._mock_ai_response(user_prompt)
             
             config = model_config.get_model_config()
-            
-            # Try to create Bedrock client with profile first, then fallback to default
-            runtime = None
-            try:
-                # Try with admin-abhsatsa profile
-                session = boto3.Session(profile_name='admin-abhsatsa')
-                runtime = session.client(
-                    'bedrock-runtime',
-                    region_name=config['region']
-                )
-                print(f"🔑 Using AWS profile: admin-abhsatsa")
-            except Exception as profile_error:
-                print(f"⚠️ Profile error: {profile_error}")
-                # Fallback to default session
-                runtime = boto3.client(
-                    'bedrock-runtime',
-                    region_name=config['region']
-                )
-                print(f"🔑 Using default AWS credentials")
+
+            # Create Bedrock client using default credentials (works with both env vars and IAM roles)
+            runtime = boto3.client(
+                'bedrock-runtime',
+                region_name=config['region']
+            )
+
+            # Check credential source for logging
+            if os.environ.get('AWS_ACCESS_KEY_ID'):
+                print(f"🔑 Using AWS credentials from environment variables")
+            else:
+                print(f"🔑 Using AWS credentials from IAM role (App Runner)")
             
             # Generate request body using model config
             body = model_config.get_bedrock_request_body(system_prompt, user_prompt)
@@ -662,24 +669,17 @@ Document Type: Full Write-up"""
             import boto3
             config = model_config.get_model_config()
 
-            # Try to create Bedrock client with profile first, then fallback to default
-            runtime = None
-            try:
-                # Try with admin-abhsatsa profile
-                session = boto3.Session(profile_name='admin-abhsatsa')
-                runtime = session.client(
-                    'bedrock-runtime',
-                    region_name=config['region']
-                )
-                print(f"🔑 Chat using AWS profile: admin-abhsatsa")
-            except Exception as profile_error:
-                print(f"⚠️ Profile error: {profile_error}")
-                # Fallback to default session
-                runtime = boto3.client(
-                    'bedrock-runtime',
-                    region_name=config['region']
-                )
-                print(f"🔑 Chat using default AWS credentials")
+            # Create Bedrock client using default credentials (works with both env vars and IAM roles)
+            runtime = boto3.client(
+                'bedrock-runtime',
+                region_name=config['region']
+            )
+
+            # Check credential source for logging
+            if os.environ.get('AWS_ACCESS_KEY_ID'):
+                print(f"🔑 Chat using AWS credentials from environment variables")
+            else:
+                print(f"🔑 Chat using AWS credentials from IAM role (App Runner)")
 
             body = model_config.get_bedrock_request_body(system_prompt, prompt)
 
@@ -747,16 +747,14 @@ Document Type: Full Write-up"""
 
         print(f"🔄 Multi-model chat enabled - {len(models_to_try)} models available")
 
-        # Create Bedrock runtime client
-        runtime = None
-        try:
-            # Try with admin-abhsatsa profile
-            session = boto3.Session(profile_name='admin-abhsatsa')
-            runtime = session.client('bedrock-runtime', region_name=config['region'])
-            print(f"🔑 Chat using AWS profile: admin-abhsatsa")
-        except Exception:
-            runtime = boto3.client('bedrock-runtime', region_name=config['region'])
-            print(f"🔑 Chat using default AWS credentials")
+        # Create Bedrock runtime client using default credentials (works with both env vars and IAM roles)
+        runtime = boto3.client('bedrock-runtime', region_name=config['region'])
+
+        # Check credential source for logging
+        if os.environ.get('AWS_ACCESS_KEY_ID'):
+            print(f"🔑 Multi-model chat using AWS credentials from environment variables")
+        else:
+            print(f"🔑 Multi-model chat using AWS credentials from IAM role (App Runner)")
 
         # Try each model in priority order
         for model in models_to_try:
