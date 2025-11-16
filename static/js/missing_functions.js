@@ -480,11 +480,18 @@ function displayFeedback(feedbackItems, sectionName) {
         return;
     }
 
+    // ✅ SORT: Order feedback by confidence (high to low)
+    const sortedFeedbackItems = [...feedbackItems].sort((a, b) => {
+        const confidenceA = a.confidence || 0.8;
+        const confidenceB = b.confidence || 0.8;
+        return confidenceB - confidenceA; // High confidence first
+    });
+
     let html = '';
-    feedbackItems.forEach(item => {
+    sortedFeedbackItems.forEach(item => {
         const riskClass = `risk-${item.risk_level.toLowerCase()}`;
         const typeClass = `type-${item.type}`;
-        
+
         html += `
             <div class="feedback-item" data-feedback-id="${item.id}" onclick="selectFeedback('${item.id}')">
                 <div class="feedback-header">
@@ -577,83 +584,10 @@ function selectFeedback(feedbackId) {
     }
 }
 
-function acceptFeedback(feedbackId, event) {
-    if (event) event.stopPropagation();
-    
-    fetch('/accept_feedback', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-            session_id: window.currentSession,
-            section_name: window.sections[window.currentSectionIndex],
-            feedback_id: feedbackId
-        })
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            showNotification('Feedback accepted!', 'success');
-            updateFeedbackStatus(feedbackId, 'accepted');
-            updateStatistics();
-
-            // Log activity for real-time display (Fix for Issue #13)
-            if (window.logAIFeedbackActivity) {
-                window.logAIFeedbackActivity(feedbackId, 'accepted');
-            }
-
-            // Update real-time logs
-            if (window.updateRealTimeFeedbackLogs) {
-                window.updateRealTimeFeedbackLogs();
-            }
-        } else {
-            showNotification(data.error || 'Accept failed', 'error');
-        }
-    })
-    .catch(error => {
-        showNotification('Accept failed: ' + error.message, 'error');
-    });
-}
-
-function rejectFeedback(feedbackId, event) {
-    if (event) event.stopPropagation();
-    
-    fetch('/reject_feedback', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-            session_id: window.currentSession,
-            section_name: window.sections[window.currentSectionIndex],
-            feedback_id: feedbackId
-        })
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            showNotification('Feedback rejected!', 'info');
-            updateFeedbackStatus(feedbackId, 'rejected');
-            updateStatistics();
-
-            // Log activity for real-time display (Fix for Issue #13)
-            if (window.logAIFeedbackActivity) {
-                window.logAIFeedbackActivity(feedbackId, 'rejected');
-            }
-
-            // Update real-time logs
-            if (window.updateRealTimeFeedbackLogs) {
-                window.updateRealTimeFeedbackLogs();
-            }
-        } else {
-            showNotification(data.error || 'Reject failed', 'error');
-        }
-    })
-    .catch(error => {
-        showNotification('Reject failed: ' + error.message, 'error');
-    });
-}
+// ❌ REMOVED: acceptFeedback and rejectFeedback functions
+// These functions are now ONLY defined in global_function_fixes.js (single source of truth)
+// All action button functions (accept, reject, revert, update) are centralized there
+// This eliminates conflicts from multiple function definitions
 
 function updateFeedbackStatus(feedbackId, status) {
     const feedbackItem = document.querySelector(`[data-feedback-id="${feedbackId}"]`);

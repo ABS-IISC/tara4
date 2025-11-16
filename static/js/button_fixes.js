@@ -564,89 +564,10 @@ function updateStatistics() {
     console.log('updateStatistics called');
 }
 
-// Accept Feedback Function
-function acceptFeedback(feedbackId, event) {
-    if (event) event.stopPropagation();
-    
-    syncSessionVariables();
-    const sessionId = currentSession || window.currentSession || sessionStorage.getItem('currentSession');
-    
-    if (!sessionId) {
-        showNotification('No active session', 'error');
-        return;
-    }
-    
-    const sectionName = sections[currentSectionIndex];
-    if (!sectionName) {
-        showNotification('No section selected', 'error');
-        return;
-    }
-    
-    fetch('/accept_feedback', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            session_id: sessionId,
-            section_name: sectionName,
-            feedback_id: feedbackId
-        })
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            showNotification('Feedback accepted!', 'success');
-            updateFeedbackStatus(feedbackId, 'accepted');
-            updateStatistics();
-        } else {
-            showNotification(data.error || 'Accept failed', 'error');
-        }
-    })
-    .catch(error => {
-        showNotification('Accept failed: ' + error.message, 'error');
-    });
-}
-
-// Reject Feedback Function
-function rejectFeedback(feedbackId, event) {
-    if (event) event.stopPropagation();
-    
-    syncSessionVariables();
-    const sessionId = currentSession || window.currentSession || sessionStorage.getItem('currentSession');
-    
-    if (!sessionId) {
-        showNotification('No active session', 'error');
-        return;
-    }
-    
-    const sectionName = sections[currentSectionIndex];
-    if (!sectionName) {
-        showNotification('No section selected', 'error');
-        return;
-    }
-    
-    fetch('/reject_feedback', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            session_id: sessionId,
-            section_name: sectionName,
-            feedback_id: feedbackId
-        })
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            showNotification('Feedback rejected!', 'info');
-            updateFeedbackStatus(feedbackId, 'rejected');
-            updateStatistics();
-        } else {
-            showNotification(data.error || 'Reject failed', 'error');
-        }
-    })
-    .catch(error => {
-        showNotification('Reject failed: ' + error.message, 'error');
-    });
-}
+// ❌ REMOVED: acceptFeedback and rejectFeedback functions
+// These functions are now ONLY defined in global_function_fixes.js (single source of truth)
+// All action button functions (accept, reject, revert, update) are centralized there
+// This eliminates conflicts from multiple function definitions
 
 // Update Feedback Status Function
 function updateFeedbackStatus(feedbackId, status) {

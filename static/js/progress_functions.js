@@ -8,12 +8,30 @@ let isAnalyzing = false;
 
 // Simple progress popup functions
 function showSimpleProgressPopup() {
-    // Remove any existing progress popup
+    // Remove any existing progress popup and backdrop
     const existingPopup = document.getElementById('simpleProgressPopup');
     if (existingPopup) {
         existingPopup.remove();
     }
-    
+    const existingBackdrop = document.getElementById('simpleProgressBackdrop');
+    if (existingBackdrop) {
+        existingBackdrop.remove();
+    }
+
+    // Create backdrop overlay (semi-transparent, not completely blocking)
+    const backdrop = document.createElement('div');
+    backdrop.id = 'simpleProgressBackdrop';
+    backdrop.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.5);
+        z-index: 9999;
+        backdrop-filter: blur(3px);
+    `;
+
     // Create simple progress popup
     const popup = document.createElement('div');
     popup.id = 'simpleProgressPopup';
@@ -31,26 +49,31 @@ function showSimpleProgressPopup() {
         min-width: 400px;
         border: 3px solid #4f46e5;
     `;
-    
+
     popup.innerHTML = `
         <div style="margin-bottom: 20px;">
             <div style="font-size: 2em; margin-bottom: 10px;">🤖</div>
             <h3 style="color: #4f46e5; margin-bottom: 10px;">AI-Prism Analysis</h3>
             <p style="color: #666; margin: 0;">Analyzing document sections...</p>
         </div>
-        
+
         <div style="margin-bottom: 20px;">
             <div style="background: #f0f0f0; height: 20px; border-radius: 10px; overflow: hidden; margin-bottom: 10px;">
                 <div id="simpleProgressBar" style="background: linear-gradient(90deg, #4f46e5, #7c3aed); height: 100%; width: 0%; transition: width 0.3s ease; border-radius: 10px;"></div>
             </div>
             <div id="simpleProgressText" style="font-weight: bold; color: #4f46e5;">0% Complete</div>
         </div>
-        
-        <div id="simpleProgressStatus" style="color: #666; font-size: 0.9em;">
+
+        <div id="simpleProgressStatus" style="color: #666; font-size: 0.9em; margin-bottom: 20px;">
             Starting analysis...
         </div>
+
+        <button onclick="window.cancelUpload()" style="background: #ef4444; color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 600; transition: background 0.2s;" onmouseover="this.style.background='#dc2626'" onmouseout="this.style.background='#ef4444'">
+            ❌ Cancel Upload
+        </button>
     `;
-    
+
+    document.body.appendChild(backdrop);
     document.body.appendChild(popup);
     return popup;
 }
@@ -78,7 +101,21 @@ function hideSimpleProgressPopup() {
     if (popup) {
         popup.remove();
     }
+    const backdrop = document.getElementById('simpleProgressBackdrop');
+    if (backdrop) {
+        backdrop.remove();
+    }
 }
+
+// Cancel upload function
+window.cancelUpload = function() {
+    if (confirm('Are you sure you want to cancel the upload? You will need to start over.')) {
+        hideSimpleProgressPopup();
+        showNotification('Upload cancelled by user', 'info');
+        // Reset any upload state if needed
+        window.analysisFile = null;
+    }
+};
 
 // Modified startAnalysis function
 function startAnalysis() {
@@ -110,10 +147,30 @@ function startAnalysis() {
             window.currentSession = data.session_id;
             sessionStorage.setItem('currentSession', data.session_id);
 
-            sections = data.sections;
-            window.sections = data.sections;
+            // Validate and sanitize sections array
+            if (!Array.isArray(data.sections)) {
+                console.error('❌ ERROR: data.sections is not an array!', data.sections);
+                throw new Error('Invalid sections data from server');
+            }
+
+            // Ensure all sections are strings
+            sections = data.sections.map((section, index) => {
+                if (typeof section === 'string') {
+                    return section;
+                } else if (section && typeof section === 'object' && section.name) {
+                    console.warn(`⚠️ Section ${index} was an object, extracting name:`, section);
+                    return section.name;
+                } else {
+                    console.error(`❌ Section ${index} is invalid:`, section);
+                    return `Section ${index + 1}`;  // Fallback
+                }
+            });
+
+            window.sections = sections;
 
             totalSections = sections.length;
+
+            console.log('✅ Sections loaded and validated:', sections);
 
             // ✅ FIX: Populate section dropdown (Issue #2 Fix)
             populateSectionSelect(data.sections);
@@ -382,7 +439,21 @@ function retryAnalysis() {
 function displaySectionFeedback(feedbackItems, sectionName) {
     const feedbackContainer = document.getElementById('feedbackContainer');
     if (!feedbackContainer) return;
-    
+
+    // ✅ CRITICAL: Validate sectionName is a string to prevent dict errors
+    if (typeof sectionName !== 'string') {
+        console.error('❌ displaySectionFeedback: sectionName must be a string!', 'Type:', typeof sectionName, 'Value:', sectionName);
+
+        // Try to extract string if it's an object with a name property
+        if (sectionName && typeof sectionName === 'object' && sectionName.name) {
+            console.log('🔧 Extracting section name from object');
+            sectionName = sectionName.name;
+        } else {
+            showNotification('Error: Invalid section name format', 'error');
+            return;
+        }
+    }
+
     if (!feedbackItems || feedbackItems.length === 0) {
         feedbackContainer.innerHTML = `
             <div style="text-align: center; padding: 40px; background: #f0fff4; border: 2px solid #10b981; border-radius: 15px; margin: 20px 0;">
@@ -395,14 +466,21 @@ function displaySectionFeedback(feedbackItems, sectionName) {
         return;
     }
     
+    // ✅ SORT: Order feedback by confidence (high to low)
+    const sortedFeedbackItems = [...feedbackItems].sort((a, b) => {
+        const confidenceA = a.confidence || 0.8;
+        const confidenceB = b.confidence || 0.8;
+        return confidenceB - confidenceA; // High confidence first
+    });
+
     let feedbackHtml = `
         <div style="margin-bottom: 20px; padding: 15px; background: linear-gradient(135deg, #f8f9ff 0%, #e3f2fd 100%); border-radius: 12px; border: 2px solid #4f46e5;">
             <h3 style="color: #4f46e5; margin-bottom: 10px;">📝 AI Analysis Results</h3>
-            <p style="color: #666; margin: 0;">Section: <strong>"${sectionName}"</strong> - ${feedbackItems.length} feedback item${feedbackItems.length !== 1 ? 's' : ''} found</p>
+            <p style="color: #666; margin: 0;">Section: <strong>"${sectionName}"</strong> - ${sortedFeedbackItems.length} feedback item${sortedFeedbackItems.length !== 1 ? 's' : ''} found (sorted by confidence)</p>
         </div>
     `;
-    
-    feedbackItems.forEach((item, index) => {
+
+    sortedFeedbackItems.forEach((item, index) => {
         const riskColor = item.risk_level === 'High' ? '#ef4444' : 
                          item.risk_level === 'Medium' ? '#f59e0b' : '#10b981';
         
@@ -446,11 +524,11 @@ function displaySectionFeedback(feedbackItems, sectionName) {
                 ` : ''}
                 
                 <div class="feedback-actions" style="display: flex; gap: 8px; margin-top: 15px; flex-wrap: wrap; align-items: center;">
-                    <button class="btn btn-success" onclick="event.stopPropagation(); window.acceptFeedback('${item.id}')" style="font-size: 12px; padding: 6px 12px; border-radius: 6px;">✅ Accept</button>
-                    <button class="btn btn-danger" onclick="event.stopPropagation(); window.rejectFeedback('${item.id}')" style="font-size: 12px; padding: 6px 12px; border-radius: 6px;">❌ Reject</button>
-                    <button class="btn btn-warning" onclick="event.stopPropagation(); window.revertFeedbackDecision('${item.id}')" style="font-size: 12px; padding: 6px 12px; border-radius: 6px;">🔄 Revert</button>
-                    <button class="btn btn-info" onclick="event.stopPropagation(); window.updateFeedbackItem('${item.id}')" style="font-size: 12px; padding: 6px 12px; border-radius: 6px;">✏️ Update</button>
-                    <button class="btn btn-primary" onclick="event.stopPropagation(); window.addCustomComment('${item.id}')" style="font-size: 12px; padding: 6px 12px; border-radius: 6px;">💬 Add Comment</button>
+                    <button class="btn btn-success" onclick="event.stopPropagation(); window.acceptFeedback('${item.id}', '${sectionName}')" style="font-size: 12px; padding: 6px 12px; border-radius: 6px;">✅ Accept</button>
+                    <button class="btn btn-danger" onclick="event.stopPropagation(); window.rejectFeedback('${item.id}', '${sectionName}')" style="font-size: 12px; padding: 6px 12px; border-radius: 6px;">❌ Reject</button>
+                    <button class="btn btn-warning" onclick="event.stopPropagation(); window.revertFeedbackDecision('${item.id}', '${sectionName}')" style="font-size: 12px; padding: 6px 12px; border-radius: 6px;">🔄 Revert</button>
+                    <button class="btn btn-info" onclick="event.stopPropagation(); window.updateFeedbackItem('${item.id}', '${sectionName}')" style="font-size: 12px; padding: 6px 12px; border-radius: 6px;">✏️ Update</button>
+                    <button class="btn btn-primary" onclick="event.stopPropagation(); window.showInlineFeedbackForm('${item.id}', '${sectionName}')" style="font-size: 12px; padding: 6px 12px; border-radius: 6px;">✨ Add Custom Feedback</button>
                     <span style="font-size: 0.8em; color: #6b7280; margin-left: 10px;">Confidence: ${Math.round((item.confidence || 0.8) * 100)}%</span>
                 </div>
             </div>
@@ -471,15 +549,36 @@ function loadSection(index) {
 
         // Call the proper loadSection if it exists in missing_functions.js
         // The logic is already there, we just need to not override it
-        if (!sections || index < 0 || index >= sections.length) {
-            console.error('Invalid section index:', index);
+
+        // Use window.sections explicitly to avoid any local variable issues
+        const sectionsArray = window.sections || sections;
+
+        if (!sectionsArray || index < 0 || index >= sectionsArray.length) {
+            console.error('Invalid section index:', index, 'sections:', sectionsArray);
             return;
         }
 
         currentSectionIndex = index;
-        const sectionName = sections[index];
+        window.currentSectionIndex = index;  // Update global as well
 
-        console.log('Loading section:', sectionName, 'Index:', index);
+        let sectionName = sectionsArray[index];
+
+        // Defensive check: ensure sectionName is a string, not an object
+        if (typeof sectionName !== 'string') {
+            console.error('❌ ERROR: sectionName is not a string!', 'Type:', typeof sectionName, 'Value:', sectionName);
+            console.error('sections array:', sectionsArray);
+
+            // Try to extract string if it's an object with a name property
+            if (sectionName && typeof sectionName === 'object' && sectionName.name) {
+                console.log('🔧 Attempting to extract section name from object');
+                sectionName = sectionName.name;
+            } else {
+                showNotification('Error: Invalid section name. Please refresh and try again.', 'error');
+                return;
+            }
+        }
+
+        console.log('Loading section:', sectionName, 'Index:', index, 'Type:', typeof sectionName);
 
         // Update section selector
         const sectionSelect = document.getElementById('sectionSelect');
@@ -647,6 +746,218 @@ function showMainContent() {
     console.log('Main content displayed');
 }
 
+// ✅ NEW: Clean inline feedback form function (no conflicts with old code)
+window.showInlineFeedbackForm = function(feedbackId, sectionName) {
+    console.log('✨ showInlineFeedbackForm called:', feedbackId, sectionName);
+
+    // ✅ CRITICAL: Validate sectionName is a string to prevent dict errors
+    if (typeof sectionName !== 'string') {
+        console.error('❌ showInlineFeedbackForm: sectionName must be a string!', 'Type:', typeof sectionName, 'Value:', sectionName);
+
+        // Try to extract string if it's an object with a name property
+        if (sectionName && typeof sectionName === 'object' && sectionName.name) {
+            console.log('🔧 Extracting section name from object');
+            sectionName = sectionName.name;
+        } else {
+            showNotification('Error: Invalid section name format. Cannot show feedback form.', 'error');
+            return;
+        }
+    }
+
+    const sessionId = window.currentSession || sessionStorage.getItem('currentSession');
+    if (!sessionId) {
+        showNotification('No active session. Please upload a document first.', 'error');
+        return;
+    }
+
+    // Find the feedback item
+    const feedbackItem = document.querySelector(`[data-feedback-id="${feedbackId}"]`);
+    if (!feedbackItem) {
+        console.error('❌ Feedback item not found:', feedbackId);
+        showNotification('Could not find feedback item', 'error');
+        return;
+    }
+
+    // Toggle: Remove if already exists
+    const existingForm = document.getElementById(`inline-feedback-form-${feedbackId}`);
+    if (existingForm) {
+        existingForm.remove();
+        return;
+    }
+
+    // Create inline dropdown form
+    const formHtml = `
+        <div id="inline-feedback-form-${feedbackId}" style="margin-top: 20px; padding: 25px; background: linear-gradient(135deg, rgba(255,255,255,0.98), rgba(248,250,252,0.98)); border: 3px solid #4f46e5; border-radius: 15px; box-shadow: 0 8px 25px rgba(79, 70, 229, 0.15); animation: slideDown 0.3s ease-out;">
+            <h4 style="color: #4f46e5; margin-bottom: 20px; display: flex; align-items: center; gap: 10px; font-size: 1.2em; font-weight: 700;">
+                ✨ Add Your Custom Feedback
+            </h4>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px;">
+                <div>
+                    <label style="font-weight: 700; color: #4f46e5; font-size: 1em; margin-bottom: 8px; display: block;">🏷️ Type:</label>
+                    <select id="inlineFeedbackType-${feedbackId}" style="width: 100%; padding: 12px; border: 3px solid #4f46e5; border-radius: 12px; background: linear-gradient(135deg, #ffffff, #f8fafc); font-weight: 600; font-size: 14px;">
+                        <option value="suggestion">Suggestion</option>
+                        <option value="important">Important</option>
+                        <option value="critical">Critical</option>
+                        <option value="positive">Positive</option>
+                        <option value="question">Question</option>
+                        <option value="clarification">Clarification</option>
+                    </select>
+                </div>
+                <div>
+                    <label style="font-weight: 700; color: #10b981; font-size: 1em; margin-bottom: 8px; display: block;">📁 Category:</label>
+                    <select id="inlineFeedbackCategory-${feedbackId}" style="width: 100%; padding: 12px; border: 3px solid #10b981; border-radius: 12px; background: linear-gradient(135deg, #ffffff, #f0fdf4); font-weight: 600; font-size: 14px;">
+                        <option value="Initial Assessment">Initial Assessment</option>
+                        <option value="Investigation Process">Investigation Process</option>
+                        <option value="Root Cause Analysis">Root Cause Analysis</option>
+                        <option value="Documentation and Reporting">Documentation and Reporting</option>
+                        <option value="Seller Classification">Seller Classification</option>
+                        <option value="Enforcement Decision-Making">Enforcement Decision-Making</option>
+                        <option value="Quality Control">Quality Control</option>
+                        <option value="Communication Standards">Communication Standards</option>
+                    </select>
+                </div>
+            </div>
+
+            <div style="margin-bottom: 20px;">
+                <label style="font-weight: 700; color: #ec4899; font-size: 1em; margin-bottom: 8px; display: block;">📝 Your Feedback:</label>
+                <textarea id="inlineFeedbackText-${feedbackId}" placeholder="Share your insights, suggestions, or observations about this AI feedback..." style="width: 100%; min-height: 100px; padding: 15px; border: 3px solid #ec4899; border-radius: 15px; background: linear-gradient(135deg, #ffffff, #fdf2f8); font-size: 14px; line-height: 1.5; font-family: inherit; resize: vertical;"></textarea>
+            </div>
+
+            <div style="display: flex; gap: 10px; justify-content: center;">
+                <button class="btn btn-success" onclick="window.saveInlineFeedback('${feedbackId}', '${sectionName}')" style="padding: 15px 35px; font-size: 16px; border-radius: 25px; box-shadow: 0 8px 25px rgba(16, 185, 129, 0.4); font-weight: 700; text-transform: uppercase; letter-spacing: 1px;">
+                    🌟 Add My Feedback
+                </button>
+                <button class="btn btn-secondary" onclick="document.getElementById('inline-feedback-form-${feedbackId}').remove()" style="padding: 15px 35px; font-size: 16px; border-radius: 25px; font-weight: 700;">
+                    ❌ Cancel
+                </button>
+            </div>
+        </div>
+
+        <style>
+            @keyframes slideDown {
+                from {
+                    opacity: 0;
+                    transform: translateY(-10px);
+                }
+                to {
+                    opacity: 1;
+                    transform: translateY(0);
+                }
+            }
+        </style>
+    `;
+
+    // Insert form after the feedback item
+    feedbackItem.insertAdjacentHTML('afterend', formHtml);
+
+    // Auto-focus on textarea
+    setTimeout(() => {
+        const textarea = document.getElementById(`inlineFeedbackText-${feedbackId}`);
+        if (textarea) textarea.focus();
+    }, 100);
+
+    console.log('✅ Inline feedback form displayed');
+};
+
+// ✅ NEW: Save inline feedback function
+window.saveInlineFeedback = function(feedbackId, sectionName) {
+    // ✅ CRITICAL: Validate sectionName is a string to prevent dict errors
+    if (typeof sectionName !== 'string') {
+        console.error('❌ saveInlineFeedback: sectionName must be a string!', 'Type:', typeof sectionName, 'Value:', sectionName);
+
+        // Try to extract string if it's an object with a name property
+        if (sectionName && typeof sectionName === 'object' && sectionName.name) {
+            console.log('🔧 Extracting section name from object');
+            sectionName = sectionName.name;
+        } else {
+            showNotification('Error: Invalid section name format. Cannot save feedback.', 'error');
+            return;
+        }
+    }
+
+    const type = document.getElementById(`inlineFeedbackType-${feedbackId}`)?.value;
+    const category = document.getElementById(`inlineFeedbackCategory-${feedbackId}`)?.value;
+    const description = document.getElementById(`inlineFeedbackText-${feedbackId}`)?.value?.trim();
+
+    if (!description) {
+        showNotification('Please enter your feedback', 'error');
+        return;
+    }
+
+    const sessionId = window.currentSession || sessionStorage.getItem('currentSession');
+
+    console.log('💾 Saving inline feedback:', {
+        feedbackId,
+        sectionName,
+        sectionNameType: typeof sectionName,
+        type,
+        category,
+        description: description.substring(0, 50) + '...'
+    });
+
+    fetch('/add_custom_feedback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            session_id: sessionId,
+            section_name: sectionName,
+            type: type,
+            category: category,
+            description: description,
+            ai_reference: true,
+            ai_id: feedbackId
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Remove the form
+            const form = document.getElementById(`inline-feedback-form-${feedbackId}`);
+            if (form) form.remove();
+
+            showNotification('✅ Custom feedback added successfully!', 'success');
+
+            // Update feedback history
+            if (!window.userFeedbackHistory) {
+                window.userFeedbackHistory = [];
+            }
+
+            const feedbackItem = {
+                id: data.feedback_item?.id || Date.now(),
+                section: sectionName,
+                type: type,
+                category: category,
+                description: description,
+                timestamp: new Date().toISOString(),
+                ai_reference: true,
+                ai_id: feedbackId
+            };
+
+            window.userFeedbackHistory.push(feedbackItem);
+
+            // Update displays
+            if (window.updateAllCustomFeedbackList) {
+                window.updateAllCustomFeedbackList();
+            }
+
+            if (window.updateRealTimeFeedbackLogs) {
+                window.updateRealTimeFeedbackLogs();
+            }
+
+            // ✅ FIX: DO NOT reload section - it reverts accept/reject decisions
+            // Just update the feedback lists, section state should remain unchanged
+            console.log('✅ Custom feedback saved without reloading section (preserves accept/reject state)');
+        } else {
+            showNotification('❌ Failed to add feedback: ' + (data.error || 'Unknown error'), 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Save inline feedback error:', error);
+        showNotification('❌ Failed to add feedback: ' + error.message, 'error');
+    });
+};
+
 // Initialize progress functions
 document.addEventListener('DOMContentLoaded', function() {
     console.log('Progress functions loaded successfully');
@@ -667,4 +978,6 @@ document.addEventListener('DOMContentLoaded', function() {
     console.log('   - analyzeCurrentSection:', typeof window.analyzeCurrentSection);
     console.log('   - nextSection:', typeof window.nextSection);
     console.log('   - previousSection:', typeof window.previousSection);
+    console.log('   - showInlineFeedbackForm:', typeof window.showInlineFeedbackForm);
+    console.log('   - saveInlineFeedback:', typeof window.saveInlineFeedback);
 });

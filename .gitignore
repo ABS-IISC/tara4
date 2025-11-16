@@ -51,4 +51,4 @@ setup_aws.bat
 
 # Temporary files
 *.tmp
-*.temp
+*.temparchive/

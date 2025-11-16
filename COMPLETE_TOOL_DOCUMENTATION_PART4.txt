@@ -1,0 +1,730 @@
+================================================================================
+AI-PRISM DOCUMENT ANALYSIS TOOL - COMPLETE TECHNICAL DOCUMENTATION
+================================================================================
+
+PART 4: CONFIGURATION, DEPLOYMENT, AND TROUBLESHOOTING
+
+================================================================================
+10. CONFIGURATION AND SETUP
+================================================================================
+
+10.1 ENVIRONMENT VARIABLES
+--------------------------
+REQUIRED VARIABLES:
+
+AWS_REGION=us-east-1
+AWS_DEFAULT_REGION=us-east-1
+DESCRIPTION: AWS region for Bedrock and S3 services
+DEFAULT: us-east-1
+REQUIRED: Yes
+
+BEDROCK_MODEL_ID=anthropic.claude-3-5-sonnet-20240620-v1:0
+DESCRIPTION: Claude model identifier for AI analysis
+OPTIONS:
+- anthropic.claude-3-5-sonnet-20240620-v1:0 (Recommended)
+- anthropic.claude-3-5-sonnet-20241022-v2:0 (Latest 3.5)
+- anthropic.claude-3-7-sonnet-20250219-v1:0 (Requires profile)
+- us.anthropic.claude-sonnet-4-5-20250929-v1:0 (Latest)
+DEFAULT: claude-3-5-sonnet-20240620-v1:0
+REQUIRED: Yes
+
+BEDROCK_MAX_TOKENS=8192
+DESCRIPTION: Maximum tokens in AI response
+RANGE: 1000-8192
+DEFAULT: 8192
+REQUIRED: No
+
+BEDROCK_TEMPERATURE=0.7
+DESCRIPTION: AI creativity level
+RANGE: 0.0-1.0 (0=deterministic, 1=creative)
+DEFAULT: 0.7
+REQUIRED: No
+
+FLASK_ENV=production
+DESCRIPTION: Flask environment mode
+OPTIONS: development, production
+DEFAULT: development
+REQUIRED: No
+
+PORT=5000
+DESCRIPTION: Application port number
+RANGE: 1024-65535
+DEFAULT: 5000 (local), 8080 (App Runner)
+REQUIRED: No
+
+OPTIONAL VARIABLES:
+
+REASONING_ENABLED=true
+DESCRIPTION: Enable extended thinking (Claude 3.7+)
+OPTIONS: true, false
+DEFAULT: false
+REQUIRED: No (only for Claude 3.7+)
+
+REASONING_BUDGET_TOKENS=2000
+DESCRIPTION: Tokens allocated for reasoning
+RANGE: 1000-4000
+DEFAULT: 2000
+REQUIRED: No (only if reasoning enabled)
+
+S3_BUCKET_NAME=felix-s3-bucket
+DESCRIPTION: S3 bucket for storage
+DEFAULT: None (S3 disabled)
+REQUIRED: No
+
+S3_BASE_PATH=tara/
+DESCRIPTION: Folder prefix in S3 bucket
+DEFAULT: Empty (root)
+REQUIRED: No
+
+CHAT_ENABLE_MULTI_MODEL=true
+DESCRIPTION: Enable automatic model fallback
+OPTIONS: true, false
+DEFAULT: true
+REQUIRED: No
+
+BEDROCK_FALLBACK_MODELS=model1,model2
+DESCRIPTION: Comma-separated fallback model IDs
+DEFAULT: Built-in fallback list
+REQUIRED: No
+
+USE_CROSS_REGION_INFERENCE=false
+DESCRIPTION: Use cross-region inference profiles
+OPTIONS: true, false
+DEFAULT: false
+REQUIRED: No
+
+10.2 AWS CREDENTIALS SETUP
+---------------------------
+METHOD 1: AWS CLI Configuration
+```bash
+aws configure
+# Enter AWS Access Key ID
+# Enter AWS Secret Access Key
+# Enter default region (us-east-1)
+# Enter output format (json)
+```
+
+METHOD 2: Environment Variables
+```bash
+export AWS_ACCESS_KEY_ID=your_access_key_here
+export AWS_SECRET_ACCESS_KEY=your_secret_key_here
+export AWS_DEFAULT_REGION=us-east-1
+```
+
+METHOD 3: AWS Profile
+```bash
+# Create profile in ~/.aws/credentials
+[admin-abhsatsa]
+aws_access_key_id = your_access_key_here
+aws_secret_access_key = your_secret_key_here
+region = us-east-1
+
+# Application will use this profile automatically
+```
+
+METHOD 4: IAM Role (EC2/Lambda/App Runner)
+- Attach IAM role to service
+- No credentials needed in code
+- Automatic credential rotation
+- Most secure method
+
+REQUIRED PERMISSIONS:
+- bedrock:InvokeModel
+- bedrock:InvokeModelWithResponseStream
+- s3:PutObject (if using S3)
+- s3:GetObject (if using S3)
+- s3:ListBucket (if using S3)
+
+10.3 LOCAL DEVELOPMENT SETUP
+-----------------------------
+PREREQUISITES:
+- Python 3.8 or higher
+- pip package manager
+- Git (optional)
+- AWS credentials configured
+
+INSTALLATION STEPS:
+
+1. Clone or download repository
+```bash
+git clone https://github.com/your-repo/tara2.git
+cd tara2
+```
+
+2. Create virtual environment (recommended)
+```bash
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+```
+
+3. Install dependencies
+```bash
+pip install -r requirements.txt
+```
+
+4. Configure environment variables
+```bash
+# Create .env file or export variables
+export AWS_REGION=us-east-1
+export BEDROCK_MODEL_ID=anthropic.claude-3-5-sonnet-20240620-v1:0
+```
+
+5. Run application
+```bash
+python main.py
+```
+
+6. Access application
+```
+Open browser to http://localhost:5000
+```
+
+DEVELOPMENT MODE:
+```bash
+export FLASK_ENV=development
+python main.py
+# Enables auto-reload on code changes
+# Shows detailed error messages
+# Debug toolbar available
+```
+
+10.4 DOCKER DEPLOYMENT
+----------------------
+DOCKERFILE STRUCTURE:
+```dockerfile
+FROM python:3.9-slim
+WORKDIR /app
+COPY requirements.txt .
+RUN pip install -r requirements.txt
+COPY . .
+EXPOSE 8000
+CMD ["gunicorn", "--bind", "0.0.0.0:8000", "app:app"]
+```
+
+BUILD IMAGE:
+```bash
+docker build -t ai-prism-app .
+```
+
+RUN CONTAINER:
+```bash
+docker run -p 8000:8000 \
+  -e AWS_REGION=us-east-1 \
+  -e BEDROCK_MODEL_ID=anthropic.claude-3-5-sonnet-20240620-v1:0 \
+  -e PORT=8000 \
+  ai-prism-app
+```
+
+WITH AWS CREDENTIALS:
+```bash
+docker run -p 8000:8000 \
+  -e AWS_ACCESS_KEY_ID=your_key \
+  -e AWS_SECRET_ACCESS_KEY=your_secret \
+  -e AWS_REGION=us-east-1 \
+  ai-prism-app
+```
+
+DOCKER COMPOSE:
+```yaml
+version: '3.8'
+services:
+  ai-prism:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - AWS_REGION=us-east-1
+      - BEDROCK_MODEL_ID=anthropic.claude-3-5-sonnet-20240620-v1:0
+      - PORT=8000
+    volumes:
+      - ./uploads:/app/uploads
+      - ./data:/app/data
+```
+
+10.5 AWS APP RUNNER DEPLOYMENT
+-------------------------------
+PREREQUISITES:
+- AWS account with Bedrock access
+- ECR repository created
+- IAM roles configured
+- Docker installed locally
+
+STEP 1: Create ECR Repository
+```bash
+chmod +x setup-ecr.sh
+./setup-ecr.sh us-east-1 ai-prism-app
+```
+
+STEP 2: Build and Push Image
+```bash
+chmod +x deploy.sh
+./deploy.sh us-east-1 ai-prism-app latest
+```
+
+STEP 3: Create App Runner Service
+1. Go to AWS App Runner console
+2. Click "Create service"
+3. Select "Container registry"
+4. Choose ECR repository
+5. Configure service:
+   - Service name: tara4
+   - vCPU: 4
+   - Memory: 8 GB
+   - Port: 8080
+
+STEP 4: Configure Environment Variables
+Add all required variables:
+- AWS_REGION=us-east-1
+- AWS_DEFAULT_REGION=us-east-1
+- BEDROCK_MODEL_ID=anthropic.claude-3-5-sonnet-20240620-v1:0
+- BEDROCK_MAX_TOKENS=8192
+- BEDROCK_TEMPERATURE=0.7
+- FLASK_ENV=production
+- PORT=8080
+- S3_BUCKET_NAME=felix-s3-bucket
+- S3_BASE_PATH=tara/
+
+STEP 5: Configure IAM Role
+Create role with policies:
+- AWSAppRunnerServicePolicyForECRAccess
+- Custom policy for Bedrock
+- Custom policy for S3 (if used)
+
+STEP 6: Deploy and Test
+1. Click "Create & deploy"
+2. Wait for deployment (5-10 minutes)
+3. Access service URL
+4. Test Claude connection
+5. Test S3 connection
+6. Upload test document
+
+MONITORING:
+- CloudWatch Logs for application logs
+- App Runner metrics for performance
+- X-Ray for request tracing (optional)
+
+================================================================================
+11. TROUBLESHOOTING GUIDE
+================================================================================
+
+11.1 COMMON ISSUES AND SOLUTIONS
+---------------------------------
+
+ISSUE: Document Upload Fails
+SYMPTOMS:
+- Error message on upload
+- File not processing
+- Timeout errors
+
+SOLUTIONS:
+1. Check file format (.docx only)
+2. Verify file size (<16MB)
+3. Ensure file not corrupted
+4. Check disk space in uploads/
+5. Review browser console for errors
+6. Try different browser
+
+DIAGNOSTIC COMMANDS:
+```bash
+# Check uploads folder permissions
+ls -la uploads/
+
+# Check disk space
+df -h
+
+# Test file validity
+python -c "from docx import Document; Document('test.docx')"
+```
+
+---
+
+ISSUE: AI Analysis Not Working
+SYMPTOMS:
+- No feedback generated
+- Timeout errors
+- "Mock response" messages
+
+SOLUTIONS:
+1. Verify AWS credentials configured
+2. Check Bedrock model access
+3. Test Claude connection endpoint
+4. Review IAM permissions
+5. Check network connectivity
+6. Verify model ID correct
+
+DIAGNOSTIC COMMANDS:
+```bash
+# Test AWS credentials
+aws sts get-caller-identity
+
+# Test Bedrock access
+aws bedrock list-foundation-models --region us-east-1
+
+# Check model availability
+python test_config.py
+```
+
+---
+
+ISSUE: Chat Not Responding
+SYMPTOMS:
+- No response to queries
+- Timeout errors
+- Empty responses
+
+SOLUTIONS:
+1. Check Claude connection
+2. Verify context data available
+3. Review error logs
+4. Test with simple query
+5. Check token limits
+6. Verify model supports chat
+
+DIAGNOSTIC STEPS:
+1. Open browser console (F12)
+2. Check Network tab for errors
+3. Review Console for JavaScript errors
+4. Test /chat endpoint directly
+5. Check backend logs
+
+---
+
+ISSUE: Statistics Not Updating
+SYMPTOMS:
+- Numbers don't change
+- Incorrect counts
+- Display issues
+
+SOLUTIONS:
+1. Refresh page
+2. Clear browser cache
+3. Check JavaScript console
+4. Verify session active
+5. Review backend logs
+6. Test statistics endpoint
+
+---
+
+ISSUE: Dark Mode Not Working
+SYMPTOMS:
+- Theme doesn't change
+- Partial theme application
+- Colors incorrect
+
+SOLUTIONS:
+1. Clear browser cache
+2. Hard refresh (Ctrl+Shift+R)
+3. Check CSS loaded
+4. Verify JavaScript enabled
+5. Try different browser
+6. Check for CSS conflicts
+
+---
+
+ISSUE: Comments Not in Document
+SYMPTOMS:
+- Downloaded document has no comments
+- Comments missing in Word
+- Empty review document
+
+SOLUTIONS:
+1. Ensure feedback accepted before completion
+2. Open in Microsoft Word (not viewer)
+3. Check Word version (2016+)
+4. Enable comments view in Word
+5. Review backend logs for errors
+6. Try re-generating document
+
+VERIFICATION:
+1. Open document in Word
+2. Go to Review tab
+3. Click "Show Comments"
+4. Check margin for comments
+5. Verify comment count matches
+
+---
+
+ISSUE: S3 Upload Fails
+SYMPTOMS:
+- S3 export errors
+- Access denied messages
+- Bucket not found
+
+SOLUTIONS:
+1. Verify S3_BUCKET_NAME correct
+2. Check IAM permissions
+3. Verify bucket exists
+4. Check region matches
+5. Test S3 connection endpoint
+6. Review bucket policy
+
+DIAGNOSTIC COMMANDS:
+```bash
+# Test S3 access
+aws s3 ls s3://felix-s3-bucket/
+
+# Check bucket region
+aws s3api get-bucket-location --bucket felix-s3-bucket
+
+# Test upload
+aws s3 cp test.txt s3://felix-s3-bucket/tara/test.txt
+```
+
+11.2 ERROR MESSAGES EXPLAINED
+------------------------------
+
+ERROR: "ValidationException: The provided model identifier is invalid"
+MEANING: Model ID not found or not accessible
+SOLUTION:
+1. Check model ID spelling
+2. Verify model available in region
+3. Request model access in Bedrock console
+4. Use cross-region inference profile
+5. Try fallback model
+
+---
+
+ERROR: "AccessDeniedException: User is not authorized"
+MEANING: IAM permissions insufficient
+SOLUTION:
+1. Add bedrock:InvokeModel permission
+2. Check IAM role attached
+3. Verify credentials valid
+4. Review resource ARNs in policy
+5. Check service role for App Runner
+
+---
+
+ERROR: "ThrottlingException: Rate exceeded"
+MEANING: Too many API requests
+SOLUTION:
+1. Wait and retry
+2. Implement exponential backoff
+3. Reduce concurrent requests
+4. Request quota increase
+5. Use caching to reduce calls
+
+---
+
+ERROR: "ResourceNotFoundException: Bucket does not exist"
+MEANING: S3 bucket not found
+SOLUTION:
+1. Verify bucket name correct
+2. Check bucket exists in region
+3. Verify AWS account
+4. Create bucket if needed
+5. Check S3_BUCKET_NAME variable
+
+---
+
+ERROR: "JSONDecodeError: Expecting value"
+MEANING: Invalid JSON response from AI
+SOLUTION:
+1. Check AI response format
+2. Review prompt structure
+3. Verify model output
+4. Check for truncation
+5. Increase max_tokens
+
+11.3 PERFORMANCE OPTIMIZATION
+------------------------------
+
+SLOW DOCUMENT UPLOAD:
+- Compress large documents
+- Optimize images in document
+- Use faster network connection
+- Increase upload timeout
+- Check server resources
+
+SLOW AI ANALYSIS:
+- Use caching for repeated sections
+- Reduce max_tokens if possible
+- Use faster Claude model (Haiku)
+- Implement parallel processing
+- Optimize prompts for brevity
+
+SLOW PAGE LOAD:
+- Minimize JavaScript files
+- Compress CSS
+- Use CDN for static assets
+- Enable browser caching
+- Optimize images
+
+MEMORY ISSUES:
+- Limit concurrent sessions
+- Clear old session data
+- Optimize document storage
+- Use streaming for large files
+- Monitor memory usage
+
+11.4 DEBUGGING TECHNIQUES
+-------------------------
+
+ENABLE DEBUG MODE:
+```bash
+export FLASK_ENV=development
+export FLASK_DEBUG=1
+python main.py
+```
+
+BROWSER CONSOLE:
+1. Open Developer Tools (F12)
+2. Check Console tab for errors
+3. Review Network tab for API calls
+4. Inspect Elements for UI issues
+5. Use debugger for JavaScript
+
+BACKEND LOGGING:
+```python
+import logging
+logging.basicConfig(level=logging.DEBUG)
+```
+
+CHECK LOGS:
+```bash
+# Application logs
+tail -f app.log
+
+# System logs
+journalctl -u ai-prism -f
+
+# Docker logs
+docker logs -f container_name
+```
+
+TEST ENDPOINTS:
+```bash
+# Test upload
+curl -X POST -F "file=@test.docx" http://localhost:5000/upload
+
+# Test analysis
+curl -X POST -H "Content-Type: application/json" \
+  -d '{"session_id":"test","section_name":"Summary"}' \
+  http://localhost:5000/analyze_section
+
+# Test chat
+curl -X POST -H "Content-Type: application/json" \
+  -d '{"session_id":"test","query":"What is Hawkeye?"}' \
+  http://localhost:5000/chat
+```
+
+================================================================================
+12. BEST PRACTICES AND RECOMMENDATIONS
+================================================================================
+
+12.1 DOCUMENT PREPARATION
+--------------------------
+BEFORE UPLOAD:
+- Use clear section headers
+- Maintain consistent formatting
+- Remove unnecessary content
+- Check for corruption
+- Optimize file size
+- Use standard section names
+
+SECTION NAMING:
+- Use Hawkeye-aligned names
+- Be consistent across documents
+- Avoid special characters
+- Keep names concise
+- Use title case
+
+12.2 REVIEW PROCESS
+-------------------
+EFFICIENT REVIEW:
+- Read section before feedback
+- Accept/reject decisively
+- Add custom feedback sparingly
+- Use chat for clarification
+- Track progress regularly
+- Complete in one session
+
+QUALITY REVIEW:
+- Read all feedback carefully
+- Consider Hawkeye references
+- Evaluate risk levels
+- Add comprehensive custom feedback
+- Use chat extensively
+- Review patterns across documents
+
+12.3 FEEDBACK MANAGEMENT
+------------------------
+ACCEPTING FEEDBACK:
+- Accept specific, actionable items
+- Verify Hawkeye alignment
+- Consider risk level
+- Check confidence score
+- Ensure relevance to section
+
+REJECTING FEEDBACK:
+- Reject generic suggestions
+- Dismiss irrelevant items
+- Remove duplicate feedback
+- Reject low-confidence items
+- Document rejection reasons
+
+CUSTOM FEEDBACK:
+- Be specific and clear
+- Reference Hawkeye checkpoints
+- Provide actionable suggestions
+- Include examples when possible
+- Maintain professional tone
+
+12.4 SECURITY CONSIDERATIONS
+-----------------------------
+DATA PROTECTION:
+- Don't upload sensitive documents
+- Use secure AWS credentials
+- Enable encryption at rest
+- Use HTTPS in production
+- Implement access controls
+
+CREDENTIAL MANAGEMENT:
+- Use IAM roles when possible
+- Rotate credentials regularly
+- Never commit credentials to code
+- Use environment variables
+- Implement least privilege
+
+COMPLIANCE:
+- Follow data retention policies
+- Maintain audit logs
+- Implement user authentication
+- Ensure GDPR compliance
+- Document data flows
+
+12.5 MAINTENANCE
+----------------
+REGULAR TASKS:
+- Update dependencies monthly
+- Review and clear old uploads
+- Backup learning data
+- Monitor disk space
+- Check AWS costs
+- Review error logs
+
+UPDATES:
+- Test updates in development
+- Backup before updating
+- Review changelog
+- Update documentation
+- Notify users of changes
+
+MONITORING:
+- Track API usage
+- Monitor error rates
+- Review performance metrics
+- Check user feedback
+- Analyze usage patterns
+
+================================================================================
+END OF DOCUMENTATION
+================================================================================
+
+This comprehensive documentation covers all aspects of the AI-Prism tool.
+For additional support or questions, refer to the FAQ section in the application
+or contact the development team.
+
+Version: 3.0.0
+Last Updated: November 2024
+Maintained By: AI-Prism Development Team

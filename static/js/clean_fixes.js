@@ -215,8 +215,8 @@ function loadSection(index) {
                                 </ul>
                             ` : ''}
                             <div style="margin-top: 10px;">
-                                <button class="btn btn-success btn-sm" onclick="acceptFeedback('${item.id}', '${sectionName}')" style="margin-right: 5px;">✓ Accept</button>
-                                <button class="btn btn-danger btn-sm" onclick="rejectFeedback('${item.id}', '${sectionName}')">✗ Reject</button>
+                                <button class="btn btn-success btn-sm" onclick="window.acceptFeedback('${item.id}', '${sectionName}')" style="margin-right: 5px;">✓ Accept</button>
+                                <button class="btn btn-danger btn-sm" onclick="window.rejectFeedback('${item.id}', '${sectionName}')">✗ Reject</button>
                             </div>
                         </div>
                     `).join('');
@@ -248,62 +248,10 @@ function loadSection(index) {
     });
 }
 
-// Helper functions for feedback actions
-function acceptFeedback(feedbackId, sectionName) {
-    if (!currentSession) return;
-
-    fetch('/accept_feedback', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            session_id: currentSession,
-            section_name: sectionName,
-            feedback_id: feedbackId
-        })
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            showNotification('Feedback accepted!', 'success');
-            // Refresh the section to update UI
-            loadSection(currentSectionIndex);
-        } else {
-            showNotification('Failed to accept feedback', 'error');
-        }
-    })
-    .catch(error => {
-        console.error('Accept feedback error:', error);
-        showNotification('Error: ' + error.message, 'error');
-    });
-}
-
-function rejectFeedback(feedbackId, sectionName) {
-    if (!currentSession) return;
-
-    fetch('/reject_feedback', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            session_id: currentSession,
-            section_name: sectionName,
-            feedback_id: feedbackId
-        })
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            showNotification('Feedback rejected!', 'info');
-            // Refresh the section to update UI
-            loadSection(currentSectionIndex);
-        } else {
-            showNotification('Failed to reject feedback', 'error');
-        }
-    })
-    .catch(error => {
-        console.error('Reject feedback error:', error);
-        showNotification('Error: ' + error.message, 'error');
-    });
-}
+// ❌ REMOVED: acceptFeedback and rejectFeedback functions
+// These functions are now ONLY defined in global_function_fixes.js (single source of truth)
+// All action button functions (accept, reject, revert, update) are centralized there
+// This eliminates conflicts from multiple function definitions
 
 function showModal(modalId, title, content) {
     const modal = document.getElementById(modalId);

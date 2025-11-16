@@ -5,11 +5,13 @@
 console.log('🔧 Loading global function fixes...');
 
 // ============================================================================
-// FIX #1: Accept/Reject Functionality
+// FIX #1: Accept/Reject Functionality - DISABLED
 // ============================================================================
-// ROOT CAUSE: acceptFeedback and rejectFeedback were not attached to window object
-// SOLUTION: Attach them globally so onclick handlers can find them
+// ❌ DISABLED: These functions are now handled by unified_button_fixes.js
+// The unified version handles BOTH calling patterns automatically
+// Keeping this code commented for reference only
 
+/*
 window.acceptFeedback = function(feedbackId, sectionName) {
     console.log('✅ Accept feedback called:', feedbackId, sectionName);
 
@@ -42,11 +44,17 @@ window.acceptFeedback = function(feedbackId, sectionName) {
                 window.logAIFeedbackActivity(feedbackId, 'accepted');
             }
 
-            // Refresh the section to update UI
-            if (typeof loadSection === 'function' && typeof currentSectionIndex !== 'undefined') {
-                loadSection(currentSectionIndex);
-            } else if (typeof window.loadSection === 'function' && typeof window.currentSectionIndex !== 'undefined') {
-                window.loadSection(window.currentSectionIndex);
+            // ✅ FIX: DO NOT reload section - it reverts accept/reject decisions
+            // Instead, update UI elements directly without refetching from backend
+            // Update visual feedback status
+            const feedbackElement = document.querySelector(`[data-feedback-id="${feedbackId}"]`);
+            if (feedbackElement) {
+                feedbackElement.style.borderLeftColor = '#10b981'; // Green for accepted
+                const statusBadge = feedbackElement.querySelector('.status-badge');
+                if (statusBadge) {
+                    statusBadge.textContent = '✅ Accepted';
+                    statusBadge.style.background = '#10b981';
+                }
             }
 
             // Update statistics if function exists
@@ -102,12 +110,21 @@ window.rejectFeedback = function(feedbackId, sectionName) {
                 window.logAIFeedbackActivity(feedbackId, 'rejected');
             }
 
-            // Refresh the section to update UI
-            if (typeof loadSection === 'function' && typeof currentSectionIndex !== 'undefined') {
-                loadSection(currentSectionIndex);
-            } else if (typeof window.loadSection === 'function' && typeof window.currentSectionIndex !== 'undefined') {
-                window.loadSection(window.currentSectionIndex);
+            // ✅ FIX: DO NOT reload section - it reverts accept/reject decisions
+            // Instead, update UI elements directly without refetching from backend
+            // Update visual feedback status
+            const feedbackElement = document.querySelector(`[data-feedback-id="${feedbackId}"]`);
+            if (feedbackElement) {
+                feedbackElement.style.borderLeftColor = '#ef4444'; // Red for rejected
+                const statusBadge = feedbackElement.querySelector('.status-badge');
+                if (statusBadge) {
+                    statusBadge.textContent = '❌ Rejected';
+                    statusBadge.style.background = '#ef4444';
+                }
             }
+
+            // ❌ REMOVED: Section reload that caused accept/reject decisions to be reverted
+            // Section reloads refetch data from backend, losing all UI state
 
             // Update statistics if function exists
             if (typeof updateStatistics === 'function') {
@@ -129,6 +146,7 @@ window.rejectFeedback = function(feedbackId, sectionName) {
         showNotification('❌ Error: ' + error.message, 'error');
     });
 };
+*/
 
 // ============================================================================
 // FIX #2: Text Highlighting Functionality
@@ -1737,10 +1755,8 @@ if (typeof window.userFeedbackHistory === 'undefined') {
 /**
  * Revert feedback decision (undo accept/reject)
  */
-window.revertFeedbackDecision = function(feedbackId, event) {
-    if (event) event.stopPropagation();
-
-    console.log('🔄 Reverting feedback decision for:', feedbackId);
+window.revertFeedbackDecision = function(feedbackId, sectionName) {
+    console.log('🔄 Reverting feedback decision for:', feedbackId, 'Section:', sectionName);
 
     const sessionId = window.currentSession ||
                       (typeof currentSession !== 'undefined' ? currentSession : null) ||
@@ -1757,6 +1773,7 @@ window.revertFeedbackDecision = function(feedbackId, event) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 session_id: sessionId,
+                section_name: sectionName,
                 feedback_id: feedbackId
             })
         })
@@ -1772,6 +1789,11 @@ window.revertFeedbackDecision = function(feedbackId, event) {
 
                 // Update statistics
                 if (window.updateStatistics) window.updateStatistics();
+
+                // Update real-time logs
+                if (window.updateRealTimeFeedbackLogs) {
+                    window.updateRealTimeFeedbackLogs();
+                }
             } else {
                 showNotification('❌ Revert failed: ' + (data.error || 'Unknown error'), 'error');
             }
@@ -1786,10 +1808,8 @@ window.revertFeedbackDecision = function(feedbackId, event) {
 /**
  * Update/Edit feedback item
  */
-window.updateFeedbackItem = function(feedbackId, event) {
-    if (event) event.stopPropagation();
-
-    console.log('✏️ Updating feedback item:', feedbackId);
+window.updateFeedbackItem = function(feedbackId, sectionName) {
+    console.log('✏️ Updating feedback item:', feedbackId, 'Section:', sectionName);
 
     const sessionId = window.currentSession ||
                       (typeof currentSession !== 'undefined' ? currentSession : null) ||
@@ -1844,7 +1864,7 @@ window.updateFeedbackItem = function(feedbackId, event) {
             </div>
 
             <div style="text-align: center;">
-                <button class="btn btn-success" onclick="window.saveFeedbackUpdate('${feedbackId}')" style="padding: 10px 30px; border-radius: 20px; font-weight: 600;">💾 Save Changes</button>
+                <button class="btn btn-success" onclick="window.saveFeedbackUpdate('${feedbackId}', '${sectionName}')" style="padding: 10px 30px; border-radius: 20px; font-weight: 600;">💾 Save Changes</button>
                 <button class="btn btn-secondary" onclick="closeModal('genericModal')" style="padding: 10px 30px; border-radius: 20px; font-weight: 600; margin-left: 10px;">❌ Cancel</button>
             </div>
         </div>
@@ -1856,7 +1876,7 @@ window.updateFeedbackItem = function(feedbackId, event) {
 /**
  * Save updated feedback
  */
-window.saveFeedbackUpdate = function(feedbackId) {
+window.saveFeedbackUpdate = function(feedbackId, sectionName) {
     const type = document.getElementById('editFeedbackType')?.value;
     const risk = document.getElementById('editFeedbackRisk')?.value;
     const description = document.getElementById('editFeedbackDescription')?.value?.trim();
@@ -1874,6 +1894,7 @@ window.saveFeedbackUpdate = function(feedbackId) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
             session_id: sessionId,
+            section_name: sectionName,
             feedback_id: feedbackId,
             type: type,
             risk_level: risk,
@@ -1891,6 +1912,11 @@ window.saveFeedbackUpdate = function(feedbackId) {
             if (window.loadSection && window.currentSectionIndex >= 0) {
                 window.loadSection(window.currentSectionIndex);
             }
+
+            // Update real-time logs
+            if (window.updateRealTimeFeedbackLogs) {
+                window.updateRealTimeFeedbackLogs();
+            }
         } else {
             showNotification('❌ Update failed: ' + (data.error || 'Unknown error'), 'error');
         }
@@ -1905,17 +1931,12 @@ window.saveFeedbackUpdate = function(feedbackId) {
  * Add custom comment to AI feedback
  * ✅ FIX: Full form with Type + Category dropdowns (matches "Add Custom" feature)
  */
-window.addCustomComment = function(feedbackId, event) {
-    if (event) event.stopPropagation();
-
-    console.log('💬 addCustomComment CALLED! Feedback ID:', feedbackId);
-    console.log('💬 Function type:', typeof window.addCustomComment);
+window.addCustomComment = function(feedbackId, sectionName) {
+    console.log('💬 addCustomComment CALLED! Feedback ID:', feedbackId, 'Section:', sectionName);
 
     const sessionId = window.currentSession ||
                       (typeof currentSession !== 'undefined' ? currentSession : null) ||
                       sessionStorage.getItem('currentSession');
-
-    console.log('💬 Session ID found:', sessionId);
 
     if (!sessionId) {
         console.error('❌ No active session found');
@@ -1927,16 +1948,32 @@ window.addCustomComment = function(feedbackId, event) {
         return;
     }
 
-    console.log('💬 Opening modal...');
+    // Find the feedback item to insert the form below it
+    const feedbackItem = document.querySelector(`[data-feedback-id="${feedbackId}"]`);
+    if (!feedbackItem) {
+        console.error('❌ Feedback item not found:', feedbackId);
+        showNotification('Could not find feedback item', 'error');
+        return;
+    }
 
-    const modalContent = `
-        <div style="padding: 20px; max-height: 80vh; overflow-y: auto;">
-            <h3 style="color: #4f46e5; margin-bottom: 20px;">✨ Add Your Custom Feedback</h3>
+    // Remove any existing comment form
+    const existingForm = document.getElementById(`comment-form-${feedbackId}`);
+    if (existingForm) {
+        existingForm.remove();
+        return; // Toggle off if clicking again
+    }
 
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+    // Create inline dropdown form (replica of "Add Your Custom Feedback")
+    const formHtml = `
+        <div id="comment-form-${feedbackId}" style="margin-top: 20px; padding: 25px; background: linear-gradient(135deg, rgba(255,255,255,0.98), rgba(248,250,252,0.98)); border: 3px solid #4f46e5; border-radius: 15px; box-shadow: 0 8px 25px rgba(79, 70, 229, 0.15); animation: slideDown 0.3s ease-out;">
+            <h4 style="color: #4f46e5; margin-bottom: 20px; display: flex; align-items: center; gap: 10px; font-size: 1.2em; font-weight: 700;">
+                ✨ Add Your Custom Feedback
+            </h4>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px;">
                 <div>
-                    <label style="font-weight: 600; color: #555; margin-bottom: 5px; display: block;">🏷️ Type:</label>
-                    <select id="customCommentType" style="width: 100%; padding: 10px; border: 2px solid #4f46e5; border-radius: 6px; font-size: 14px;">
+                    <label style="font-weight: 700; color: #4f46e5; font-size: 1em; margin-bottom: 8px; display: block;">🏷️ Type:</label>
+                    <select id="customCommentType-${feedbackId}" style="width: 100%; padding: 12px; border: 3px solid #4f46e5; border-radius: 12px; background: linear-gradient(135deg, #ffffff, #f8fafc); font-weight: 600; font-size: 14px;">
                         <option value="suggestion">Suggestion</option>
                         <option value="important">Important</option>
                         <option value="critical">Critical</option>
@@ -1946,8 +1983,8 @@ window.addCustomComment = function(feedbackId, event) {
                     </select>
                 </div>
                 <div>
-                    <label style="font-weight: 600; color: #555; margin-bottom: 5px; display: block;">📁 Category:</label>
-                    <select id="customCommentCategory" style="width: 100%; padding: 10px; border: 2px solid #4f46e5; border-radius: 6px; font-size: 14px;">
+                    <label style="font-weight: 700; color: #10b981; font-size: 1em; margin-bottom: 8px; display: block;">📁 Category:</label>
+                    <select id="customCommentCategory-${feedbackId}" style="width: 100%; padding: 12px; border: 3px solid #10b981; border-radius: 12px; background: linear-gradient(135deg, #ffffff, #f0fdf4); font-weight: 600; font-size: 14px;">
                         <option value="Initial Assessment">Initial Assessment</option>
                         <option value="Investigation Process">Investigation Process</option>
                         <option value="Root Cause Analysis">Root Cause Analysis</option>
@@ -1961,32 +1998,139 @@ window.addCustomComment = function(feedbackId, event) {
             </div>
 
             <div style="margin-bottom: 20px;">
-                <label style="font-weight: 600; color: #555; margin-bottom: 5px; display: block;">📝 Your Custom Feedback:</label>
-                <textarea id="customCommentText" placeholder="Add your thoughts, additional context, or specific observations about this AI suggestion..." style="width: 100%; min-height: 120px; padding: 12px; border: 2px solid #4f46e5; border-radius: 8px; font-family: inherit; font-size: 14px; resize: vertical;"></textarea>
+                <label style="font-weight: 700; color: #ec4899; font-size: 1em; margin-bottom: 8px; display: block;">📝 Your Feedback:</label>
+                <textarea id="customCommentText-${feedbackId}" placeholder="Share your insights, suggestions, or observations about this AI feedback..." style="width: 100%; min-height: 100px; padding: 15px; border: 3px solid #ec4899; border-radius: 15px; background: linear-gradient(135deg, #ffffff, #fdf2f8); font-size: 14px; line-height: 1.5; font-family: inherit; resize: vertical;"></textarea>
             </div>
 
-            <div style="text-align: center;">
-                <button class="btn btn-success" onclick="window.saveCustomComment('${feedbackId}')" style="padding: 12px 35px; border-radius: 20px; font-weight: 600;">💾 Save Custom Feedback</button>
-                <button class="btn btn-secondary" onclick="closeModal('genericModal')" style="padding: 12px 35px; border-radius: 20px; font-weight: 600; margin-left: 10px;">❌ Cancel</button>
+            <div style="display: flex; gap: 10px; justify-content: center;">
+                <button class="btn btn-success" onclick="window.saveInlineCustomComment('${feedbackId}', '${sectionName}')" style="padding: 15px 35px; font-size: 16px; border-radius: 25px; box-shadow: 0 8px 25px rgba(16, 185, 129, 0.4); font-weight: 700; text-transform: uppercase; letter-spacing: 1px;">
+                    🌟 Add My Feedback
+                </button>
+                <button class="btn btn-secondary" onclick="document.getElementById('comment-form-${feedbackId}').remove()" style="padding: 15px 35px; font-size: 16px; border-radius: 25px; font-weight: 700;">
+                    ❌ Cancel
+                </button>
             </div>
         </div>
+
+        <style>
+            @keyframes slideDown {
+                from {
+                    opacity: 0;
+                    transform: translateY(-10px);
+                }
+                to {
+                    opacity: 1;
+                    transform: translateY(0);
+                }
+            }
+        </style>
     `;
 
-    console.log('💬 Calling showModal...');
-    if (typeof showModal === 'function') {
-        showModal('genericModal', 'Add Custom Feedback', modalContent);
-        console.log('✅ Modal opened successfully');
-    } else {
-        console.error('❌ showModal function not found!');
-        alert('Error: Modal system not available. Please refresh the page.');
-    }
+    // Insert form after the feedback item
+    feedbackItem.insertAdjacentHTML('afterend', formHtml);
+
+    // Focus on the textarea
+    setTimeout(() => {
+        const textarea = document.getElementById(`customCommentText-${feedbackId}`);
+        if (textarea) textarea.focus();
+    }, 100);
+
+    console.log('✅ Inline comment form displayed');
 };
 
 /**
- * Save custom comment
+ * Save inline custom comment (from dropdown form)
+ * ✅ NEW: Saves feedback from inline form instead of modal
+ */
+window.saveInlineCustomComment = function(feedbackId, sectionName) {
+    const type = document.getElementById(`customCommentType-${feedbackId}`)?.value;
+    const category = document.getElementById(`customCommentCategory-${feedbackId}`)?.value;
+    const description = document.getElementById(`customCommentText-${feedbackId}`)?.value?.trim();
+
+    if (!description) {
+        showNotification('Please enter your feedback', 'error');
+        return;
+    }
+
+    const sessionId = window.currentSession || sessionStorage.getItem('currentSession');
+
+    console.log('💾 Saving inline custom feedback:', {
+        feedbackId,
+        sectionName,
+        type,
+        category,
+        description: description.substring(0, 50) + '...'
+    });
+
+    fetch('/add_custom_feedback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            session_id: sessionId,
+            section_name: sectionName,
+            type: type,
+            category: category,
+            description: description,
+            ai_reference: true,
+            ai_id: feedbackId
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Remove the inline form
+            const form = document.getElementById(`comment-form-${feedbackId}`);
+            if (form) form.remove();
+
+            showNotification('✅ Custom feedback added successfully!', 'success');
+
+            // Add to user feedback history for display in "All My Custom Feedback"
+            if (!window.userFeedbackHistory) {
+                window.userFeedbackHistory = [];
+            }
+
+            const feedbackItem = {
+                id: data.feedback_item?.id || Date.now(),
+                section: sectionName,
+                type: type,
+                category: category,
+                description: description,
+                timestamp: new Date().toISOString(),
+                ai_reference: true,
+                ai_id: feedbackId
+            };
+
+            window.userFeedbackHistory.push(feedbackItem);
+
+            // Update custom feedback display if function exists
+            if (window.updateAllCustomFeedbackList) {
+                window.updateAllCustomFeedbackList();
+            }
+
+            // Update real-time logs if function exists
+            if (window.updateRealTimeFeedbackLogs) {
+                window.updateRealTimeFeedbackLogs();
+            }
+
+            // Reload section to show updated feedback
+            if (window.loadSection && window.currentSectionIndex >= 0) {
+                window.loadSection(window.currentSectionIndex);
+            }
+        } else {
+            showNotification('❌ Failed to add feedback: ' + (data.error || 'Unknown error'), 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Add inline custom feedback error:', error);
+        showNotification('❌ Failed to add feedback: ' + error.message, 'error');
+    });
+};
+
+/**
+ * Save custom comment (original modal version - kept for backwards compatibility)
  * ✅ FIX: Saves to custom feedback with Type + Category, appears in "All My Custom Feedback"
  */
-window.saveCustomComment = function(feedbackId) {
+window.saveCustomComment = function(feedbackId, sectionName) {
     const type = document.getElementById('customCommentType')?.value;
     const category = document.getElementById('customCommentCategory')?.value;
     const description = document.getElementById('customCommentText')?.value?.trim();
@@ -1997,10 +2141,14 @@ window.saveCustomComment = function(feedbackId) {
     }
 
     const sessionId = window.currentSession || sessionStorage.getItem('currentSession');
-    const sectionName = window.sections && window.currentSectionIndex >= 0 ?
-                       window.sections[window.currentSectionIndex] : 'Unknown';
 
-    console.log('💾 Saving custom feedback:', { type, category, description: description.substring(0, 50) + '...' });
+    console.log('💾 Saving custom feedback:', {
+        feedbackId,
+        sectionName,
+        type,
+        category,
+        description: description.substring(0, 50) + '...'
+    });
 
     fetch('/add_custom_feedback', {
         method: 'POST',

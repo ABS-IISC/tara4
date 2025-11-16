@@ -2792,6 +2792,9 @@
             <button class="btn btn-info" onclick="downloadDocument()" id="downloadBtn" disabled>
                 📥 Download Document
             </button>
+            <button class="btn btn-success" onclick="exportToS3()" id="exportS3Btn" disabled style="background: linear-gradient(135deg, #ff6b6b 0%, #ee5a6f 100%); border: none;">
+                ☁️ Export to S3
+            </button>
         </div>
     </div>
 
@@ -2827,27 +2830,98 @@
                 <h3>❓ Frequently Asked Questions</h3>
                 <button class="modal-close" onclick="closeModal('faqModal')">&times;</button>
             </div>
-            <div style="max-height: 500px; overflow-y: auto;">
+            <div style="max-height: 500px; overflow-y: auto; padding: 15px;">
                 <h4>What is the Hawkeye framework?</h4>
                 <p>The Hawkeye framework is a 20-point comprehensive investigation checklist used to ensure thorough document review covering impact assessment, root cause analysis, and preventative actions.</p>
-                
+
                 <h4>How does the AI generate feedback?</h4>
                 <p>The AI analyzes each section against Hawkeye criteria, identifying improvements, missing information, and compliance issues using advanced language models.</p>
-                
+
                 <h4>What happens when I accept feedback?</h4>
                 <p>Accepted feedback is added as comments to the final document and helps train the AI for future reviews.</p>
-                
+
                 <h4>Can I add my own feedback?</h4>
                 <p>Yes! Use the "Add Custom Feedback" form to contribute your insights, which will be included in the final document.</p>
-                
+
+                <h4 style="color: #4f46e5;">📥 When does the "Download Document" button work?</h4>
+                <p>The <strong>"Download Document"</strong> button becomes enabled after you complete your document review. Here's when it works:</p>
+                <ul style="margin-left: 20px; line-height: 1.8;">
+                    <li><strong>✅ Requirements:</strong>
+                        <ul style="margin-left: 20px;">
+                            <li>Upload a Word document (.docx)</li>
+                            <li>Analyze at least one section</li>
+                            <li>Accept or reject AI feedback (or add custom feedback)</li>
+                            <li>Click "Submit All Feedbacks" button</li>
+                        </ul>
+                    </li>
+                    <li><strong>📄 What you get:</strong> A new Word document with all accepted feedback added as comments</li>
+                    <li><strong>💡 Tip:</strong> The button is initially disabled (grayed out) and enables automatically when review is complete</li>
+                    <li><strong>📝 Note:</strong> You can download multiple times if you make changes to your feedback selections</li>
+                </ul>
+
+                <h4 style="color: #ef4444;">☁️ When does the "Export to S3" button work?</h4>
+                <p>The <strong>"Export to S3"</strong> button works under the same conditions as Download Document. Here's how to use it:</p>
+                <ul style="margin-left: 20px; line-height: 1.8;">
+                    <li><strong>✅ Prerequisites:</strong>
+                        <ul style="margin-left: 20px;">
+                            <li>Complete document review (same as Download Document)</li>
+                            <li>AWS credentials configured in system (.env file)</li>
+                            <li>S3 bucket properly set up</li>
+                        </ul>
+                    </li>
+                    <li><strong>☁️ What gets exported (5 files):</strong>
+                        <ul style="margin-left: 20px;">
+                            <li>Original document (before review)</li>
+                            <li>Reviewed document (with all comments)</li>
+                            <li>Feedback data (JSON format)</li>
+                            <li>Activity logs (complete audit trail)</li>
+                            <li>Statistics (analysis metrics)</li>
+                        </ul>
+                    </li>
+                    <li><strong>📍 S3 Location:</strong> Files are uploaded to: <code>s3://your-bucket/ai-prism-reviews/session_TIMESTAMP/</code></li>
+                    <li><strong>✨ Benefits:</strong> Cloud backup, team sharing, compliance archiving, audit trail</li>
+                    <li><strong>🔒 Security:</strong> Requires proper AWS IAM permissions (PutObject, GetObject, ListBucket)</li>
+                </ul>
+
+                <h4 style="color: #10b981;">🎯 Quick Workflow: From Upload to Export</h4>
+                <ol style="margin-left: 20px; line-height: 2;">
+                    <li><strong>Upload</strong> your Word document</li>
+                    <li><strong>Analyze</strong> sections one by one (or all at once)</li>
+                    <li><strong>Review</strong> AI feedback and accept/reject items</li>
+                    <li><strong>Add</strong> custom feedback if needed (optional)</li>
+                    <li><strong>Submit</strong> by clicking "Submit All Feedbacks"</li>
+                    <li><strong>Download</strong> reviewed document (📥 button now enabled)</li>
+                    <li><strong>Export to S3</strong> for backup (☁️ button now enabled)</li>
+                </ol>
+
                 <h4>How do I use keyboard shortcuts?</h4>
                 <p>Press the '?' key to see all available shortcuts. You can navigate sections with N/P, accept/reject feedback with A/R, and toggle dark mode with D.</p>
-                
+
                 <h4>What file formats are supported?</h4>
                 <p>Currently, only Microsoft Word (.docx) files are supported for analysis. PDF and other formats will be added in future updates.</p>
-                
+
                 <h4>How does the AI learning system work?</h4>
                 <p>AI-Prism learns from your feedback patterns - when you accept, reject, or add custom feedback, it adapts to provide more relevant suggestions in future analyses.</p>
+
+                <h4 style="color: #f59e0b;">⚠️ Troubleshooting: Buttons Not Enabling?</h4>
+                <ul style="margin-left: 20px; line-height: 1.8;">
+                    <li><strong>Issue:</strong> Buttons stay grayed out after review
+                        <ul style="margin-left: 20px;">
+                            <li>✅ Make sure you clicked "Submit All Feedbacks"</li>
+                            <li>✅ Wait for confirmation notification</li>
+                            <li>✅ Check browser console for errors (F12)</li>
+                            <li>✅ Try refreshing the page and redoing the submission</li>
+                        </ul>
+                    </li>
+                    <li><strong>S3 Export Fails:</strong>
+                        <ul style="margin-left: 20px;">
+                            <li>Check AWS credentials in .env file</li>
+                            <li>Verify S3 bucket exists and is accessible</li>
+                            <li>Confirm IAM user has required permissions</li>
+                            <li>Check network connectivity</li>
+                        </ul>
+                    </li>
+                </ul>
             </div>
         </div>
     </div>
@@ -2930,6 +3004,10 @@
             }
         }
     </style>
+
+    <!-- ✅ CRITICAL: Load unified button fixes FIRST to prevent conflicts -->
+    <!-- This MUST be the first script loaded to establish function definitions -->
+    <script src="/static/js/unified_button_fixes.js"></script>
 
     <script src="/static/js/clean_fixes.js"></script>
     <script src="/static/js/app.js"></script>
@@ -4043,7 +4121,13 @@
                         downloadBtn.disabled = false;
                         downloadBtn.onclick = () => downloadFinalDocument(data.output_file);
                     }
-                    
+
+                    // Enable S3 export button
+                    const exportS3Btn = document.getElementById('exportS3Btn');
+                    if (exportS3Btn) {
+                        exportS3Btn.disabled = false;
+                    }
+
                     finalDocumentData = data;
                 } else {
                     showNotification('Failed to complete review: ' + (data.error || 'Unknown error'), 'error');
@@ -5182,9 +5266,13 @@
             }
         }
 
+        // ❌ DISABLED: Conflicting inline function definitions
+        // These functions are now handled by unified_button_fixes.js
+        // Keeping commented for reference only
+        /*
         function acceptFeedback(feedbackId, event) {
             if (event) event.stopPropagation();
-            
+
             fetch('/accept_feedback', {
                 method: 'POST',
                 headers: {
@@ -5202,7 +5290,7 @@
                     showNotification('Feedback accepted!', 'success');
                     updateFeedbackStatus(feedbackId, 'accepted');
                     updateStatistics();
-                    
+
                     // Log the activity for real-time display
                     if (window.logAIFeedbackActivity) {
                         window.logAIFeedbackActivity(feedbackId, 'accepted');
@@ -5218,7 +5306,7 @@
 
         function rejectFeedback(feedbackId, event) {
             if (event) event.stopPropagation();
-            
+
             fetch('/reject_feedback', {
                 method: 'POST',
                 headers: {
@@ -5236,7 +5324,7 @@
                     showNotification('Feedback rejected!', 'info');
                     updateFeedbackStatus(feedbackId, 'rejected');
                     updateStatistics();
-                    
+
                     // Log the activity for real-time display
                     if (window.logAIFeedbackActivity) {
                         window.logAIFeedbackActivity(feedbackId, 'rejected');
@@ -5249,6 +5337,7 @@
                 showNotification('Reject failed: ' + error.message, 'error');
             });
         }
+        */
 
         function updateFeedbackStatus(feedbackId, status) {
             const feedbackItem = document.querySelector(`[data-feedback-id="${feedbackId}"]`);
@@ -7372,7 +7461,122 @@
             
             showNotification('AI-Prism conversation exported successfully!', 'success');
         }
-        
+
+        /**
+         * Export to S3 - Upload complete review to AWS S3
+         */
+        function exportToS3() {
+            if (!currentSession) {
+                showNotification('No active session. Please upload a document first.', 'error');
+                return;
+            }
+
+            // Confirm export
+            if (!confirm('Export complete review to AWS S3?\n\nThis will include:\n• Original document\n• Reviewed document with comments\n• All feedback and analysis data\n• Activity logs\n\nThe data will be uploaded to S3 bucket.')) {
+                return;
+            }
+
+            showProgress('Exporting to S3...');
+
+            fetch('/export_to_s3', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    session_id: currentSession
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                hideProgress();
+
+                if (data.success) {
+                    const exportResult = data.export_result;
+
+                    if (exportResult && exportResult.success) {
+                        // Show detailed success message
+                        const message = `✅ Successfully exported to S3!\n\n` +
+                                      `📁 Folder: ${exportResult.folder_name || 'Unknown'}\n` +
+                                      `📦 Files: ${exportResult.total_files || 0}\n` +
+                                      `☁️ Bucket: ${exportResult.bucket || 'felix-s3-bucket'}\n` +
+                                      `📍 Location: ${exportResult.location || 'S3'}`;
+
+                        showModal('genericModal', '☁️ S3 Export Successful', `
+                            <div style="padding: 20px; text-align: center;">
+                                <div style="font-size: 4em; margin-bottom: 20px;">✅</div>
+                                <h3 style="color: #2ecc71; margin-bottom: 20px;">Successfully Exported to S3!</h3>
+
+                                <div style="background: #f0fff4; padding: 20px; border-radius: 10px; margin-bottom: 20px; text-align: left;">
+                                    <h4 style="color: #2ecc71; margin-bottom: 15px;">📊 Export Details:</h4>
+                                    <p style="margin: 5px 0;"><strong>📁 Folder:</strong> ${exportResult.folder_name || 'Unknown'}</p>
+                                    <p style="margin: 5px 0;"><strong>📦 Files Uploaded:</strong> ${exportResult.total_files || 0}</p>
+                                    <p style="margin: 5px 0;"><strong>☁️ Bucket:</strong> ${exportResult.bucket || 'felix-s3-bucket'}</p>
+                                    <p style="margin: 5px 0;"><strong>💬 Comments:</strong> ${data.comments_count || 0}</p>
+                                    <p style="margin: 5px 0;"><strong>📍 S3 Location:</strong> <code style="background: #e8f5e9; padding: 2px 6px; border-radius: 3px;">${exportResult.location || 'S3'}</code></p>
+                                </div>
+
+                                <div style="background: #fff3cd; padding: 15px; border-radius: 10px; text-align: left;">
+                                    <h4 style="color: #f39c12; margin-bottom: 10px;">📝 Exported Files:</h4>
+                                    <ul style="margin: 10px 0; padding-left: 20px;">
+                                        <li>Original Document</li>
+                                        <li>Reviewed Document (with comments)</li>
+                                        <li>Feedback Summary (JSON)</li>
+                                        <li>Activity Logs</li>
+                                        <li>Statistics & Analytics</li>
+                                    </ul>
+                                </div>
+
+                                <button class="btn btn-success" onclick="closeModal('genericModal')" style="margin-top: 20px; padding: 12px 30px;">
+                                    ✅ Close
+                                </button>
+                            </div>
+                        `);
+
+                        showNotification('✅ Exported to S3 successfully!', 'success');
+                    } else {
+                        // S3 export failed
+                        const errorMsg = exportResult?.error || 'Unknown error';
+                        showNotification(`❌ S3 export failed: ${errorMsg}`, 'error');
+
+                        showModal('genericModal', '❌ S3 Export Failed', `
+                            <div style="padding: 20px; text-align: center;">
+                                <div style="font-size: 4em; margin-bottom: 20px;">❌</div>
+                                <h3 style="color: #e74c3c; margin-bottom: 20px;">S3 Export Failed</h3>
+
+                                <div style="background: #fff5f5; padding: 20px; border-radius: 10px; margin-bottom: 20px; text-align: left;">
+                                    <h4 style="color: #e74c3c; margin-bottom: 10px;">Error Details:</h4>
+                                    <p style="margin: 0; color: #666;">${errorMsg}</p>
+                                </div>
+
+                                <div style="background: #e3f2fd; padding: 15px; border-radius: 10px; text-align: left;">
+                                    <h4 style="color: #2196f3; margin-bottom: 10px;">💡 Troubleshooting:</h4>
+                                    <ul style="margin: 10px 0; padding-left: 20px;">
+                                        <li>Check AWS credentials configuration</li>
+                                        <li>Verify S3 bucket permissions</li>
+                                        <li>Ensure network connectivity</li>
+                                        <li>Check AWS region settings</li>
+                                    </ul>
+                                </div>
+
+                                <button class="btn btn-secondary" onclick="closeModal('genericModal')" style="margin-top: 20px; padding: 12px 30px;">
+                                    Close
+                                </button>
+                            </div>
+                        `);
+                    }
+                } else {
+                    hideProgress();
+                    showNotification(`❌ Export failed: ${data.error || 'Unknown error'}`, 'error');
+                }
+            })
+            .catch(error => {
+                hideProgress();
+                console.error('S3 export error:', error);
+                showNotification(`❌ S3 export error: ${error.message}`, 'error');
+            });
+        }
+
         function completeReview() {
             if (!currentSession) {
                 showNotification('No active session', 'error');
@@ -7469,6 +7673,12 @@
             // Enable download button for future downloads
             document.getElementById('downloadBtn').disabled = false;
             document.getElementById('downloadBtn').setAttribute('data-filename', finalDocumentData.output_file);
+
+            // Enable S3 export button
+            const exportS3Btn = document.getElementById('exportS3Btn');
+            if (exportS3Btn) {
+                exportS3Btn.disabled = false;
+            }
         }
 
         // Close modals when clicking outside
@@ -8237,6 +8447,13 @@
                             downloadBtn.disabled = false;
                             downloadBtn.setAttribute('data-filename', data.output_file);
                         }
+
+                        // Enable S3 export button
+                        const exportS3Btn = document.getElementById('exportS3Btn');
+                        if (exportS3Btn) {
+                            exportS3Btn.disabled = false;
+                        }
+
                         finalDocumentData = data;
                     } else {
                         showNotification(data.error || 'Review completion failed', 'error');

@@ -1,0 +1,545 @@
+================================================================================
+AI-PRISM DOCUMENT ANALYSIS TOOL - COMPLETE TECHNICAL DOCUMENTATION
+================================================================================
+
+PART 2: API ENDPOINTS, FEATURES, AND USER INTERFACE
+
+================================================================================
+5. FLASK APPLICATION AND API ENDPOINTS
+================================================================================
+
+5.1 APPLICATION STRUCTURE (app.py)
+-----------------------------------
+The Flask application serves as the backend API and web server.
+
+INITIALIZATION:
+- Flask app creation
+- Session configuration
+- CORS setup (if needed)
+- Upload folder configuration
+- Data folder creation
+
+GLOBAL OBJECTS:
+- sessions: Dict storing active review sessions
+- ai_engine: AIFeedbackEngine instance
+- s3_manager: S3ExportManager instance (optional)
+
+SESSION MANAGEMENT:
+- Each user gets unique session ID
+- Session stores document data, feedback, progress
+- Sessions persist during review process
+- Cleaned up after completion
+
+5.2 CORE API ENDPOINTS
+----------------------
+
+ENDPOINT: GET /
+DESCRIPTION: Serves main application page
+METHOD: GET
+PARAMETERS: None
+RETURNS: HTML template (enhanced_index.html)
+FUNCTIONALITY:
+- Renders main UI
+- Initializes client-side JavaScript
+- Sets up session if needed
+
+---
+
+ENDPOINT: POST /upload
+DESCRIPTION: Handles document upload
+METHOD: POST
+PARAMETERS:
+- file: Document file (.docx)
+RETURNS: JSON response
+{
+    "success": true/false,
+    "session_id": "unique_session_id",
+    "sections": ["Section 1", "Section 2", ...],
+    "message": "Status message"
+}
+FUNCTIONALITY:
+1. Validates file format (.docx only)
+2. Generates unique session ID
+3. Saves file to uploads folder
+4. Creates ReviewSession object
+5. Extracts document sections using DocumentAnalyzer
+6. Stores session data
+7. Returns section list to client
+
+ERROR HANDLING:
+- Invalid file format: Returns error message
+- File too large: Returns size limit error
+- Processing error: Returns detailed error
+
+---
+
+ENDPOINT: POST /analyze_section
+DESCRIPTION: Analyzes specific document section
+METHOD: POST
+PARAMETERS:
+- session_id: Current session identifier
+- section_name: Name of section to analyze
+RETURNS: JSON response
+{
+    "success": true/false,
+    "feedback_items": [
+        {
+            "id": "feedback_id",
+            "type": "critical|important|suggestion",
+            "category": "Hawkeye category",
+            "description": "Issue description",
+            "suggestion": "Recommended action",
+            "hawkeye_refs": [1, 2, 3],
+            "risk_level": "High|Medium|Low",
+            "confidence": 0.85
+        },
+        ...
+    ],
+    "section_content": "Full section text"
+}
+FUNCTIONALITY:
+1. Retrieves session data
+2. Gets section content
+3. Calls AIFeedbackEngine.analyze_section()
+4. Returns structured feedback
+5. Caches results for performance
+
+CACHING:
+- Results cached per section
+- Cache key: session_id + section_name
+- Improves response time for re-visits
+
+---
+
+ENDPOINT: POST /accept_feedback
+DESCRIPTION: Marks feedback as accepted
+METHOD: POST
+PARAMETERS:
+- session_id: Current session identifier
+- section_name: Section containing feedback
+- feedback_id: ID of feedback item
+- feedback_data: Complete feedback object
+RETURNS: JSON response
+{
+    "success": true,
+    "message": "Feedback accepted",
+    "stats": {
+        "total_accepted": 5,
+        "total_rejected": 2
+    }
+}
+FUNCTIONALITY:
+1. Validates session and feedback
+2. Adds to accepted_feedback list
+3. Prepares comment for document
+4. Updates statistics
+5. Logs activity
+6. Records for learning system
+
+---
+
+ENDPOINT: POST /reject_feedback
+DESCRIPTION: Marks feedback as rejected
+METHOD: POST
+PARAMETERS:
+- session_id: Current session identifier
+- section_name: Section containing feedback
+- feedback_id: ID of feedback item
+- feedback_data: Complete feedback object
+RETURNS: JSON response
+{
+    "success": true,
+    "message": "Feedback rejected",
+    "stats": {
+        "total_accepted": 5,
+        "total_rejected": 3
+    }
+}
+FUNCTIONALITY:
+1. Validates session and feedback
+2. Adds to rejected_feedback list
+3. Updates statistics
+4. Logs activity
+5. Records for learning system
+
+---
+
+ENDPOINT: POST /add_custom_feedback
+DESCRIPTION: Adds user-created feedback
+METHOD: POST
+PARAMETERS:
+- session_id: Current session identifier
+- section_name: Target section
+- feedback_type: Type (suggestion|important|critical)
+- category: Hawkeye category
+- description: Feedback text
+RETURNS: JSON response
+{
+    "success": true,
+    "message": "Custom feedback added",
+    "feedback_id": "generated_id"
+}
+FUNCTIONALITY:
+1. Validates input data
+2. Creates feedback object
+3. Adds to accepted_feedback
+4. Prepares comment for document
+5. Updates statistics
+6. Records for learning system
+
+---
+
+ENDPOINT: POST /chat
+DESCRIPTION: Processes chat queries
+METHOD: POST
+PARAMETERS:
+- session_id: Current session identifier
+- query: User question
+- context: Current section, feedback items
+RETURNS: JSON response
+{
+    "success": true,
+    "response": "AI assistant response text"
+}
+FUNCTIONALITY:
+1. Validates session
+2. Builds context from current state
+3. Calls AIFeedbackEngine.process_chat_query()
+4. Returns formatted response
+5. Logs interaction
+
+---
+
+ENDPOINT: POST /complete_review
+DESCRIPTION: Finalizes review and generates document
+METHOD: POST
+PARAMETERS:
+- session_id: Current session identifier
+RETURNS: JSON response
+{
+    "success": true,
+    "download_url": "/download/filename.docx",
+    "filename": "reviewed_document_timestamp.docx",
+    "comment_count": 15
+}
+FUNCTIONALITY:
+1. Retrieves all accepted feedback
+2. Generates Word document with comments
+3. Saves to uploads folder
+4. Optionally exports to S3
+5. Returns download link
+6. Logs completion
+
+DOCUMENT GENERATION:
+- Uses python-docx library
+- Inserts comments at paragraph level
+- Maintains original formatting
+- Includes all accepted feedback
+- Adds review summary page
+
+---
+
+ENDPOINT: GET /download/<filename>
+DESCRIPTION: Downloads reviewed document
+METHOD: GET
+PARAMETERS:
+- filename: Name of file to download
+RETURNS: File download
+FUNCTIONALITY:
+1. Validates filename
+2. Checks file exists
+3. Sends file to client
+4. Sets appropriate headers
+
+---
+
+ENDPOINT: GET /statistics
+DESCRIPTION: Returns review statistics
+METHOD: GET
+PARAMETERS:
+- session_id: Current session identifier
+RETURNS: JSON response
+{
+    "total_feedback": 20,
+    "accepted": 15,
+    "rejected": 5,
+    "high_risk": 3,
+    "medium_risk": 8,
+    "low_risk": 9,
+    "by_section": {
+        "Section 1": {"accepted": 5, "rejected": 1},
+        ...
+    }
+}
+FUNCTIONALITY:
+1. Aggregates feedback data
+2. Calculates statistics
+3. Groups by section
+4. Returns structured data
+
+---
+
+ENDPOINT: GET /test_claude_connection
+DESCRIPTION: Tests AWS Bedrock connectivity
+METHOD: GET
+PARAMETERS: None
+RETURNS: JSON response
+{
+    "success": true,
+    "connected": true,
+    "model": "Claude 3.5 Sonnet",
+    "response_time": 1.23,
+    "region": "us-east-1"
+}
+FUNCTIONALITY:
+1. Attempts Bedrock API call
+2. Measures response time
+3. Returns connection status
+4. Logs test result
+
+---
+
+ENDPOINT: GET /test_s3_connection
+DESCRIPTION: Tests S3 connectivity
+METHOD: GET
+PARAMETERS: None
+RETURNS: JSON response
+{
+    "success": true,
+    "connected": true,
+    "bucket": "felix-s3-bucket",
+    "region": "us-east-1"
+}
+FUNCTIONALITY:
+1. Attempts S3 bucket access
+2. Verifies permissions
+3. Returns connection status
+4. Logs test result
+
+================================================================================
+6. FEATURES IN DETAIL
+================================================================================
+
+6.1 DOCUMENT UPLOAD AND PROCESSING
+-----------------------------------
+UPLOAD MECHANISM:
+- Drag-and-drop support
+- File selection dialog
+- Real-time progress indication
+- File validation
+
+SUPPORTED FORMATS:
+- Microsoft Word (.docx) only
+- Maximum file size: 16MB
+- Must be valid Word document
+
+PROCESSING STEPS:
+1. File received by Flask backend
+2. Saved to uploads/ folder with timestamp
+3. Document opened with python-docx
+4. Sections extracted using DocumentAnalyzer
+5. Paragraph indices tracked for comments
+6. Session created with document data
+7. Client receives section list
+
+ERROR HANDLING:
+- Invalid format: Clear error message
+- Corrupted file: Graceful failure
+- Size limit: Specific size error
+- Processing error: Detailed diagnostics
+
+6.2 SECTION DETECTION AND NAVIGATION
+-------------------------------------
+DETECTION METHODS:
+1. Header-based detection (primary)
+   - Scans for standard section names
+   - Checks formatting patterns
+   - Identifies section boundaries
+
+2. AI-based detection (fallback)
+   - Sends document to Claude
+   - Requests section identification
+   - Uses content hints to locate sections
+
+3. Single section (last resort)
+   - Creates one section with all content
+   - Used when detection fails
+
+NAVIGATION FEATURES:
+- Dropdown menu for section selection
+- Previous/Next buttons
+- Keyboard shortcuts (N/P)
+- Progress indicator
+- Section counter
+
+SECTION DISPLAY:
+- Original document content shown
+- Proper formatting preserved
+- Scrollable content area
+- Section name highlighted
+- Character count displayed
+
+6.3 AI FEEDBACK GENERATION
+---------------------------
+ANALYSIS PROCESS:
+1. Section content sent to Claude AI
+2. Hawkeye framework applied
+3. Feedback items generated
+4. Risk levels classified
+5. Confidence scores assigned
+6. Hawkeye references mapped
+
+FEEDBACK TYPES:
+- CRITICAL: Major issues requiring immediate attention
+- IMPORTANT: Significant improvements needed
+- SUGGESTION: Minor enhancements recommended
+- POSITIVE: Strong elements acknowledged
+
+FEEDBACK COMPONENTS:
+- Description: Clear issue explanation
+- Suggestion: Actionable recommendation
+- Example: Reference or illustration
+- Questions: Probing questions for consideration
+- Hawkeye Refs: Related checkpoint numbers
+- Risk Level: High/Medium/Low classification
+- Confidence: AI confidence score (0-1)
+
+DISPLAY FORMAT:
+- Color-coded by type
+- Risk badge (High/Medium/Low)
+- Category label
+- Expandable details
+- Accept/Reject buttons
+- Hawkeye reference tags
+
+6.4 ACCEPT/REJECT MECHANISM
+----------------------------
+ACCEPT FUNCTIONALITY:
+- Click Accept button on feedback item
+- Item added to accepted list
+- Comment prepared for document
+- Statistics updated
+- Real-time notification shown
+- Learning system records acceptance
+- Button disabled after action
+
+REJECT FUNCTIONALITY:
+- Click Reject button on feedback item
+- Item added to rejected list
+- Statistics updated
+- Real-time notification shown
+- Learning system records rejection
+- Button disabled after action
+
+NOTIFICATION SYSTEM:
+- Toast-style notifications
+- Success/error indicators
+- Auto-dismiss after 3 seconds
+- Non-intrusive positioning
+- Accessible design
+
+STATISTICS TRACKING:
+- Total feedback count
+- Accepted count
+- Rejected count
+- High/Medium/Low risk counts
+- Per-section breakdowns
+- Real-time updates
+
+6.5 CUSTOM FEEDBACK ADDITION
+-----------------------------
+FORM COMPONENTS:
+- Type dropdown (suggestion/important/critical)
+- Category dropdown (Hawkeye checkpoints)
+- Description textarea
+- Add button
+
+VALIDATION:
+- Description required
+- Type and category pre-selected
+- Character limits enforced
+- Duplicate prevention
+
+PROCESSING:
+1. User fills form
+2. Validation performed
+3. Feedback object created
+4. Added to accepted list
+5. Comment prepared
+6. Statistics updated
+7. Form cleared
+8. Learning system records
+
+INTEGRATION:
+- Appears in feedback list
+- Marked as user-created
+- Included in final document
+- Tracked separately in stats
+
+6.6 AI CHAT ASSISTANT
+---------------------
+CHAT INTERFACE:
+- Dedicated chat tab
+- Message history display
+- Input field with send button
+- Keyboard shortcut (C)
+- Auto-scroll to latest
+
+CAPABILITIES:
+- Answer questions about feedback
+- Explain Hawkeye checkpoints
+- Provide improvement suggestions
+- Clarify risk classifications
+- Reference guidelines
+
+CONTEXT AWARENESS:
+- Knows current section
+- Aware of feedback items
+- Understands document type
+- References Hawkeye framework
+
+MESSAGE TYPES:
+- User messages (right-aligned)
+- Assistant messages (left-aligned)
+- Thinking indicator
+- Error messages
+
+RESPONSE GENERATION:
+1. User types question
+2. Context gathered (section, feedback)
+3. Sent to Claude AI
+4. Response formatted
+5. Displayed in chat
+6. History maintained
+
+6.7 STATISTICS AND ANALYTICS
+-----------------------------
+TRACKED METRICS:
+- Total feedback items
+- Accepted feedback count
+- Rejected feedback count
+- High risk items
+- Medium risk items
+- Low risk items
+- User-added feedback
+- Per-section statistics
+
+DISPLAY:
+- Dashboard-style cards
+- Color-coded numbers
+- Clickable for details
+- Real-time updates
+- Visual indicators
+
+DETAILED BREAKDOWNS:
+- Click any statistic
+- Modal with detailed view
+- Grouped by section
+- Filtered by type
+- Sortable columns
+
+EXPORT OPTIONS:
+- Download statistics as JSON
+- Include in final document
+- S3 export (optional)
+

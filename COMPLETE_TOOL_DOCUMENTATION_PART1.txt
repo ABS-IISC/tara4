@@ -1,0 +1,2350 @@
+================================================================================
+AI-PRISM DOCUMENT ANALYSIS TOOL - COMPLETE TECHNICAL DOCUMENTATION
+================================================================================
+
+PART 1: OVERVIEW, ARCHITECTURE, AND CORE CONCEPTS
+
+================================================================================
+1. TOOL OVERVIEW
+================================================================================
+
+1.1 PURPOSE AND MISSION
+------------------------
+AI-Prism is a professional AI-powered document analysis and review tool designed 
+specifically for investigating and reviewing business documents using the Hawkeye 
+20-point investigation framework. The tool automates the document review process 
+by providing intelligent feedback, risk assessment, and comprehensive analysis 
+based on established investigation best practices.
+
+PRIMARY OBJECTIVES:
+- Automate document review using AI-powered analysis
+- Apply the Hawkeye 20-point investigation framework systematically
+- Provide actionable, contextual feedback on document quality
+- Enable efficient review workflows with accept/reject mechanisms
+- Generate reviewed documents with embedded comments
+- Track patterns and learn from user feedback over time
+- Maintain complete audit trails of all review activities
+
+TARGET USERS:
+- Investigation analysts and reviewers
+- Document quality assurance teams
+- Compliance and audit professionals
+- Business process improvement specialists
+- Anyone conducting systematic document reviews
+
+1.2 KEY CAPABILITIES
+--------------------
+DOCUMENT PROCESSING:
+- Supports Microsoft Word (.docx) format
+- Automatic section detection using AI
+- Deep content analysis and extraction
+- Paragraph-level tracking for comment insertion
+- Handles complex document structures
+
+AI-POWERED ANALYSIS:
+- Uses AWS Bedrock with Claude 3.5 Sonnet model
+- Applies Hawkeye 20-point investigation framework
+- Generates contextual, actionable feedback
+- Classifies risk levels (High/Medium/Low)
+- Provides confidence scores for recommendations
+- Supports multi-model fallback for reliability
+
+INTERACTIVE REVIEW:
+- Real-time feedback display
+- Accept/reject mechanism for AI suggestions
+- Custom feedback addition capability
+- Section-by-section navigation
+- Progress tracking and statistics
+- Chat assistant for questions
+
+LEARNING AND ADAPTATION:
+- Records user feedback patterns
+- Adapts recommendations over time
+- Identifies recurring issues across documents
+- Provides learned suggestions based on history
+
+OUTPUT GENERATION:
+- Creates Word documents with embedded comments
+- Includes all accepted feedback as margin comments
+- Maintains original document formatting
+- Generates comprehensive review summaries
+- Exports to S3 for cloud storage (optional)
+
+================================================================================
+2. SYSTEM ARCHITECTURE
+================================================================================
+
+2.1 HIGH-LEVEL ARCHITECTURE
+---------------------------
+AI-Prism follows a modular, layered architecture:
+
+PRESENTATION LAYER (Frontend):
+- HTML5/CSS3/JavaScript responsive web interface
+- Real-time updates using AJAX
+- Session-based state management
+- Mobile-responsive design
+
+APPLICATION LAYER (Backend):
+- Flask web framework (Python)
+- RESTful API endpoints
+- Session management
+- Request/response handling
+
+BUSINESS LOGIC LAYER:
+- Document analysis engine
+- AI feedback generation
+- Risk classification
+- Pattern recognition
+- Learning system
+
+DATA ACCESS LAYER:
+- File system storage (uploads, data)
+- AWS S3 integration (optional)
+- Session data management
+- Audit log persistence
+
+EXTERNAL SERVICES:
+- AWS Bedrock (Claude AI models)
+- AWS S3 (cloud storage)
+
+2.2 DIRECTORY STRUCTURE
+-----------------------
+tara2/
+├── core/                          # Core analysis modules
+│   ├── document_analyzer.py       # Section detection and extraction
+│   ├── ai_feedback_engine.py      # AI-powered feedback generation
+│   └── ai_feedback_engine_enhanced.py  # Enhanced feedback features
+│
+├── utils/                         # Utility modules
+│   ├── activity_logger.py         # Activity tracking
+│   ├── audit_logger.py            # Audit trail management
+│   ├── document_processor.py      # Word document processing
+│   ├── learning_system.py         # AI learning and adaptation
+│   ├── pattern_analyzer.py        # Cross-document pattern detection
+│   ├── s3_export_manager.py       # S3 integration
+│   └── statistics_manager.py      # Statistics tracking
+│
+├── config/                        # Configuration modules
+│   ├── model_config.py            # Claude model configuration
+│   └── ai_prompts.py              # AI prompt templates
+│
+├── templates/                     # HTML templates
+│   └── enhanced_index.html        # Main UI template
+│
+├── static/js/                     # JavaScript files
+│   ├── app.js                     # Main application logic
+│   ├── button_fixes.js            # Button event handlers
+│   ├── text_highlighting.js       # Text selection and highlighting
+│   ├── user_feedback_management.js # Feedback management
+│   └── [other JS modules]
+│
+├── uploads/                       # Uploaded documents (temporary)
+├── data/                          # Persistent data storage
+├── app.py                         # Flask application entry point
+├── main.py                        # Application launcher
+└── requirements.txt               # Python dependencies
+
+2.3 TECHNOLOGY STACK
+--------------------
+BACKEND:
+- Python 3.8+
+- Flask 2.3+ (web framework)
+- boto3 (AWS SDK)
+- python-docx (Word document processing)
+- lxml (XML processing)
+
+FRONTEND:
+- HTML5
+- CSS3 (responsive design)
+- JavaScript ES6+
+- No external JS frameworks (vanilla JS)
+
+AI/ML:
+- AWS Bedrock
+- Claude 3.5 Sonnet (primary model)
+- Claude 3.7 Sonnet (optional)
+- Claude 4.5 Sonnet (optional)
+
+CLOUD SERVICES:
+- AWS Bedrock (AI inference)
+- AWS S3 (optional storage)
+- AWS App Runner (deployment option)
+
+DEPLOYMENT:
+- Docker containerization
+- AWS ECR (container registry)
+- AWS App Runner (serverless deployment)
+- Local development server
+
+================================================================================
+3. HAWKEYE FRAMEWORK INTEGRATION
+================================================================================
+
+3.1 THE 20-POINT HAWKEYE CHECKLIST
+-----------------------------------
+The Hawkeye framework is a comprehensive investigation methodology consisting 
+of 20 critical checkpoints:
+
+1. INITIAL ASSESSMENT
+   - Evaluate customer experience (CX) impact
+   - Assess buyer trust implications
+   - Measure business impact
+
+2. INVESTIGATION PROCESS
+   - Challenge existing SOPs
+   - Verify enforcement decisions
+   - Identify abuse patterns
+
+3. SELLER CLASSIFICATION
+   - Distinguish good actors
+   - Identify bad actors
+   - Recognize confused actors
+
+4. ENFORCEMENT DECISION-MAKING
+   - Proper violation assessment
+   - Appropriate action selection
+   - Warning vs suspension decisions
+
+5. ADDITIONAL VERIFICATION (HIGH-RISK CASES)
+   - Supplier verification
+   - Authenticity checks
+   - Documentation validation
+
+6. MULTIPLE APPEALS HANDLING
+   - Pattern recognition in appeals
+   - Retrospective analysis
+   - Repeat violation tracking
+
+7. ACCOUNT HIJACKING PREVENTION
+   - Security measure verification
+   - Authentication checks
+   - Secondary user validation
+
+8. FUNDS MANAGEMENT
+   - Disbursement review
+   - Financial impact assessment
+   - Payment hold justification
+
+9. RES-Q OUTREACH PROCESS
+   - Communication protocols
+   - Clarification requests
+   - Seller engagement
+
+10. SENTIMENT ANALYSIS
+    - Escalation identification
+    - Health and safety concerns
+    - Legal threat assessment
+
+11. ROOT CAUSE ANALYSIS
+    - Process gap identification
+    - System failure analysis
+    - 5-Whys methodology
+
+12. PREVENTATIVE ACTIONS
+    - Solution implementation
+    - Process improvements
+    - Mitigation strategies
+
+13. DOCUMENTATION AND REPORTING
+    - Proper record keeping
+    - Background information
+    - Evidence documentation
+
+14. CROSS-TEAM COLLABORATION
+    - Stakeholder engagement
+    - Team coordination
+    - Information sharing
+
+15. QUALITY CONTROL
+    - Audit processes
+    - Review mechanisms
+    - Performance monitoring
+
+16. CONTINUOUS IMPROVEMENT
+    - Training updates
+    - Process refinement
+    - Lessons learned
+
+17. COMMUNICATION STANDARDS
+    - Clear messaging
+    - Professional tone
+    - Appropriate language
+
+18. PERFORMANCE METRICS
+    - Tracking mechanisms
+    - Measurement criteria
+    - KPI monitoring
+
+19. LEGAL AND COMPLIANCE
+    - Regulatory adherence
+    - Policy compliance
+    - Legal requirements
+
+20. NEW SERVICE LAUNCH CONSIDERATIONS
+    - Pilot planning
+    - Rollback procedures
+    - Launch readiness
+
+3.2 HOW AI-PRISM APPLIES HAWKEYE
+---------------------------------
+ANALYSIS PHASE:
+1. Document sections are analyzed against relevant Hawkeye checkpoints
+2. AI identifies which checkpoints apply to each section
+3. Feedback is generated based on checkpoint criteria
+4. Each feedback item references specific Hawkeye numbers
+
+FEEDBACK GENERATION:
+- System prompt includes full Hawkeye framework
+- User prompts reference specific checkpoints
+- AI maps content to relevant checkpoints
+- Feedback includes checkpoint numbers and names
+
+RISK CLASSIFICATION:
+- High Risk: Violations of critical checkpoints (1, 10, 11, 19)
+- Medium Risk: Process gaps in important checkpoints (2, 4, 12, 13)
+- Low Risk: Minor improvements in other checkpoints
+
+LEARNING INTEGRATION:
+- User acceptance/rejection patterns tracked per checkpoint
+- System learns which checkpoints matter most to users
+- Future recommendations weighted by checkpoint importance
+
+================================================================================
+4. CORE MODULES DETAILED EXPLANATION
+================================================================================
+
+4.1 DOCUMENT ANALYZER (core/document_analyzer.py)
+-------------------------------------------------
+PURPOSE:
+Extracts and analyzes document structure, identifying sections and content.
+
+KEY CLASSES:
+- DocumentAnalyzer: Main class for document processing
+
+MAIN METHODS:
+
+extract_sections_from_docx(doc_path):
+- Opens Word document
+- Identifies section headers
+- Extracts content between sections
+- Returns sections dict, paragraphs, and indices
+- Falls back to AI detection if headers unclear
+
+_extract_by_headers(doc):
+- Scans for standard section names
+- Detects formatting patterns
+- Builds section boundaries
+- Returns structured sections
+
+_identify_sections_with_ai(doc_text):
+- Sends document to Claude AI
+- Requests section identification
+- Parses JSON response
+- Returns section hints
+
+_extract_by_ai_hints(doc, ai_sections):
+- Uses AI-provided hints to locate sections
+- Matches hints to document content
+- Extracts section boundaries
+- Returns structured sections
+
+_create_single_section(doc):
+- Fallback when no sections detected
+- Creates single "Document Content" section
+- Includes all paragraphs
+- Returns basic structure
+
+SECTION DETECTION LOGIC:
+1. Try header-based detection first
+2. Look for standard section names
+3. Check formatting patterns
+4. If insufficient sections found, use AI
+5. Fall back to single section if all else fails
+
+SUPPORTED SECTION NAMES:
+- Executive Summary
+- Background
+- Timeline of Events
+- Resolving Actions
+- Root Causes (RC) and Preventative Actions (PA)
+- Investigation Process
+- Seller Classification
+- Documentation and Reporting
+- Impact Assessment
+- Recommendations
+
+4.2 AI FEEDBACK ENGINE (core/ai_feedback_engine.py)
+---------------------------------------------------
+PURPOSE:
+Generates intelligent feedback using Claude AI and Hawkeye framework.
+
+KEY CLASSES:
+- AIFeedbackEngine: Main feedback generation engine
+
+MAIN METHODS:
+
+analyze_section(section_name, content, doc_type):
+- Analyzes single document section
+- Generates Hawkeye-based feedback
+- Classifies risk levels
+- Returns structured feedback items
+- Caches results for performance
+
+_invoke_bedrock(system_prompt, user_prompt):
+- Calls AWS Bedrock API
+- Handles authentication
+- Manages retries and errors
+- Returns AI response text
+- Falls back to mock data if needed
+
+process_chat_query(query, context):
+- Handles user chat questions
+- Provides contextual responses
+- References Hawkeye guidelines
+- Returns formatted answer
+
+_process_chat_with_fallback(system_prompt, prompt, query, context):
+- Tries multiple Claude models
+- Automatic fallback on failure
+- Returns first successful response
+- Logs model usage
+
+_get_hawkeye_references(category, description):
+- Maps feedback to Hawkeye checkpoints
+- Uses keyword matching
+- Returns relevant checkpoint numbers
+- Limits to top 3 references
+
+_classify_risk_level(feedback_item):
+- Analyzes feedback content
+- Identifies risk indicators
+- Returns High/Medium/Low classification
+- Based on Hawkeye severity
+
+_mock_ai_response(user_prompt):
+- Provides fallback responses
+- Used when AI unavailable
+- Context-aware mock data
+- Maintains JSON structure
+
+FEEDBACK ITEM STRUCTURE:
+{
+    "id": "unique_identifier",
+    "type": "critical|important|suggestion|positive",
+    "category": "Hawkeye checkpoint name",
+    "description": "Issue description",
+    "suggestion": "Recommended action",
+    "example": "Example or reference",
+    "questions": ["Key question 1", "Key question 2"],
+    "hawkeye_refs": [checkpoint_numbers],
+    "risk_level": "High|Medium|Low",
+    "confidence": 0.85
+}
+
+AI PROMPT STRUCTURE:
+- System prompt: Defines AI role and Hawkeye framework
+- User prompt: Specific section analysis request
+- Context: Current section, document type, guidelines
+- Output format: Strict JSON specification
+
+================================================================================
+AI-PRISM DOCUMENT ANALYSIS TOOL - COMPLETE TECHNICAL DOCUMENTATION
+================================================================================
+
+PART 2: API ENDPOINTS, FEATURES, AND USER INTERFACE
+
+================================================================================
+5. FLASK APPLICATION AND API ENDPOINTS
+================================================================================
+
+5.1 APPLICATION STRUCTURE (app.py)
+-----------------------------------
+The Flask application serves as the backend API and web server.
+
+INITIALIZATION:
+- Flask app creation
+- Session configuration
+- CORS setup (if needed)
+- Upload folder configuration
+- Data folder creation
+
+GLOBAL OBJECTS:
+- sessions: Dict storing active review sessions
+- ai_engine: AIFeedbackEngine instance
+- s3_manager: S3ExportManager instance (optional)
+
+SESSION MANAGEMENT:
+- Each user gets unique session ID
+- Session stores document data, feedback, progress
+- Sessions persist during review process
+- Cleaned up after completion
+
+5.2 CORE API ENDPOINTS
+----------------------
+
+ENDPOINT: GET /
+DESCRIPTION: Serves main application page
+METHOD: GET
+PARAMETERS: None
+RETURNS: HTML template (enhanced_index.html)
+FUNCTIONALITY:
+- Renders main UI
+- Initializes client-side JavaScript
+- Sets up session if needed
+
+---
+
+ENDPOINT: POST /upload
+DESCRIPTION: Handles document upload
+METHOD: POST
+PARAMETERS:
+- file: Document file (.docx)
+RETURNS: JSON response
+{
+    "success": true/false,
+    "session_id": "unique_session_id",
+    "sections": ["Section 1", "Section 2", ...],
+    "message": "Status message"
+}
+FUNCTIONALITY:
+1. Validates file format (.docx only)
+2. Generates unique session ID
+3. Saves file to uploads folder
+4. Creates ReviewSession object
+5. Extracts document sections using DocumentAnalyzer
+6. Stores session data
+7. Returns section list to client
+
+ERROR HANDLING:
+- Invalid file format: Returns error message
+- File too large: Returns size limit error
+- Processing error: Returns detailed error
+
+---
+
+ENDPOINT: POST /analyze_section
+DESCRIPTION: Analyzes specific document section
+METHOD: POST
+PARAMETERS:
+- session_id: Current session identifier
+- section_name: Name of section to analyze
+RETURNS: JSON response
+{
+    "success": true/false,
+    "feedback_items": [
+        {
+            "id": "feedback_id",
+            "type": "critical|important|suggestion",
+            "category": "Hawkeye category",
+            "description": "Issue description",
+            "suggestion": "Recommended action",
+            "hawkeye_refs": [1, 2, 3],
+            "risk_level": "High|Medium|Low",
+            "confidence": 0.85
+        },
+        ...
+    ],
+    "section_content": "Full section text"
+}
+FUNCTIONALITY:
+1. Retrieves session data
+2. Gets section content
+3. Calls AIFeedbackEngine.analyze_section()
+4. Returns structured feedback
+5. Caches results for performance
+
+CACHING:
+- Results cached per section
+- Cache key: session_id + section_name
+- Improves response time for re-visits
+
+---
+
+ENDPOINT: POST /accept_feedback
+DESCRIPTION: Marks feedback as accepted
+METHOD: POST
+PARAMETERS:
+- session_id: Current session identifier
+- section_name: Section containing feedback
+- feedback_id: ID of feedback item
+- feedback_data: Complete feedback object
+RETURNS: JSON response
+{
+    "success": true,
+    "message": "Feedback accepted",
+    "stats": {
+        "total_accepted": 5,
+        "total_rejected": 2
+    }
+}
+FUNCTIONALITY:
+1. Validates session and feedback
+2. Adds to accepted_feedback list
+3. Prepares comment for document
+4. Updates statistics
+5. Logs activity
+6. Records for learning system
+
+---
+
+ENDPOINT: POST /reject_feedback
+DESCRIPTION: Marks feedback as rejected
+METHOD: POST
+PARAMETERS:
+- session_id: Current session identifier
+- section_name: Section containing feedback
+- feedback_id: ID of feedback item
+- feedback_data: Complete feedback object
+RETURNS: JSON response
+{
+    "success": true,
+    "message": "Feedback rejected",
+    "stats": {
+        "total_accepted": 5,
+        "total_rejected": 3
+    }
+}
+FUNCTIONALITY:
+1. Validates session and feedback
+2. Adds to rejected_feedback list
+3. Updates statistics
+4. Logs activity
+5. Records for learning system
+
+---
+
+ENDPOINT: POST /add_custom_feedback
+DESCRIPTION: Adds user-created feedback
+METHOD: POST
+PARAMETERS:
+- session_id: Current session identifier
+- section_name: Target section
+- feedback_type: Type (suggestion|important|critical)
+- category: Hawkeye category
+- description: Feedback text
+RETURNS: JSON response
+{
+    "success": true,
+    "message": "Custom feedback added",
+    "feedback_id": "generated_id"
+}
+FUNCTIONALITY:
+1. Validates input data
+2. Creates feedback object
+3. Adds to accepted_feedback
+4. Prepares comment for document
+5. Updates statistics
+6. Records for learning system
+
+---
+
+ENDPOINT: POST /chat
+DESCRIPTION: Processes chat queries
+METHOD: POST
+PARAMETERS:
+- session_id: Current session identifier
+- query: User question
+- context: Current section, feedback items
+RETURNS: JSON response
+{
+    "success": true,
+    "response": "AI assistant response text"
+}
+FUNCTIONALITY:
+1. Validates session
+2. Builds context from current state
+3. Calls AIFeedbackEngine.process_chat_query()
+4. Returns formatted response
+5. Logs interaction
+
+---
+
+ENDPOINT: POST /complete_review
+DESCRIPTION: Finalizes review and generates document
+METHOD: POST
+PARAMETERS:
+- session_id: Current session identifier
+RETURNS: JSON response
+{
+    "success": true,
+    "download_url": "/download/filename.docx",
+    "filename": "reviewed_document_timestamp.docx",
+    "comment_count": 15
+}
+FUNCTIONALITY:
+1. Retrieves all accepted feedback
+2. Generates Word document with comments
+3. Saves to uploads folder
+4. Optionally exports to S3
+5. Returns download link
+6. Logs completion
+
+DOCUMENT GENERATION:
+- Uses python-docx library
+- Inserts comments at paragraph level
+- Maintains original formatting
+- Includes all accepted feedback
+- Adds review summary page
+
+---
+
+ENDPOINT: GET /download/<filename>
+DESCRIPTION: Downloads reviewed document
+METHOD: GET
+PARAMETERS:
+- filename: Name of file to download
+RETURNS: File download
+FUNCTIONALITY:
+1. Validates filename
+2. Checks file exists
+3. Sends file to client
+4. Sets appropriate headers
+
+---
+
+ENDPOINT: GET /statistics
+DESCRIPTION: Returns review statistics
+METHOD: GET
+PARAMETERS:
+- session_id: Current session identifier
+RETURNS: JSON response
+{
+    "total_feedback": 20,
+    "accepted": 15,
+    "rejected": 5,
+    "high_risk": 3,
+    "medium_risk": 8,
+    "low_risk": 9,
+    "by_section": {
+        "Section 1": {"accepted": 5, "rejected": 1},
+        ...
+    }
+}
+FUNCTIONALITY:
+1. Aggregates feedback data
+2. Calculates statistics
+3. Groups by section
+4. Returns structured data
+
+---
+
+ENDPOINT: GET /test_claude_connection
+DESCRIPTION: Tests AWS Bedrock connectivity
+METHOD: GET
+PARAMETERS: None
+RETURNS: JSON response
+{
+    "success": true,
+    "connected": true,
+    "model": "Claude 3.5 Sonnet",
+    "response_time": 1.23,
+    "region": "us-east-1"
+}
+FUNCTIONALITY:
+1. Attempts Bedrock API call
+2. Measures response time
+3. Returns connection status
+4. Logs test result
+
+---
+
+ENDPOINT: GET /test_s3_connection
+DESCRIPTION: Tests S3 connectivity
+METHOD: GET
+PARAMETERS: None
+RETURNS: JSON response
+{
+    "success": true,
+    "connected": true,
+    "bucket": "felix-s3-bucket",
+    "region": "us-east-1"
+}
+FUNCTIONALITY:
+1. Attempts S3 bucket access
+2. Verifies permissions
+3. Returns connection status
+4. Logs test result
+
+================================================================================
+6. FEATURES IN DETAIL
+================================================================================
+
+6.1 DOCUMENT UPLOAD AND PROCESSING
+-----------------------------------
+UPLOAD MECHANISM:
+- Drag-and-drop support
+- File selection dialog
+- Real-time progress indication
+- File validation
+
+SUPPORTED FORMATS:
+- Microsoft Word (.docx) only
+- Maximum file size: 16MB
+- Must be valid Word document
+
+PROCESSING STEPS:
+1. File received by Flask backend
+2. Saved to uploads/ folder with timestamp
+3. Document opened with python-docx
+4. Sections extracted using DocumentAnalyzer
+5. Paragraph indices tracked for comments
+6. Session created with document data
+7. Client receives section list
+
+ERROR HANDLING:
+- Invalid format: Clear error message
+- Corrupted file: Graceful failure
+- Size limit: Specific size error
+- Processing error: Detailed diagnostics
+
+6.2 SECTION DETECTION AND NAVIGATION
+-------------------------------------
+DETECTION METHODS:
+1. Header-based detection (primary)
+   - Scans for standard section names
+   - Checks formatting patterns
+   - Identifies section boundaries
+
+2. AI-based detection (fallback)
+   - Sends document to Claude
+   - Requests section identification
+   - Uses content hints to locate sections
+
+3. Single section (last resort)
+   - Creates one section with all content
+   - Used when detection fails
+
+NAVIGATION FEATURES:
+- Dropdown menu for section selection
+- Previous/Next buttons
+- Keyboard shortcuts (N/P)
+- Progress indicator
+- Section counter
+
+SECTION DISPLAY:
+- Original document content shown
+- Proper formatting preserved
+- Scrollable content area
+- Section name highlighted
+- Character count displayed
+
+6.3 AI FEEDBACK GENERATION
+---------------------------
+ANALYSIS PROCESS:
+1. Section content sent to Claude AI
+2. Hawkeye framework applied
+3. Feedback items generated
+4. Risk levels classified
+5. Confidence scores assigned
+6. Hawkeye references mapped
+
+FEEDBACK TYPES:
+- CRITICAL: Major issues requiring immediate attention
+- IMPORTANT: Significant improvements needed
+- SUGGESTION: Minor enhancements recommended
+- POSITIVE: Strong elements acknowledged
+
+FEEDBACK COMPONENTS:
+- Description: Clear issue explanation
+- Suggestion: Actionable recommendation
+- Example: Reference or illustration
+- Questions: Probing questions for consideration
+- Hawkeye Refs: Related checkpoint numbers
+- Risk Level: High/Medium/Low classification
+- Confidence: AI confidence score (0-1)
+
+DISPLAY FORMAT:
+- Color-coded by type
+- Risk badge (High/Medium/Low)
+- Category label
+- Expandable details
+- Accept/Reject buttons
+- Hawkeye reference tags
+
+6.4 ACCEPT/REJECT MECHANISM
+----------------------------
+ACCEPT FUNCTIONALITY:
+- Click Accept button on feedback item
+- Item added to accepted list
+- Comment prepared for document
+- Statistics updated
+- Real-time notification shown
+- Learning system records acceptance
+- Button disabled after action
+
+REJECT FUNCTIONALITY:
+- Click Reject button on feedback item
+- Item added to rejected list
+- Statistics updated
+- Real-time notification shown
+- Learning system records rejection
+- Button disabled after action
+
+NOTIFICATION SYSTEM:
+- Toast-style notifications
+- Success/error indicators
+- Auto-dismiss after 3 seconds
+- Non-intrusive positioning
+- Accessible design
+
+STATISTICS TRACKING:
+- Total feedback count
+- Accepted count
+- Rejected count
+- High/Medium/Low risk counts
+- Per-section breakdowns
+- Real-time updates
+
+6.5 CUSTOM FEEDBACK ADDITION
+-----------------------------
+FORM COMPONENTS:
+- Type dropdown (suggestion/important/critical)
+- Category dropdown (Hawkeye checkpoints)
+- Description textarea
+- Add button
+
+VALIDATION:
+- Description required
+- Type and category pre-selected
+- Character limits enforced
+- Duplicate prevention
+
+PROCESSING:
+1. User fills form
+2. Validation performed
+3. Feedback object created
+4. Added to accepted list
+5. Comment prepared
+6. Statistics updated
+7. Form cleared
+8. Learning system records
+
+INTEGRATION:
+- Appears in feedback list
+- Marked as user-created
+- Included in final document
+- Tracked separately in stats
+
+6.6 AI CHAT ASSISTANT
+---------------------
+CHAT INTERFACE:
+- Dedicated chat tab
+- Message history display
+- Input field with send button
+- Keyboard shortcut (C)
+- Auto-scroll to latest
+
+CAPABILITIES:
+- Answer questions about feedback
+- Explain Hawkeye checkpoints
+- Provide improvement suggestions
+- Clarify risk classifications
+- Reference guidelines
+
+CONTEXT AWARENESS:
+- Knows current section
+- Aware of feedback items
+- Understands document type
+- References Hawkeye framework
+
+MESSAGE TYPES:
+- User messages (right-aligned)
+- Assistant messages (left-aligned)
+- Thinking indicator
+- Error messages
+
+RESPONSE GENERATION:
+1. User types question
+2. Context gathered (section, feedback)
+3. Sent to Claude AI
+4. Response formatted
+5. Displayed in chat
+6. History maintained
+
+6.7 STATISTICS AND ANALYTICS
+-----------------------------
+TRACKED METRICS:
+- Total feedback items
+- Accepted feedback count
+- Rejected feedback count
+- High risk items
+- Medium risk items
+- Low risk items
+- User-added feedback
+- Per-section statistics
+
+DISPLAY:
+- Dashboard-style cards
+- Color-coded numbers
+- Clickable for details
+- Real-time updates
+- Visual indicators
+
+DETAILED BREAKDOWNS:
+- Click any statistic
+- Modal with detailed view
+- Grouped by section
+- Filtered by type
+- Sortable columns
+
+EXPORT OPTIONS:
+- Download statistics as JSON
+- Include in final document
+- S3 export (optional)
+
+
+
+================================================================================
+AI-PRISM DOCUMENT ANALYSIS TOOL - COMPLETE TECHNICAL DOCUMENTATION
+================================================================================
+
+PART 3: USER INTERFACE, ADVANCED FEATURES, AND WORKFLOWS
+
+================================================================================
+7. USER INTERFACE DETAILED EXPLANATION
+================================================================================
+
+7.1 MAIN LAYOUT STRUCTURE
+--------------------------
+The UI follows a split-screen design with responsive behavior:
+
+HEADER SECTION:
+- Application title and logo
+- Hawkeye framework subtitle
+- Dark mode toggle button
+- Control buttons row:
+  * Keyboard shortcuts (?)
+  * Tutorial button
+  * FAQ button
+  * Patterns button
+  * Logs button
+  * Learning button
+
+PROGRESS SECTION:
+- Progress bar showing review completion
+- Statistics dashboard with cards:
+  * Total Feedback (purple)
+  * High Risk (red)
+  * Medium Risk (orange)
+  * Accepted (green)
+  * User Added (blue)
+
+NAVIGATION SECTION:
+- Section dropdown selector
+- Risk indicator badge
+- Complete Review button
+- Download Hawkeye button
+
+MAIN CONTENT AREA (Split Screen):
+LEFT PANEL - Document View:
+- Section header with name
+- Original document content
+- Scrollable text area
+- Preserved formatting
+- Read-only display
+
+RIGHT PANEL - Tabbed Interface:
+TAB 1 - Feedback:
+- Feedback header
+- Scrollable feedback list
+- Accept/Reject buttons per item
+- Custom feedback form
+- Navigation buttons (Prev/Next)
+
+TAB 2 - Chat:
+- Chat header
+- Message history
+- User/Assistant messages
+- Input field
+- Send button
+
+STATUS SECTION:
+- Activity log display
+- Error messages
+- Success notifications
+- System status
+
+7.2 RESPONSIVE DESIGN
+---------------------
+DESKTOP (>1200px):
+- Full split-screen layout
+- Side-by-side panels
+- All features visible
+- Optimal spacing
+
+TABLET (768px-1200px):
+- Adjusted panel widths
+- Stacked on smaller tablets
+- Touch-optimized buttons
+- Readable font sizes
+
+MOBILE (<768px):
+- Single column layout
+- Panels stack vertically
+- Collapsible sections
+- Touch-friendly controls
+- Simplified navigation
+
+BREAKPOINTS:
+- 1200px: Desktop
+- 992px: Large tablet
+- 768px: Tablet
+- 576px: Mobile
+- 320px: Small mobile
+
+7.3 COLOR SCHEME AND THEMING
+-----------------------------
+LIGHT MODE (Default):
+- Background: White (#FFFFFF)
+- Text: Dark gray (#333333)
+- Primary: Purple gradient (#667eea to #764ba2)
+- Success: Green (#2ecc71)
+- Warning: Orange (#f39c12)
+- Danger: Red (#e74c3c)
+- Info: Blue (#3498db)
+
+DARK MODE:
+- Background: Dark gray (#2a2a2a)
+- Text: Light gray (#e0e0e0)
+- Primary: Darker purple (#333 to #222)
+- Success: Dark green (#2c5e2e)
+- Warning: Dark orange (#855522)
+- Danger: Dark red (#7a2828)
+- Info: Dark blue (#2c5e7a)
+
+TOGGLE MECHANISM:
+- Button in header
+- Instant theme switch
+- CSS class-based
+- Persistent preference
+- Smooth transitions
+
+7.4 INTERACTIVE ELEMENTS
+------------------------
+BUTTONS:
+- Primary: Purple background, white text
+- Success: Green background, white text
+- Danger: Red background, white text
+- Info: Blue background, white text
+- Disabled: Gray background, reduced opacity
+
+HOVER EFFECTS:
+- Slight color darkening
+- Cursor pointer
+- Smooth transition (0.3s)
+- Shadow enhancement
+
+FOCUS STATES:
+- Outline for accessibility
+- Keyboard navigation support
+- Tab order logical
+- Skip links available
+
+LOADING STATES:
+- Spinner animations
+- Progress indicators
+- Disabled buttons during processing
+- Status messages
+
+7.5 FEEDBACK ITEM DISPLAY
+--------------------------
+CARD STRUCTURE:
+┌─────────────────────────────────────────┐
+│ [TYPE BADGE] [RISK BADGE] [CATEGORY]   │
+│                                         │
+│ Description text explaining the issue   │
+│ and what needs improvement...           │
+│                                         │
+│ Suggestion: Recommended action...       │
+│                                         │
+│ Example: Reference or illustration...   │
+│                                         │
+│ Key Questions:                          │
+│ • Question 1?                           │
+│ • Question 2?                           │
+│                                         │
+│ Hawkeye References: #1 #2 #3           │
+│ Confidence: 85%                         │
+│                                         │
+│ [✓ Accept] [✗ Reject]                  │
+└─────────────────────────────────────────┘
+
+COLOR CODING:
+- Critical: Red left border
+- Important: Orange left border
+- Suggestion: Blue left border
+- Positive: Green left border
+
+RISK BADGES:
+- High: Red background
+- Medium: Orange background
+- Low: Blue background
+
+INTERACTIVE FEATURES:
+- Expandable details
+- Clickable Hawkeye refs
+- Hover tooltips
+- Button state changes
+
+7.6 CHAT INTERFACE
+------------------
+MESSAGE DISPLAY:
+USER MESSAGE:
+┌─────────────────────────────────────────┐
+│                    👤 You:              │
+│                    Question text here   │
+│                    [Right-aligned]      │
+└─────────────────────────────────────────┘
+
+ASSISTANT MESSAGE:
+┌─────────────────────────────────────────┐
+│ 🤖 AI Assistant:                        │
+│ Response text here with formatting      │
+│ • Bullet points                         │
+│ • Multiple lines                        │
+│ [Left-aligned]                          │
+└─────────────────────────────────────────┘
+
+FEATURES:
+- Auto-scroll to latest
+- Message history preserved
+- Thinking indicator
+- Error handling
+- Copy message text
+- Markdown-like formatting
+
+INPUT AREA:
+- Text input field (85% width)
+- Send button (15% width)
+- Enter key to send
+- Keyboard shortcut (C)
+- Character counter (optional)
+
+7.7 MODAL DIALOGS
+-----------------
+KEYBOARD SHORTCUTS MODAL:
+- Triggered by ? button
+- Lists all shortcuts
+- Organized by category
+- Close button
+- Escape key to close
+
+FAQ MODAL:
+- Triggered by FAQ button
+- Expandable questions
+- Detailed answers
+- Search functionality
+- Close button
+
+STATISTICS DETAIL MODAL:
+- Triggered by clicking stats
+- Detailed breakdowns
+- Charts and graphs
+- Export options
+- Close button
+
+PATTERN REPORT MODAL:
+- Shows recurring issues
+- Cross-document analysis
+- Trend visualization
+- Export options
+- Close button
+
+================================================================================
+8. ADVANCED FEATURES
+================================================================================
+
+8.1 TEXT HIGHLIGHTING AND COMMENTING
+-------------------------------------
+FUNCTIONALITY:
+- Select text in document
+- Right-click or button to add comment
+- Choose highlight color
+- Enter comment text
+- Save to session
+
+HIGHLIGHT COLORS:
+- Yellow: General comments
+- Green: Positive feedback
+- Red: Critical issues
+- Blue: Questions
+- Orange: Suggestions
+
+MANAGEMENT:
+- Edit existing highlights
+- Remove highlights
+- Change colors
+- View all highlights
+- Export with document
+
+PERSISTENCE:
+- Saved per section
+- Restored on navigation
+- Included in final document
+- Exported to S3
+
+IMPLEMENTATION:
+- JavaScript text selection API
+- Range tracking
+- Comment storage in session
+- Word document integration
+
+8.2 PATTERN RECOGNITION
+-----------------------
+PURPOSE:
+Identify recurring issues across multiple documents.
+
+DATA COLLECTION:
+- Feedback from all reviewed documents
+- Categorized by type and Hawkeye checkpoint
+- Frequency tracking
+- Context preservation
+
+ANALYSIS:
+- Minimum 2 documents required
+- Pattern threshold configurable
+- Similarity matching
+- Trend identification
+
+DISPLAY:
+- Pattern cards with occurrence count
+- Examples from different documents
+- Risk level distribution
+- Hawkeye checkpoint mapping
+
+ACTIONABLE INSIGHTS:
+- Systematic issues highlighted
+- Training opportunities identified
+- Process improvements suggested
+- Documentation gaps revealed
+
+8.3 LEARNING SYSTEM
+-------------------
+PURPOSE:
+Adapt AI recommendations based on user feedback patterns.
+
+LEARNING MECHANISMS:
+1. Acceptance Pattern Learning
+   - Tracks which feedback types accepted
+   - Records Hawkeye checkpoints preferred
+   - Identifies section-specific patterns
+   - Adjusts confidence scores
+
+2. Rejection Pattern Learning
+   - Tracks which feedback types rejected
+   - Identifies irrelevant suggestions
+   - Reduces similar recommendations
+   - Improves precision
+
+3. Custom Feedback Learning
+   - Analyzes user-added feedback
+   - Identifies user priorities
+   - Generates similar suggestions
+   - Adapts to user style
+
+DATA STORAGE:
+- JSON file in data/ folder
+- Per-user learning profiles
+- Section-specific patterns
+- Checkpoint preferences
+
+ADAPTATION:
+- Learned recommendations marked
+- Confidence adjusted by history
+- Prioritization based on patterns
+- Continuous improvement
+
+PRIVACY:
+- Local storage only
+- No external data sharing
+- User-specific profiles
+- Opt-out available
+
+8.4 ACTIVITY LOGGING
+--------------------
+PURPOSE:
+Maintain complete audit trail of all actions.
+
+LOGGED EVENTS:
+- Document upload
+- Section navigation
+- Feedback acceptance/rejection
+- Custom feedback addition
+- Chat interactions
+- Review completion
+- Document download
+- Configuration changes
+
+LOG STRUCTURE:
+{
+    "timestamp": "2024-11-16T14:30:00",
+    "session_id": "abc123",
+    "action": "FEEDBACK_ACCEPTED",
+    "details": {
+        "section": "Executive Summary",
+        "feedback_id": "FB001",
+        "type": "critical",
+        "risk_level": "High"
+    },
+    "status": "success"
+}
+
+STORAGE:
+- JSON file per session
+- Persistent across sessions
+- Searchable and filterable
+- Exportable
+
+DISPLAY:
+- Chronological list
+- Filterable by action type
+- Searchable by keyword
+- Exportable as CSV/JSON
+
+USE CASES:
+- Compliance auditing
+- Performance tracking
+- Issue debugging
+- User behavior analysis
+
+8.5 S3 INTEGRATION
+------------------
+PURPOSE:
+Cloud storage for documents and data.
+
+CONFIGURATION:
+Environment Variables:
+- S3_BUCKET_NAME: Target bucket
+- S3_BASE_PATH: Folder prefix
+- AWS_REGION: S3 region
+- AWS credentials via IAM or env vars
+
+FOLDER STRUCTURE:
+s3://bucket-name/base-path/
+├── uploads/           # Original documents
+├── reviewed/          # Reviewed documents
+├── exports/           # Analysis reports
+└── logs/              # Activity logs
+
+OPERATIONS:
+1. Upload Original Document
+   - Saves to uploads/ folder
+   - Preserves filename with timestamp
+   - Sets appropriate permissions
+
+2. Export Reviewed Document
+   - Saves to reviewed/ folder
+   - Includes all comments
+   - Generates download link
+
+3. Export Analysis Data
+   - Saves to exports/ folder
+   - JSON format
+   - Includes statistics and logs
+
+4. Backup Activity Logs
+   - Saves to logs/ folder
+   - Periodic backup
+   - Retention policy applied
+
+ERROR HANDLING:
+- Connection failures
+- Permission errors
+- Bucket not found
+- Upload failures
+- Graceful degradation
+
+8.6 KEYBOARD SHORTCUTS
+----------------------
+NAVIGATION:
+- N: Next section
+- P: Previous section
+- 1: Switch to Feedback tab
+- 2: Switch to Chat tab
+- ?: Show shortcuts help
+
+ACTIONS:
+- A: Accept current feedback (if focused)
+- R: Reject current feedback (if focused)
+- F: Focus custom feedback form
+- C: Focus chat input
+- Enter: Submit chat message
+
+UI CONTROLS:
+- D: Toggle dark mode
+- Esc: Close modals
+- Tab: Navigate focusable elements
+- Shift+Tab: Reverse navigation
+
+IMPLEMENTATION:
+- JavaScript event listeners
+- Keyboard event handling
+- Focus management
+- Accessibility support
+
+8.7 TUTORIAL SYSTEM
+-------------------
+PURPOSE:
+Guide new users through the tool.
+
+TUTORIAL STEPS:
+1. Welcome and Overview
+2. Document Upload
+3. Section Navigation
+4. Feedback Review
+5. Accept/Reject Actions
+6. Custom Feedback
+7. Chat Assistant
+8. Complete Review
+
+FEATURES:
+- Step-by-step guidance
+- Highlighted UI elements
+- Interactive demonstrations
+- Skip option
+- Progress tracking
+- Restart capability
+
+IMPLEMENTATION:
+- Overlay system
+- Focus highlighting
+- Tooltip positioning
+- State management
+- Completion tracking
+
+================================================================================
+9. WORKFLOWS AND USE CASES
+================================================================================
+
+9.1 STANDARD REVIEW WORKFLOW
+-----------------------------
+STEP 1: UPLOAD DOCUMENT
+- Click "Choose File" or drag-and-drop
+- Select .docx file
+- Wait for upload and processing
+- Review detected sections
+
+STEP 2: NAVIGATE TO FIRST SECTION
+- Automatically loads first section
+- Review original content on left
+- AI feedback appears on right
+- Check risk indicator
+
+STEP 3: REVIEW AI FEEDBACK
+- Read each feedback item
+- Consider suggestions
+- Check Hawkeye references
+- Evaluate risk levels
+
+STEP 4: ACCEPT/REJECT FEEDBACK
+- Click Accept for valuable feedback
+- Click Reject for irrelevant items
+- Watch statistics update
+- See notifications
+
+STEP 5: ADD CUSTOM FEEDBACK (Optional)
+- Fill custom feedback form
+- Select type and category
+- Enter description
+- Click Add button
+
+STEP 6: USE CHAT ASSISTANT (Optional)
+- Switch to Chat tab
+- Ask questions about feedback
+- Get clarifications
+- Reference Hawkeye guidelines
+
+STEP 7: NAVIGATE TO NEXT SECTION
+- Click Next button or use dropdown
+- Repeat steps 3-6 for each section
+- Track progress bar
+
+STEP 8: COMPLETE REVIEW
+- Click "Complete Review" button
+- Wait for document generation
+- Download reviewed document
+- Verify comments in Word
+
+9.2 QUICK REVIEW WORKFLOW
+--------------------------
+For experienced users:
+
+1. Upload document (Drag-and-drop)
+2. Use keyboard shortcuts (N/P) to navigate
+3. Quick accept/reject decisions
+4. Skip custom feedback
+5. Complete review
+6. Download immediately
+
+TIME ESTIMATE: 5-10 minutes per document
+
+9.3 DETAILED ANALYSIS WORKFLOW
+-------------------------------
+For thorough reviews:
+
+1. Upload document
+2. Read each section carefully
+3. Review all AI feedback
+4. Use chat to ask questions
+5. Add extensive custom feedback
+6. Check pattern reports
+7. Review activity logs
+8. Complete with comprehensive comments
+
+TIME ESTIMATE: 20-30 minutes per document
+
+9.4 COLLABORATIVE REVIEW WORKFLOW
+----------------------------------
+For team reviews:
+
+1. Primary reviewer uploads document
+2. Reviews and accepts/rejects feedback
+3. Adds custom feedback with team input
+4. Exports to S3 for sharing
+5. Secondary reviewer accesses from S3
+6. Adds additional feedback
+7. Final reviewer completes review
+8. Downloads final document
+
+9.5 BATCH REVIEW WORKFLOW
+--------------------------
+For multiple documents:
+
+1. Review first document completely
+2. Note patterns in feedback
+3. Review subsequent documents
+4. Check pattern recognition report
+5. Apply learned patterns
+6. Complete all reviews
+7. Export batch statistics
+
+================================================================================
+AI-PRISM DOCUMENT ANALYSIS TOOL - COMPLETE TECHNICAL DOCUMENTATION
+================================================================================
+
+PART 4: CONFIGURATION, DEPLOYMENT, AND TROUBLESHOOTING
+
+================================================================================
+10. CONFIGURATION AND SETUP
+================================================================================
+
+10.1 ENVIRONMENT VARIABLES
+--------------------------
+REQUIRED VARIABLES:
+
+AWS_REGION=us-east-1
+AWS_DEFAULT_REGION=us-east-1
+DESCRIPTION: AWS region for Bedrock and S3 services
+DEFAULT: us-east-1
+REQUIRED: Yes
+
+BEDROCK_MODEL_ID=anthropic.claude-3-5-sonnet-20240620-v1:0
+DESCRIPTION: Claude model identifier for AI analysis
+OPTIONS:
+- anthropic.claude-3-5-sonnet-20240620-v1:0 (Recommended)
+- anthropic.claude-3-5-sonnet-20241022-v2:0 (Latest 3.5)
+- anthropic.claude-3-7-sonnet-20250219-v1:0 (Requires profile)
+- us.anthropic.claude-sonnet-4-5-20250929-v1:0 (Latest)
+DEFAULT: claude-3-5-sonnet-20240620-v1:0
+REQUIRED: Yes
+
+BEDROCK_MAX_TOKENS=8192
+DESCRIPTION: Maximum tokens in AI response
+RANGE: 1000-8192
+DEFAULT: 8192
+REQUIRED: No
+
+BEDROCK_TEMPERATURE=0.7
+DESCRIPTION: AI creativity level
+RANGE: 0.0-1.0 (0=deterministic, 1=creative)
+DEFAULT: 0.7
+REQUIRED: No
+
+FLASK_ENV=production
+DESCRIPTION: Flask environment mode
+OPTIONS: development, production
+DEFAULT: development
+REQUIRED: No
+
+PORT=5000
+DESCRIPTION: Application port number
+RANGE: 1024-65535
+DEFAULT: 5000 (local), 8080 (App Runner)
+REQUIRED: No
+
+OPTIONAL VARIABLES:
+
+REASONING_ENABLED=true
+DESCRIPTION: Enable extended thinking (Claude 3.7+)
+OPTIONS: true, false
+DEFAULT: false
+REQUIRED: No (only for Claude 3.7+)
+
+REASONING_BUDGET_TOKENS=2000
+DESCRIPTION: Tokens allocated for reasoning
+RANGE: 1000-4000
+DEFAULT: 2000
+REQUIRED: No (only if reasoning enabled)
+
+S3_BUCKET_NAME=felix-s3-bucket
+DESCRIPTION: S3 bucket for storage
+DEFAULT: None (S3 disabled)
+REQUIRED: No
+
+S3_BASE_PATH=tara/
+DESCRIPTION: Folder prefix in S3 bucket
+DEFAULT: Empty (root)
+REQUIRED: No
+
+CHAT_ENABLE_MULTI_MODEL=true
+DESCRIPTION: Enable automatic model fallback
+OPTIONS: true, false
+DEFAULT: true
+REQUIRED: No
+
+BEDROCK_FALLBACK_MODELS=model1,model2
+DESCRIPTION: Comma-separated fallback model IDs
+DEFAULT: Built-in fallback list
+REQUIRED: No
+
+USE_CROSS_REGION_INFERENCE=false
+DESCRIPTION: Use cross-region inference profiles
+OPTIONS: true, false
+DEFAULT: false
+REQUIRED: No
+
+10.2 AWS CREDENTIALS SETUP
+---------------------------
+METHOD 1: AWS CLI Configuration
+```bash
+aws configure
+# Enter AWS Access Key ID
+# Enter AWS Secret Access Key
+# Enter default region (us-east-1)
+# Enter output format (json)
+```
+
+METHOD 2: Environment Variables
+```bash
+export AWS_ACCESS_KEY_ID=your_access_key_here
+export AWS_SECRET_ACCESS_KEY=your_secret_key_here
+export AWS_DEFAULT_REGION=us-east-1
+```
+
+METHOD 3: AWS Profile
+```bash
+# Create profile in ~/.aws/credentials
+[admin-abhsatsa]
+aws_access_key_id = your_access_key_here
+aws_secret_access_key = your_secret_key_here
+region = us-east-1
+
+# Application will use this profile automatically
+```
+
+METHOD 4: IAM Role (EC2/Lambda/App Runner)
+- Attach IAM role to service
+- No credentials needed in code
+- Automatic credential rotation
+- Most secure method
+
+REQUIRED PERMISSIONS:
+- bedrock:InvokeModel
+- bedrock:InvokeModelWithResponseStream
+- s3:PutObject (if using S3)
+- s3:GetObject (if using S3)
+- s3:ListBucket (if using S3)
+
+10.3 LOCAL DEVELOPMENT SETUP
+-----------------------------
+PREREQUISITES:
+- Python 3.8 or higher
+- pip package manager
+- Git (optional)
+- AWS credentials configured
+
+INSTALLATION STEPS:
+
+1. Clone or download repository
+```bash
+git clone https://github.com/your-repo/tara2.git
+cd tara2
+```
+
+2. Create virtual environment (recommended)
+```bash
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+```
+
+3. Install dependencies
+```bash
+pip install -r requirements.txt
+```
+
+4. Configure environment variables
+```bash
+# Create .env file or export variables
+export AWS_REGION=us-east-1
+export BEDROCK_MODEL_ID=anthropic.claude-3-5-sonnet-20240620-v1:0
+```
+
+5. Run application
+```bash
+python main.py
+```
+
+6. Access application
+```
+Open browser to http://localhost:5000
+```
+
+DEVELOPMENT MODE:
+```bash
+export FLASK_ENV=development
+python main.py
+# Enables auto-reload on code changes
+# Shows detailed error messages
+# Debug toolbar available
+```
+
+10.4 DOCKER DEPLOYMENT
+----------------------
+DOCKERFILE STRUCTURE:
+```dockerfile
+FROM python:3.9-slim
+WORKDIR /app
+COPY requirements.txt .
+RUN pip install -r requirements.txt
+COPY . .
+EXPOSE 8000
+CMD ["gunicorn", "--bind", "0.0.0.0:8000", "app:app"]
+```
+
+BUILD IMAGE:
+```bash
+docker build -t ai-prism-app .
+```
+
+RUN CONTAINER:
+```bash
+docker run -p 8000:8000 \
+  -e AWS_REGION=us-east-1 \
+  -e BEDROCK_MODEL_ID=anthropic.claude-3-5-sonnet-20240620-v1:0 \
+  -e PORT=8000 \
+  ai-prism-app
+```
+
+WITH AWS CREDENTIALS:
+```bash
+docker run -p 8000:8000 \
+  -e AWS_ACCESS_KEY_ID=your_key \
+  -e AWS_SECRET_ACCESS_KEY=your_secret \
+  -e AWS_REGION=us-east-1 \
+  ai-prism-app
+```
+
+DOCKER COMPOSE:
+```yaml
+version: '3.8'
+services:
+  ai-prism:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - AWS_REGION=us-east-1
+      - BEDROCK_MODEL_ID=anthropic.claude-3-5-sonnet-20240620-v1:0
+      - PORT=8000
+    volumes:
+      - ./uploads:/app/uploads
+      - ./data:/app/data
+```
+
+10.5 AWS APP RUNNER DEPLOYMENT
+-------------------------------
+PREREQUISITES:
+- AWS account with Bedrock access
+- ECR repository created
+- IAM roles configured
+- Docker installed locally
+
+STEP 1: Create ECR Repository
+```bash
+chmod +x setup-ecr.sh
+./setup-ecr.sh us-east-1 ai-prism-app
+```
+
+STEP 2: Build and Push Image
+```bash
+chmod +x deploy.sh
+./deploy.sh us-east-1 ai-prism-app latest
+```
+
+STEP 3: Create App Runner Service
+1. Go to AWS App Runner console
+2. Click "Create service"
+3. Select "Container registry"
+4. Choose ECR repository
+5. Configure service:
+   - Service name: tara4
+   - vCPU: 4
+   - Memory: 8 GB
+   - Port: 8080
+
+STEP 4: Configure Environment Variables
+Add all required variables:
+- AWS_REGION=us-east-1
+- AWS_DEFAULT_REGION=us-east-1
+- BEDROCK_MODEL_ID=anthropic.claude-3-5-sonnet-20240620-v1:0
+- BEDROCK_MAX_TOKENS=8192
+- BEDROCK_TEMPERATURE=0.7
+- FLASK_ENV=production
+- PORT=8080
+- S3_BUCKET_NAME=felix-s3-bucket
+- S3_BASE_PATH=tara/
+
+STEP 5: Configure IAM Role
+Create role with policies:
+- AWSAppRunnerServicePolicyForECRAccess
+- Custom policy for Bedrock
+- Custom policy for S3 (if used)
+
+STEP 6: Deploy and Test
+1. Click "Create & deploy"
+2. Wait for deployment (5-10 minutes)
+3. Access service URL
+4. Test Claude connection
+5. Test S3 connection
+6. Upload test document
+
+MONITORING:
+- CloudWatch Logs for application logs
+- App Runner metrics for performance
+- X-Ray for request tracing (optional)
+
+================================================================================
+11. TROUBLESHOOTING GUIDE
+================================================================================
+
+11.1 COMMON ISSUES AND SOLUTIONS
+---------------------------------
+
+ISSUE: Document Upload Fails
+SYMPTOMS:
+- Error message on upload
+- File not processing
+- Timeout errors
+
+SOLUTIONS:
+1. Check file format (.docx only)
+2. Verify file size (<16MB)
+3. Ensure file not corrupted
+4. Check disk space in uploads/
+5. Review browser console for errors
+6. Try different browser
+
+DIAGNOSTIC COMMANDS:
+```bash
+# Check uploads folder permissions
+ls -la uploads/
+
+# Check disk space
+df -h
+
+# Test file validity
+python -c "from docx import Document; Document('test.docx')"
+```
+
+---
+
+ISSUE: AI Analysis Not Working
+SYMPTOMS:
+- No feedback generated
+- Timeout errors
+- "Mock response" messages
+
+SOLUTIONS:
+1. Verify AWS credentials configured
+2. Check Bedrock model access
+3. Test Claude connection endpoint
+4. Review IAM permissions
+5. Check network connectivity
+6. Verify model ID correct
+
+DIAGNOSTIC COMMANDS:
+```bash
+# Test AWS credentials
+aws sts get-caller-identity
+
+# Test Bedrock access
+aws bedrock list-foundation-models --region us-east-1
+
+# Check model availability
+python test_config.py
+```
+
+---
+
+ISSUE: Chat Not Responding
+SYMPTOMS:
+- No response to queries
+- Timeout errors
+- Empty responses
+
+SOLUTIONS:
+1. Check Claude connection
+2. Verify context data available
+3. Review error logs
+4. Test with simple query
+5. Check token limits
+6. Verify model supports chat
+
+DIAGNOSTIC STEPS:
+1. Open browser console (F12)
+2. Check Network tab for errors
+3. Review Console for JavaScript errors
+4. Test /chat endpoint directly
+5. Check backend logs
+
+---
+
+ISSUE: Statistics Not Updating
+SYMPTOMS:
+- Numbers don't change
+- Incorrect counts
+- Display issues
+
+SOLUTIONS:
+1. Refresh page
+2. Clear browser cache
+3. Check JavaScript console
+4. Verify session active
+5. Review backend logs
+6. Test statistics endpoint
+
+---
+
+ISSUE: Dark Mode Not Working
+SYMPTOMS:
+- Theme doesn't change
+- Partial theme application
+- Colors incorrect
+
+SOLUTIONS:
+1. Clear browser cache
+2. Hard refresh (Ctrl+Shift+R)
+3. Check CSS loaded
+4. Verify JavaScript enabled
+5. Try different browser
+6. Check for CSS conflicts
+
+---
+
+ISSUE: Comments Not in Document
+SYMPTOMS:
+- Downloaded document has no comments
+- Comments missing in Word
+- Empty review document
+
+SOLUTIONS:
+1. Ensure feedback accepted before completion
+2. Open in Microsoft Word (not viewer)
+3. Check Word version (2016+)
+4. Enable comments view in Word
+5. Review backend logs for errors
+6. Try re-generating document
+
+VERIFICATION:
+1. Open document in Word
+2. Go to Review tab
+3. Click "Show Comments"
+4. Check margin for comments
+5. Verify comment count matches
+
+---
+
+ISSUE: S3 Upload Fails
+SYMPTOMS:
+- S3 export errors
+- Access denied messages
+- Bucket not found
+
+SOLUTIONS:
+1. Verify S3_BUCKET_NAME correct
+2. Check IAM permissions
+3. Verify bucket exists
+4. Check region matches
+5. Test S3 connection endpoint
+6. Review bucket policy
+
+DIAGNOSTIC COMMANDS:
+```bash
+# Test S3 access
+aws s3 ls s3://felix-s3-bucket/
+
+# Check bucket region
+aws s3api get-bucket-location --bucket felix-s3-bucket
+
+# Test upload
+aws s3 cp test.txt s3://felix-s3-bucket/tara/test.txt
+```
+
+11.2 ERROR MESSAGES EXPLAINED
+------------------------------
+
+ERROR: "ValidationException: The provided model identifier is invalid"
+MEANING: Model ID not found or not accessible
+SOLUTION:
+1. Check model ID spelling
+2. Verify model available in region
+3. Request model access in Bedrock console
+4. Use cross-region inference profile
+5. Try fallback model
+
+---
+
+ERROR: "AccessDeniedException: User is not authorized"
+MEANING: IAM permissions insufficient
+SOLUTION:
+1. Add bedrock:InvokeModel permission
+2. Check IAM role attached
+3. Verify credentials valid
+4. Review resource ARNs in policy
+5. Check service role for App Runner
+
+---
+
+ERROR: "ThrottlingException: Rate exceeded"
+MEANING: Too many API requests
+SOLUTION:
+1. Wait and retry
+2. Implement exponential backoff
+3. Reduce concurrent requests
+4. Request quota increase
+5. Use caching to reduce calls
+
+---
+
+ERROR: "ResourceNotFoundException: Bucket does not exist"
+MEANING: S3 bucket not found
+SOLUTION:
+1. Verify bucket name correct
+2. Check bucket exists in region
+3. Verify AWS account
+4. Create bucket if needed
+5. Check S3_BUCKET_NAME variable
+
+---
+
+ERROR: "JSONDecodeError: Expecting value"
+MEANING: Invalid JSON response from AI
+SOLUTION:
+1. Check AI response format
+2. Review prompt structure
+3. Verify model output
+4. Check for truncation
+5. Increase max_tokens
+
+11.3 PERFORMANCE OPTIMIZATION
+------------------------------
+
+SLOW DOCUMENT UPLOAD:
+- Compress large documents
+- Optimize images in document
+- Use faster network connection
+- Increase upload timeout
+- Check server resources
+
+SLOW AI ANALYSIS:
+- Use caching for repeated sections
+- Reduce max_tokens if possible
+- Use faster Claude model (Haiku)
+- Implement parallel processing
+- Optimize prompts for brevity
+
+SLOW PAGE LOAD:
+- Minimize JavaScript files
+- Compress CSS
+- Use CDN for static assets
+- Enable browser caching
+- Optimize images
+
+MEMORY ISSUES:
+- Limit concurrent sessions
+- Clear old session data
+- Optimize document storage
+- Use streaming for large files
+- Monitor memory usage
+
+11.4 DEBUGGING TECHNIQUES
+-------------------------
+
+ENABLE DEBUG MODE:
+```bash
+export FLASK_ENV=development
+export FLASK_DEBUG=1
+python main.py
+```
+
+BROWSER CONSOLE:
+1. Open Developer Tools (F12)
+2. Check Console tab for errors
+3. Review Network tab for API calls
+4. Inspect Elements for UI issues
+5. Use debugger for JavaScript
+
+BACKEND LOGGING:
+```python
+import logging
+logging.basicConfig(level=logging.DEBUG)
+```
+
+CHECK LOGS:
+```bash
+# Application logs
+tail -f app.log
+
+# System logs
+journalctl -u ai-prism -f
+
+# Docker logs
+docker logs -f container_name
+```
+
+TEST ENDPOINTS:
+```bash
+# Test upload
+curl -X POST -F "file=@test.docx" http://localhost:5000/upload
+
+# Test analysis
+curl -X POST -H "Content-Type: application/json" \
+  -d '{"session_id":"test","section_name":"Summary"}' \
+  http://localhost:5000/analyze_section
+
+# Test chat
+curl -X POST -H "Content-Type: application/json" \
+  -d '{"session_id":"test","query":"What is Hawkeye?"}' \
+  http://localhost:5000/chat
+```
+
+================================================================================
+12. BEST PRACTICES AND RECOMMENDATIONS
+================================================================================
+
+12.1 DOCUMENT PREPARATION
+--------------------------
+BEFORE UPLOAD:
+- Use clear section headers
+- Maintain consistent formatting
+- Remove unnecessary content
+- Check for corruption
+- Optimize file size
+- Use standard section names
+
+SECTION NAMING:
+- Use Hawkeye-aligned names
+- Be consistent across documents
+- Avoid special characters
+- Keep names concise
+- Use title case
+
+12.2 REVIEW PROCESS
+-------------------
+EFFICIENT REVIEW:
+- Read section before feedback
+- Accept/reject decisively
+- Add custom feedback sparingly
+- Use chat for clarification
+- Track progress regularly
+- Complete in one session
+
+QUALITY REVIEW:
+- Read all feedback carefully
+- Consider Hawkeye references
+- Evaluate risk levels
+- Add comprehensive custom feedback
+- Use chat extensively
+- Review patterns across documents
+
+12.3 FEEDBACK MANAGEMENT
+------------------------
+ACCEPTING FEEDBACK:
+- Accept specific, actionable items
+- Verify Hawkeye alignment
+- Consider risk level
+- Check confidence score
+- Ensure relevance to section
+
+REJECTING FEEDBACK:
+- Reject generic suggestions
+- Dismiss irrelevant items
+- Remove duplicate feedback
+- Reject low-confidence items
+- Document rejection reasons
+
+CUSTOM FEEDBACK:
+- Be specific and clear
+- Reference Hawkeye checkpoints
+- Provide actionable suggestions
+- Include examples when possible
+- Maintain professional tone
+
+12.4 SECURITY CONSIDERATIONS
+-----------------------------
+DATA PROTECTION:
+- Don't upload sensitive documents
+- Use secure AWS credentials
+- Enable encryption at rest
+- Use HTTPS in production
+- Implement access controls
+
+CREDENTIAL MANAGEMENT:
+- Use IAM roles when possible
+- Rotate credentials regularly
+- Never commit credentials to code
+- Use environment variables
+- Implement least privilege
+
+COMPLIANCE:
+- Follow data retention policies
+- Maintain audit logs
+- Implement user authentication
+- Ensure GDPR compliance
+- Document data flows
+
+12.5 MAINTENANCE
+----------------
+REGULAR TASKS:
+- Update dependencies monthly
+- Review and clear old uploads
+- Backup learning data
+- Monitor disk space
+- Check AWS costs
+- Review error logs
+
+UPDATES:
+- Test updates in development
+- Backup before updating
+- Review changelog
+- Update documentation
+- Notify users of changes
+
+MONITORING:
+- Track API usage
+- Monitor error rates
+- Review performance metrics
+- Check user feedback
+- Analyze usage patterns
+
+================================================================================
+END OF DOCUMENTATION
+================================================================================
+
+This comprehensive documentation covers all aspects of the AI-Prism tool.
+For additional support or questions, refer to the FAQ section in the application
+or contact the development team.
+
+Version: 3.0.0
+Last Updated: November 2024
+Maintained By: AI-Prism Development Team

@@ -465,22 +465,29 @@ def accept_feedback():
         session_id = data.get('session_id') or session.get('session_id')
         section_name = data.get('section_name')
         feedback_id = data.get('feedback_id')
-        
+
+        # Validate that section_name is a string, not a dict
+        if isinstance(section_name, dict):
+            return jsonify({'error': 'Invalid section_name format (expected string, got dict)'}), 400
+
+        if not section_name or not isinstance(section_name, str):
+            return jsonify({'error': 'Invalid or missing section_name'}), 400
+
         if not session_id or session_id not in sessions:
             return jsonify({'error': 'Invalid session'}), 400
-        
+
         review_session = sessions[session_id]
-        
+
         # Find the feedback item
         feedback_item = None
         for item in review_session.feedback_data.get(section_name, []):
             if item.get('id') == feedback_id:
                 feedback_item = item
                 break
-        
+
         if not feedback_item:
             return jsonify({'error': 'Feedback item not found'}), 400
-        
+
         # Add to accepted feedback
         review_session.accepted_feedback[section_name].append(feedback_item)
         
@@ -518,22 +525,29 @@ def reject_feedback():
         session_id = data.get('session_id') or session.get('session_id')
         section_name = data.get('section_name')
         feedback_id = data.get('feedback_id')
-        
+
+        # Validate that section_name is a string, not a dict
+        if isinstance(section_name, dict):
+            return jsonify({'error': 'Invalid section_name format (expected string, got dict)'}), 400
+
+        if not section_name or not isinstance(section_name, str):
+            return jsonify({'error': 'Invalid or missing section_name'}), 400
+
         if not session_id or session_id not in sessions:
             return jsonify({'error': 'Invalid session'}), 400
-        
+
         review_session = sessions[session_id]
-        
+
         # Find the feedback item
         feedback_item = None
         for item in review_session.feedback_data.get(section_name, []):
             if item.get('id') == feedback_id:
                 feedback_item = item
                 break
-        
+
         if not feedback_item:
             return jsonify({'error': 'Feedback item not found'}), 400
-        
+
         # Add to rejected feedback
         review_session.rejected_feedback[section_name].append(feedback_item)
         
@@ -611,8 +625,8 @@ def add_custom_feedback():
         
         # Log activity
         activity_detail = f'Added custom {feedback_type} feedback in {section_name}: {description[:50]}...'
-        if ai_reference:
-            activity_detail += f' (Related to AI: {ai_reference[:30]}...)'
+        if ai_reference and ai_id:
+            activity_detail += f' (Related to AI feedback: {ai_id})'
         if highlighted_text:
             activity_detail += f' (Highlighted: "{highlighted_text[:30]}...")' if len(highlighted_text) > 30 else f' (Highlighted: "{highlighted_text}")'
         
