@@ -26,7 +26,8 @@ except ImportError:
                 'region': os.environ.get('AWS_REGION', 'us-east-1'),
                 'max_tokens': int(os.environ.get('BEDROCK_MAX_TOKENS', '8192')),
                 'temperature': float(os.environ.get('BEDROCK_TEMPERATURE', '0.7')),
-                'anthropic_version': 'bedrock-2023-05-31'
+                'anthropic_version': 'bedrock-2023-05-31',
+                'fallback_models': []  # No fallback models when using environment config
             }
         
         def has_credentials(self):
@@ -144,10 +145,62 @@ class AIFeedbackEngine:
             prompt = ai_prompts.build_section_analysis_prompt(section_name, content[:8000], doc_type)
             system_prompt = ai_prompts.build_enhanced_system_prompt(self.hawkeye_checklist) + "\n\n" + ai_prompts.SECTION_ANALYSIS_SYSTEM_PROMPT
         else:
-            # Fallback to basic prompts if config not available
+            # Fallback to comprehensive prompts when config not available
             section_guidance = self._get_section_guidance(section_name)
-            prompt = f"Analyze section '{section_name}' with content: {content[:8000]}"
-            system_prompt = "You are an investigation analyst. Provide JSON feedback."
+
+            # Build detailed analysis prompt
+            prompt = f"""Analyze the '{section_name}' section of this investigation document.
+
+CONTENT TO ANALYZE:
+{content[:8000]}
+
+ANALYSIS REQUIREMENTS:
+1. Identify gaps, weaknesses, or areas needing improvement
+2. Provide specific, actionable feedback
+3. Reference relevant investigation best practices
+4. Focus on critical issues that impact investigation quality
+
+Return your analysis as a JSON object with this EXACT structure:
+{{
+    "feedback_items": [
+        {{
+            "id": "unique_id",
+            "type": "critical|important|suggestion",
+            "category": "Investigation Process|Documentation|Root Cause|Timeline|etc",
+            "description": "Clear description of the issue or gap (max 200 chars)",
+            "suggestion": "Specific recommendation to fix it (max 150 chars)",
+            "example": "Brief example if helpful (max 100 chars)",
+            "questions": ["Probing question 1?", "Question 2?"],
+            "hawkeye_refs": [2, 5],
+            "risk_level": "High|Medium|Low",
+            "confidence": 0.85
+        }}
+    ]
+}}
+
+IMPORTANT:
+- Return ONLY valid JSON, no markdown formatting, no text before or after
+- Each feedback item must have ALL fields listed above
+- confidence should be a float between 0.0 and 1.0
+- Provide 2-5 high-quality feedback items focusing on the most important issues
+- If content is too short or lacks substance, return 1-2 items about missing details"""
+
+            system_prompt = f"""You are an expert investigation analyst specializing in document review and quality assurance.
+
+Your task is to analyze investigation documents using the Hawkeye Investigation Framework:
+
+{self.hawkeye_checklist}
+
+ANALYSIS GUIDELINES:
+- Be thorough but concise
+- Focus on high-impact issues
+- Provide actionable, specific feedback
+- Consider investigation best practices
+- Reference relevant Hawkeye checklist items
+
+OUTPUT FORMAT:
+You MUST respond with valid JSON only. No markdown code blocks, no explanatory text, just the JSON object.
+The JSON must have a "feedback_items" array containing your analysis."""
 
         response = self._invoke_bedrock(system_prompt, prompt)
         
@@ -173,19 +226,32 @@ class AIFeedbackEngine:
         except json.JSONDecodeError as e:
             print(f"⚠️ JSON parsing failed: {e}")
             print(f"Response preview: {response[:200]}...")
-            
-            # Try to extract JSON from response
-            json_match = re.search(r'\{.*\}', response, re.DOTALL)
-            if json_match:
+
+            # Try to strip markdown code blocks if present
+            cleaned_response = response.strip()
+            if cleaned_response.startswith('```'):
+                # Remove markdown code fence
+                cleaned_response = re.sub(r'^```(?:json)?\s*', '', cleaned_response)
+                cleaned_response = re.sub(r'\s*```$', '', cleaned_response)
                 try:
-                    result = json.loads(json_match.group(0))
-                    print(f"✅ Extracted JSON successfully")
-                except Exception as e2:
-                    print(f"❌ JSON extraction failed: {e2}")
+                    result = json.loads(cleaned_response)
+                    print(f"✅ Parsed after removing markdown code blocks - {len(result.get('feedback_items', []))} items")
+                except:
+                    pass
+
+            # If still not parsed, try to extract JSON from response
+            if result is None:
+                json_match = re.search(r'\{.*\}', response, re.DOTALL)
+                if json_match:
+                    try:
+                        result = json.loads(json_match.group(0))
+                        print(f"✅ Extracted JSON successfully - {len(result.get('feedback_items', []))} items")
+                    except Exception as e2:
+                        print(f"❌ JSON extraction failed: {e2}")
+                        result = None
+                else:
+                    print(f"❌ No JSON found in response")
                     result = None
-            else:
-                print(f"❌ No JSON found in response")
-                result = None
         except Exception as e:
             print(f"❌ Unexpected parsing error: {e}")
             result = None
