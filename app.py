@@ -777,10 +777,17 @@ def chat():
         return jsonify({'success': True, 'response': response, 'model_used': actual_model})
         
     except Exception as e:
+        import sys
         import traceback
         error_trace = traceback.format_exc()
-        print(f"ERROR Chat error: {str(e)}")
-        print(f"ERROR Traceback:\n{error_trace}")
+        print("=" * 80, flush=True)
+        print(f"❌ CHAT ERROR OCCURRED", flush=True)
+        print(f"   Error: {str(e)}", flush=True)
+        print(f"   Error type: {type(e).__name__}", flush=True)
+        print(f"   Traceback:", flush=True)
+        print(error_trace, flush=True)
+        print("=" * 80, flush=True)
+        sys.stdout.flush()
 
         # Return detailed error for debugging
         error_message = f'Chat failed: {str(e)}'
