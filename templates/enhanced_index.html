@@ -2765,9 +2765,6 @@
             <button class="btn btn-warning" onclick="revertAllFeedback()" id="revertAllBtn">
                 🔄 Revert All Feedback
             </button>
-            <button class="btn btn-info" onclick="updateFeedback()" id="updateFeedbackBtn">
-                ✏️ Update Feedback
-            </button>
             <button class="btn btn-primary" onclick="showDashboard()" id="dashboardBtn">
                 📊 Analytics Dashboard
             </button>
@@ -2789,10 +2786,10 @@
             <button class="btn btn-info" onclick="downloadStatistics()" id="downloadStatsBtn">
                 📊 Download Statistics
             </button>
-            <button class="btn btn-info" onclick="downloadDocument()" id="downloadBtn" disabled>
+            <button class="btn btn-info" onclick="downloadDocument()" id="downloadBtn">
                 📥 Download Document
             </button>
-            <button class="btn btn-success" onclick="exportToS3()" id="exportS3Btn" disabled style="background: linear-gradient(135deg, #ff6b6b 0%, #ee5a6f 100%); border: none;">
+            <button class="btn btn-success" onclick="exportToS3()" id="exportS3Btn" style="background: linear-gradient(135deg, #ff6b6b 0%, #ee5a6f 100%); border: none;">
                 ☁️ Export to S3
             </button>
         </div>
@@ -4114,7 +4111,11 @@
                     `;
                     
                     showModal('genericModal', 'Review Complete', modalContent);
-                    
+
+                    // ❌ DISABLED: Button enable logic moved to unified_button_fixes.js
+                    // Buttons are now always enabled - no need to enable them here
+                    // The unified submitAllFeedbacks() function sets the data-filename attribute
+                    /*
                     // Enable download button
                     const downloadBtn = document.getElementById('downloadBtn');
                     if (downloadBtn) {
@@ -4127,6 +4128,7 @@
                     if (exportS3Btn) {
                         exportS3Btn.disabled = false;
                     }
+                    */
 
                     finalDocumentData = data;
                 } else {
@@ -6765,6 +6767,9 @@
 
 
 
+        // ❌ DISABLED: Conflicting inline function definition
+        // This function is now handled by unified_button_fixes.js
+        /*
         function downloadDocument() {
             const filename = document.getElementById('downloadBtn').getAttribute('data-filename');
             if (filename) {
@@ -6773,6 +6778,7 @@
                 showNotification('No document available for download', 'error');
             }
         }
+        */
         
         function downloadStatistics() {
             if (!currentSession) {
@@ -7462,9 +7468,12 @@
             showNotification('AI-Prism conversation exported successfully!', 'success');
         }
 
+        // ❌ DISABLED: Conflicting inline function definition
+        // This function is now handled by unified_button_fixes.js
         /**
          * Export to S3 - Upload complete review to AWS S3
          */
+        /*
         function exportToS3() {
             if (!currentSession) {
                 showNotification('No active session. Please upload a document first.', 'error');
@@ -7576,6 +7585,7 @@
                 showNotification(`❌ S3 export error: ${error.message}`, 'error');
             });
         }
+        */
 
         function completeReview() {
             if (!currentSession) {

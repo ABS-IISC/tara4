@@ -517,9 +517,9 @@ function displayFeedback(feedbackItems, sectionName) {
                 ` : ''}
                 <p><small>Confidence: ${Math.round(item.confidence * 100)}%</small></p>
                 <div class="feedback-actions">
-                    <button class="btn btn-success" onclick="acceptFeedback('${item.id}', event)">✓ Accept</button>
-                    <button class="btn btn-danger" onclick="rejectFeedback('${item.id}', event)">✗ Reject</button>
-                    <button class="btn btn-warning revert-btn" onclick="revertFeedback('${item.id}', event)">🔄 Revert</button>
+                    <button class="btn btn-success" onclick="window.acceptFeedback('${item.id}', event)">✓ Accept</button>
+                    <button class="btn btn-danger" onclick="window.rejectFeedback('${item.id}', event)">✗ Reject</button>
+                    <button class="btn btn-warning revert-btn" onclick="window.revertFeedback('${item.id}', event)">🔄 Revert</button>
                     <button class="btn btn-info" onclick="addCustomToAI('${item.id}', event)">✨ Add Custom</button>
                     <button class="btn btn-warning" onclick="clearAICustomFeedback('${item.id}', event)" style="display: none;">🧹 Clear Custom</button>
                 </div>
@@ -606,20 +606,26 @@ function updateFeedbackStatus(feedbackId, status) {
         
         actions.innerHTML = `
             <span style="color: ${statusColor}; font-weight: bold;">${statusText}</span>
-            <button class="btn btn-warning revert-btn" onclick="revertFeedback('${feedbackId}', event)" style="font-size: 12px; padding: 5px 10px; margin-left: 10px;">🔄 Revert</button>
+            <button class="btn btn-warning revert-btn" onclick="window.revertFeedback('${feedbackId}', event)" style="font-size: 12px; padding: 5px 10px; margin-left: 10px;">🔄 Revert</button>
         `;
         feedbackItem.style.opacity = '0.7';
     }
 }
 
+// ❌ DISABLED: Conflicting function definition
+// This function is now handled by unified_button_fixes.js
+// The unified version properly handles section name detection and all edge cases
+// Keeping this code commented for reference only
+/*
 /**
  * Revert feedback to its original pending state
  * @param {string} feedbackId - The feedback item ID
  * @param {Event} event - The click event
  */
+/*
 function revertFeedback(feedbackId, event) {
     if (event) event.stopPropagation();
-    
+
     // Send revert request to server
     fetch('/revert_feedback', {
         method: 'POST',
@@ -641,9 +647,9 @@ function revertFeedback(feedbackId, event) {
                 const actions = feedbackItem.querySelector('.feedback-actions');
                 actions.innerHTML = window.feedbackStates[feedbackId].originalHtml;
                 feedbackItem.style.opacity = '1';
-                
+
                 window.feedbackStates[feedbackId].status = 'pending';
-                
+
                 showNotification('Feedback reverted to original state', 'success');
                 updateStatistics();
             }
@@ -667,6 +673,7 @@ function revertFeedback(feedbackId, event) {
         console.warn('Server revert failed, reverted locally:', error);
     });
 }
+*/
 
 function updateRiskIndicator(feedbackItems) {
     const indicator = document.getElementById('riskIndicator');

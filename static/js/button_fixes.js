@@ -587,28 +587,34 @@ function updateFeedbackStatus(feedbackId, status) {
         
         actions.innerHTML = `
             <span style="color: ${statusColor}; font-weight: bold;">${statusText}</span>
-            <button class="btn btn-warning revert-btn" onclick="revertFeedback('${feedbackId}', event)" style="font-size: 12px; padding: 5px 10px; margin-left: 10px;">🔄 Revert</button>
+            <button class="btn btn-warning revert-btn" onclick="window.revertFeedback('${feedbackId}', event)" style="font-size: 12px; padding: 5px 10px; margin-left: 10px;">🔄 Revert</button>
         `;
         feedbackItem.style.opacity = '0.7';
     }
 }
 
+// ❌ DISABLED: Conflicting function definition
+// This function is now handled by unified_button_fixes.js
+// The unified version properly handles backend API calls and section name detection
+// Keeping this code commented for reference only
+/*
 // Revert Feedback Function
 function revertFeedback(feedbackId, event) {
     if (event) event.stopPropagation();
-    
+
     const feedbackItem = document.querySelector(`[data-feedback-id="${feedbackId}"]`);
     if (feedbackItem && feedbackStates[feedbackId]) {
         const actions = feedbackItem.querySelector('.feedback-actions');
         actions.innerHTML = feedbackStates[feedbackId].originalHtml;
         feedbackItem.style.opacity = '1';
-        
+
         feedbackStates[feedbackId].status = 'pending';
-        
+
         showNotification('Feedback reverted to original state', 'success');
         updateStatistics();
     }
 }
+*/
 
 function showProgress(text) {
     const progressContainer = document.getElementById('progressContainer');
@@ -694,6 +700,10 @@ function closeModal(modalId) {
     }
 }
 
+// ❌ DISABLED: Conflicting function definition
+// This function is now handled by unified_button_fixes.js
+// Keeping this code commented for reference only
+/*
 function downloadDocument() {
     const filename = document.getElementById('downloadBtn')?.getAttribute('data-filename');
     if (filename) {
@@ -702,6 +712,7 @@ function downloadDocument() {
         showNotification('No document available for download', 'error');
     }
 }
+*/
 
 function downloadStatistics() {
     if (!currentSession) {

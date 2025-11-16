@@ -18,58 +18,90 @@ class DocumentProcessor:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             output_filename = f"reviewed_document_{timestamp}.docx"
 
+        # DEBUG: Log document processing
+        print(f"\n{'='*60}")
+        print(f"📄 DOCUMENT PROCESSOR - create_document_with_comments")
+        print(f"{'='*60}")
+        print(f"Original document: {original_path}")
+        print(f"Output filename: {output_filename}")
+        print(f"Number of comments to insert: {len(comments_data)}")
+        print(f"Comments data received: {comments_data is not None}")
+        if comments_data:
+            print(f"Sample comment: {comments_data[0] if len(comments_data) > 0 else 'None'}")
+        print(f"{'='*60}\n")
+
         try:
             # Use the advanced comment insertion method
-            return self._create_with_xml_comments(original_path, comments_data, output_filename)
+            print("🔧 Attempting XML comment insertion method...")
+            result = self._create_with_xml_comments(original_path, comments_data, output_filename)
+            print(f"✅ XML comment method succeeded: {result}")
+            return result
         except Exception as e:
-            print(f"Advanced comment method failed: {e}")
+            print(f"❌ XML comment method failed: {e}")
+            import traceback
+            traceback.print_exc()
             # Fallback to annotation method
-            return self._create_with_annotations(original_path, comments_data, output_filename)
+            print("🔧 Falling back to annotation method...")
+            result = self._create_with_annotations(original_path, comments_data, output_filename)
+            print(f"✅ Annotation method result: {result}")
+            return result
 
     def _create_with_xml_comments(self, original_path, comments_data, output_filename):
         """Create document with XML-based comments"""
         temp_dir = f"temp_{uuid.uuid4()}"
         self.temp_dirs.append(temp_dir)
-        
+
+        print(f"📦 XML Method - Creating temp directory: {temp_dir}")
+
         try:
             # Create a copy of the original document
             temp_docx = f"{temp_dir}_temp.docx"
+            print(f"📋 Copying original document to: {temp_docx}")
             doc = Document(original_path)
             doc.save(temp_docx)
-            
+
             # Extract the docx as a zip
             os.makedirs(temp_dir, exist_ok=True)
+            print(f"📂 Extracting docx to: {temp_dir}")
             with zipfile.ZipFile(temp_docx, 'r') as zip_ref:
                 zip_ref.extractall(temp_dir)
-            
+
             # Create comments.xml
+            print(f"💬 Generating comments.xml with {len(comments_data)} comments...")
             comments_xml = self._generate_comments_xml(comments_data)
             comments_path = os.path.join(temp_dir, 'word', 'comments.xml')
-            
+
             with open(comments_path, 'w', encoding='utf-8') as f:
                 f.write(comments_xml)
-            
+            print(f"✅ Created comments.xml at: {comments_path}")
+
             # Update document.xml.rels
+            print(f"🔗 Updating document.xml.rels...")
             self._update_document_rels(temp_dir)
-            
+
             # Update [Content_Types].xml
+            print(f"📑 Updating [Content_Types].xml...")
             self._update_content_types(temp_dir)
-            
+
             # Update document.xml with comment references
+            print(f"🔖 Inserting comment references into document.xml...")
             self._insert_comment_references(temp_dir, comments_data)
-            
+
             # Repackage as docx
+            print(f"📦 Repackaging as docx: {output_filename}")
             with zipfile.ZipFile(output_filename, 'w', zipfile.ZIP_DEFLATED) as zipf:
                 for root, dirs, files in os.walk(temp_dir):
                     for file in files:
                         file_path = os.path.join(root, file)
                         arcname = os.path.relpath(file_path, temp_dir)
                         zipf.write(file_path, arcname)
-            
+
+            print(f"✅ Successfully created document with {len(comments_data)} comments")
             return output_filename
-            
+
         finally:
             # Cleanup
+            print(f"🧹 Cleaning up temporary files...")
             if os.path.exists(temp_dir):
                 shutil.rmtree(temp_dir)
             if os.path.exists(temp_docx):
@@ -137,44 +169,60 @@ class DocumentProcessor:
     def _insert_comment_references(self, temp_dir, comments_data):
         """Insert comment references into document.xml"""
         doc_xml_path = os.path.join(temp_dir, 'word', 'document.xml')
-        
+
+        print(f"🔖 Inserting {len(comments_data)} comment references...")
+        print(f"   Document path: {doc_xml_path}")
+
         if not os.path.exists(doc_xml_path):
+            print(f"❌ ERROR: document.xml not found at {doc_xml_path}")
             return
-        
+
         # Parse the document XML
         tree = etree.parse(doc_xml_path)
         root = tree.getroot()
-        
+
         # Find paragraphs and insert comment references
         paragraphs = root.xpath('//w:p', namespaces={'w': 'http://schemas.openxmlformats.org/wordprocessingml/2006/main'})
-        
+        print(f"   Found {len(paragraphs)} paragraphs in document")
+
         for i, comment in enumerate(comments_data):
             comment_id = i + 1
             para_index = comment.get('paragraph_index', 0)
-            
+
+            print(f"\n   Comment {comment_id}:")
+            print(f"      Target paragraph: {para_index}")
+            print(f"      Section: {comment.get('section', 'Unknown')}")
+            print(f"      Comment preview: {comment.get('comment', '')[:50]}...")
+
             if para_index < len(paragraphs):
                 para = paragraphs[para_index]
-                
+
                 # Create comment range start
                 comment_start = etree.Element('{http://schemas.openxmlformats.org/wordprocessingml/2006/main}commentRangeStart')
                 comment_start.set('{http://schemas.openxmlformats.org/wordprocessingml/2006/main}id', str(comment_id))
-                
+
                 # Create comment range end
                 comment_end = etree.Element('{http://schemas.openxmlformats.org/wordprocessingml/2006/main}commentRangeEnd')
                 comment_end.set('{http://schemas.openxmlformats.org/wordprocessingml/2006/main}id', str(comment_id))
-                
+
                 # Create comment reference
                 comment_ref = etree.Element('{http://schemas.openxmlformats.org/wordprocessingml/2006/main}r')
                 comment_ref_elem = etree.SubElement(comment_ref, '{http://schemas.openxmlformats.org/wordprocessingml/2006/main}commentReference')
                 comment_ref_elem.set('{http://schemas.openxmlformats.org/wordprocessingml/2006/main}id', str(comment_id))
-                
+
                 # Insert at the beginning of the paragraph
                 para.insert(0, comment_start)
                 para.append(comment_end)
                 para.append(comment_ref)
-        
+
+                print(f"      ✅ Inserted comment reference at paragraph {para_index}")
+            else:
+                print(f"      ⚠️ WARNING: Paragraph index {para_index} out of range (max: {len(paragraphs)-1})")
+
         # Save the modified document.xml
+        print(f"\n💾 Saving modified document.xml...")
         tree.write(doc_xml_path, encoding='utf-8', xml_declaration=True)
+        print(f"✅ document.xml saved successfully")
 
     def _create_with_annotations(self, original_path, comments_data, output_filename):
         """Fallback method: create document with inline annotations"""

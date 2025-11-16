@@ -575,9 +575,49 @@ def reject_feedback():
         review_session.learning_system.record_ai_feedback_response(feedback_item, section_name, accepted=False)
         
         return jsonify({'success': True})
-        
+
     except Exception as e:
         return jsonify({'error': f'Reject failed: {str(e)}'}), 500
+
+@app.route('/revert_feedback', methods=['POST'])
+def revert_feedback():
+    try:
+        data = request.get_json()
+        session_id = data.get('session_id') or session.get('session_id')
+        section_name = data.get('section_name')
+        feedback_id = data.get('feedback_id')
+
+        if not session_id or session_id not in sessions:
+            return jsonify({'error': 'Invalid session'}), 400
+
+        review_session = sessions[session_id]
+
+        # Remove from accepted feedback if present
+        if section_name in review_session.accepted_feedback:
+            review_session.accepted_feedback[section_name] = [
+                item for item in review_session.accepted_feedback[section_name]
+                if item.get('id') != feedback_id
+            ]
+
+        # Remove from rejected feedback if present
+        if section_name in review_session.rejected_feedback:
+            review_session.rejected_feedback[section_name] = [
+                item for item in review_session.rejected_feedback[section_name]
+                if item.get('id') != feedback_id
+            ]
+
+        # Log activity
+        review_session.activity_logger.log_feedback_action(
+            'reverted',
+            feedback_id,
+            section_name,
+            feedback_text="Feedback decision reverted to pending"
+        )
+
+        return jsonify({'success': True})
+
+    except Exception as e:
+        return jsonify({'error': f'Revert failed: {str(e)}'}), 500
 
 @app.route('/add_custom_feedback', methods=['POST'])
 def add_custom_feedback():
@@ -1308,35 +1348,56 @@ def complete_review():
         
         # Prepare comments data
         comments_data = []
-        
+
+        # DEBUG: Log accepted feedback collection
+        print(f"\n{'='*60}")
+        print(f"🔍 DEBUGGING COMMENT INSERTION")
+        print(f"{'='*60}")
+        print(f"Total sections in document: {len(review_session.sections)}")
+        print(f"Total accepted_feedback sections: {len(review_session.accepted_feedback)}")
+
         for section_name, accepted_items in review_session.accepted_feedback.items():
+            print(f"\n📍 Section: {section_name}")
+            print(f"   Accepted items: {len(accepted_items)}")
+            print(f"   Has paragraph_indices: {section_name in review_session.paragraph_indices}")
+
             if section_name in review_session.paragraph_indices:
                 para_indices = review_session.paragraph_indices[section_name]
-                
+                print(f"   Paragraph indices: {para_indices}")
+
                 for item in accepted_items:
                     comment_text = f"[{item.get('type', 'feedback').upper()} - {item.get('risk_level', 'Low')} Risk]\n"
                     comment_text += f"{item.get('description', '')}\n"
-                    
+
                     if item.get('suggestion'):
                         comment_text += f"\nSuggestion: {item['suggestion']}\n"
-                    
+
                     if item.get('questions'):
                         comment_text += "\nKey Questions:\n"
                         for i, q in enumerate(item['questions'], 1):
                             comment_text += f"{i}. {q}\n"
-                    
+
                     if item.get('hawkeye_refs'):
                         refs = [f"#{r}" for r in item['hawkeye_refs']]
                         comment_text += f"\nHawkeye References: {', '.join(refs)}"
-                    
-                    comments_data.append({
+
+                    comment_item = {
                         'section': section_name,
                         'paragraph_index': para_indices[0] if para_indices else 0,
                         'comment': comment_text,
                         'type': item.get('type', 'feedback'),
                         'risk_level': item.get('risk_level', 'Low'),
                         'author': 'User Feedback' if item.get('user_created') else 'AI Feedback'
-                    })
+                    }
+                    comments_data.append(comment_item)
+                    print(f"   ✅ Added comment: {item.get('type')} - {comment_text[:50]}...")
+            else:
+                print(f"   ⚠️ No paragraph_indices for section: {section_name}")
+
+        print(f"\n{'='*60}")
+        print(f"📊 FINAL COMMENT DATA:")
+        print(f"Total comments to add: {len(comments_data)}")
+        print(f"{'='*60}\n")
         
         # Create reviewed document with tracking
         output_filename = f"reviewed_{review_session.document_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.docx"
@@ -1370,7 +1431,10 @@ def complete_review():
                 'action': 'REVIEW_COMPLETED',
                 'details': f'Review completed with {len(comments_data)} comments added'
             })
-            
+
+            # Store output filename in session for retrieval
+            review_session.output_filename = output_filename
+
             response_data = {
                 'success': True,
                 'output_file': output_filename,
@@ -1459,6 +1523,47 @@ def download_file(filename):
         return send_file(filename, as_attachment=True)
     except Exception as e:
         return jsonify({'error': f'Download failed: {str(e)}'}), 500
+
+@app.route('/get_latest_document', methods=['GET'])
+def get_latest_document():
+    """Get the latest reviewed document filename for a session"""
+    try:
+        session_id = request.args.get('session_id')
+
+        if not session_id or session_id not in sessions:
+            return jsonify({'success': False, 'error': 'Invalid session'}), 400
+
+        review_session = sessions[session_id]
+
+        # Look for the most recent reviewed document
+        # Check if finalDocumentData or similar exists
+        if hasattr(review_session, 'output_filename') and review_session.output_filename:
+            return jsonify({
+                'success': True,
+                'filename': review_session.output_filename
+            })
+
+        # Try to find any reviewed document for this session
+        import glob
+        pattern = f"reviewed_{review_session.document_name}_*.docx"
+        matching_files = glob.glob(pattern)
+
+        if matching_files:
+            # Get the most recent file
+            latest_file = max(matching_files, key=os.path.getmtime)
+            filename = os.path.basename(latest_file)
+            return jsonify({
+                'success': True,
+                'filename': filename
+            })
+
+        return jsonify({
+            'success': False,
+            'error': 'No reviewed document found for this session'
+        })
+
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/reset_session', methods=['POST'])
 def reset_session():

@@ -1428,9 +1428,12 @@ window.confirmResetSession = function(sessionId) {
 };
 
 // ============================================================================
-// FIX #11: Submit All Feedbacks (Replacement for Complete Review - User Request - Nov 16)
+// FIX #11: Submit All Feedbacks - DISABLED
 // ============================================================================
+// ❌ DISABLED: This function is now handled by unified_button_fixes.js
+// Keeping this code commented for reference only
 
+/*
 window.submitAllFeedbacks = function() {
     console.log('📤 Submitting all feedbacks...');
 
@@ -1516,6 +1519,7 @@ window.confirmSubmitAllFeedbacks = function(sessionId) {
         showNotification('❌ Submission failed: ' + error.message, 'error');
     });
 };
+*/
 
 // ============================================================================
 // FIX #12: Enhanced Confirmation Dialogs for Revert and Update (User Request - Nov 16)
