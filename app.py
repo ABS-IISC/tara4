@@ -315,17 +315,23 @@ def analyze_section():
                 'message': 'Section is empty - no analysis needed'
             })
         
-        print(f"=" * 80)
-        print(f"🔍 ANALYZE_SECTION CALLED")
-        print(f"   Section: {section_name}")
-        print(f"   Content length: {len(section_content)} characters")
-        print(f"   Content preview: {section_content[:100]}")
-        print(f"=" * 80)
+        import sys
+        sys.stdout.flush()  # Force flush print buffer
+
+        print("=" * 80, flush=True)
+        print(f"🔍 ANALYZE_SECTION CALLED", flush=True)
+        print(f"   Section: {section_name}", flush=True)
+        print(f"   Content length: {len(section_content)} characters", flush=True)
+        print(f"   Content preview: {section_content[:100]}", flush=True)
+        print("=" * 80, flush=True)
+        sys.stdout.flush()
 
         # Analyze with AI engine with timing
         analysis_start_time = datetime.now()
         try:
-            print(f"📞 Calling ai_engine.analyze_section()")
+            print(f"📞 Calling ai_engine.analyze_section()", flush=True)
+            sys.stdout.flush()
+
             review_session.activity_logger.start_operation('ai_analysis', {
                 'section': section_name,
                 'content_length': len(section_content)
@@ -336,10 +342,11 @@ def analyze_section():
             analysis_duration = (datetime.now() - analysis_start_time).total_seconds()
             feedback_count = len(analysis_result.get('feedback_items', []))
 
-            print(f"✅ AI analysis completed!")
-            print(f"   Duration: {analysis_duration:.2f}s")
-            print(f"   Feedback items: {feedback_count}")
-            print(f"   Result keys: {list(analysis_result.keys())}")
+            print(f"✅ AI analysis completed!", flush=True)
+            print(f"   Duration: {analysis_duration:.2f}s", flush=True)
+            print(f"   Feedback items: {feedback_count}", flush=True)
+            print(f"   Result keys: {list(analysis_result.keys())}", flush=True)
+            sys.stdout.flush()
 
             review_session.activity_logger.complete_operation(success=True, details={
                 'feedback_generated': feedback_count,
