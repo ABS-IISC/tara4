@@ -105,10 +105,19 @@ function startAnalysis() {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
+            // CRITICAL: Set session in multiple scopes for reliability
             currentSession = data.session_id;
+            window.currentSession = data.session_id;
+            sessionStorage.setItem('currentSession', data.session_id);
+
             sections = data.sections;
+            window.sections = data.sections;
+
             totalSections = sections.length;
-            
+
+            // ✅ FIX: Populate section dropdown (Issue #2 Fix)
+            populateSectionSelect(data.sections);
+
             // Update progress
             updateSimpleProgress(30, 'Document uploaded successfully!');
             
@@ -126,14 +135,24 @@ function startAnalysis() {
                     
                     setTimeout(() => {
                         hideSimpleProgressPopup();
-                        showNotification('Document uploaded successfully! Navigate to sections to analyze them.', 'success');
-                        
+
                         // Show main content
                         showMainContent();
-                        
-                        // Load first section but don't analyze yet
+
+                        // ✅ NEW WORKFLOW: On-demand analysis (analyze only when user navigates to section)
+                        // NO proactive analysis of all sections
+                        // Load first section WITHOUT analyzing - show "Ready to analyze" state
                         if (sections.length > 0) {
-                            loadSection(0);
+                            // Load first section content without analysis
+                            loadSectionWithoutAnalysis(0);
+
+                            // Enable Submit All Feedbacks button immediately after upload
+                            // User can navigate and analyze sections on-demand
+                            setTimeout(() => {
+                                const submitBtn = document.getElementById('submitAllFeedbacksBtn');
+                                if (submitBtn) submitBtn.disabled = false;
+                                showNotification('✅ Document uploaded! Click "Analyze This Section" to start AI analysis.', 'success');
+                            }, 500);
                         }
                     }, 500);
                 }, 1000);
@@ -274,18 +293,87 @@ function analyzeCurrentSection() {
     });
 }
 
+// ✅ NEW: Load section WITHOUT analysis - show "Ready to analyze" state
+function loadSectionWithoutAnalysis(index) {
+    if (!sections || index < 0 || index >= sections.length) {
+        console.error('Invalid section index:', index);
+        return;
+    }
+
+    currentSectionIndex = index;
+    const sectionName = sections[index];
+
+    console.log('Loading section WITHOUT analysis:', sectionName);
+
+    // Update section selector
+    const sectionSelect = document.getElementById('sectionSelect');
+    if (sectionSelect) {
+        sectionSelect.selectedIndex = index + 1;
+    }
+
+    // Fetch section content from backend WITHOUT analysis
+    fetch(`/get_section_content?session_id=${currentSession}&section_name=${encodeURIComponent(sectionName)}`)
+    .then(response => response.json())
+    .then(data => {
+        if (data.success && data.content) {
+            // Display section content
+            const documentContent = document.getElementById('documentContent');
+            if (documentContent) {
+                documentContent.innerHTML = `
+                    <div style="padding: 20px;">
+                        <h3 style="color: #4f46e5; margin-bottom: 15px; border-bottom: 2px solid #4f46e5; padding-bottom: 10px;">
+                            Section: "${sectionName}"
+                        </h3>
+                        <div style="line-height: 1.8; white-space: pre-wrap; font-size: 1.05em;">
+                            ${data.content}
+                        </div>
+                    </div>
+                `;
+            }
+
+            // Show "Ready to analyze" in feedback area with Analyze button
+            const feedbackContainer = document.getElementById('feedbackContainer');
+            if (feedbackContainer) {
+                feedbackContainer.innerHTML = `
+                    <div style="text-align: center; padding: 60px 40px; background: linear-gradient(135deg, #f8f9ff 0%, #e3f2fd 100%); border-radius: 15px; border: 3px solid #4f46e5; margin: 20px 0;">
+                        <div style="font-size: 4em; margin-bottom: 20px;">📋</div>
+                        <h3 style="color: #4f46e5; margin-bottom: 15px; font-size: 1.6em;">Ready to Analyze</h3>
+                        <p style="color: #666; margin-bottom: 30px; font-size: 1.1em;">
+                            Select a section and click the button below to start AI-powered analysis with the Hawkeye framework
+                        </p>
+                        <button class="btn btn-primary" onclick="analyzeCurrentSection()" style="padding: 15px 40px; font-size: 18px; font-weight: 600; border-radius: 25px; box-shadow: 0 8px 20px rgba(79, 70, 229, 0.3);">
+                            🤖 Analyze This Section
+                        </button>
+                        <p style="color: #999; margin-top: 20px; font-size: 0.9em;">
+                            Analysis typically takes 10-30 seconds
+                        </p>
+                    </div>
+                `;
+            }
+
+            updateNavigationButtons();
+        } else {
+            showNotification('Failed to load section content', 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Error loading section:', error);
+        showNotification('Error loading section: ' + error.message, 'error');
+    });
+}
+
 // Retry analysis function
 function retryAnalysis() {
     if (!sections || currentSectionIndex < 0) {
         showNotification('No section available for retry', 'error');
         return;
     }
-    
+
     const sectionName = sections[currentSectionIndex];
-    
+
     // Reset section status
     sectionAnalysisStatus[sectionName] = 'pending';
-    
+
     // Retry analysis
     analyzeCurrentSection();
 }
@@ -358,8 +446,11 @@ function displaySectionFeedback(feedbackItems, sectionName) {
                 ` : ''}
                 
                 <div class="feedback-actions" style="display: flex; gap: 8px; margin-top: 15px; flex-wrap: wrap; align-items: center;">
-                    <button class="btn btn-success" onclick="acceptFeedback('${item.id}', event)" style="font-size: 12px; padding: 6px 12px; border-radius: 6px;">✅ Accept</button>
-                    <button class="btn btn-danger" onclick="rejectFeedback('${item.id}', event)" style="font-size: 12px; padding: 6px 12px; border-radius: 6px;">❌ Reject</button>
+                    <button class="btn btn-success" onclick="event.stopPropagation(); window.acceptFeedback('${item.id}')" style="font-size: 12px; padding: 6px 12px; border-radius: 6px;">✅ Accept</button>
+                    <button class="btn btn-danger" onclick="event.stopPropagation(); window.rejectFeedback('${item.id}')" style="font-size: 12px; padding: 6px 12px; border-radius: 6px;">❌ Reject</button>
+                    <button class="btn btn-warning" onclick="event.stopPropagation(); window.revertFeedbackDecision('${item.id}')" style="font-size: 12px; padding: 6px 12px; border-radius: 6px;">🔄 Revert</button>
+                    <button class="btn btn-info" onclick="event.stopPropagation(); window.updateFeedbackItem('${item.id}')" style="font-size: 12px; padding: 6px 12px; border-radius: 6px;">✏️ Update</button>
+                    <button class="btn btn-primary" onclick="event.stopPropagation(); window.addCustomComment('${item.id}')" style="font-size: 12px; padding: 6px 12px; border-radius: 6px;">💬 Add Comment</button>
                     <span style="font-size: 0.8em; color: #6b7280; margin-left: 10px;">Confidence: ${Math.round((item.confidence || 0.8) * 100)}%</span>
                 </div>
             </div>
@@ -406,7 +497,7 @@ function loadSection(index) {
                     <h3 style="color: #7c3aed; margin-bottom: 20px; font-weight: normal;">"${sectionName}"</h3>
                     <div style="background: white; padding: 20px; border-radius: 10px; margin: 20px auto; max-width: 500px; box-shadow: 0 4px 15px rgba(79, 70, 229, 0.2);">
                         <p style="color: #666; font-size: 1.1em; margin: 0;">
-                            ⏳ Please wait while Claude 3.5 Sonnet analyzes this section...
+                            ⏳ Please wait while AI Prism analyzes this section...
                         </p>
                         <div style="margin-top: 15px;">
                             <div style="height: 4px; background: #e0e0e0; border-radius: 2px; overflow: hidden;">
@@ -524,10 +615,10 @@ function updateNavigationButtons() {
     console.log('Navigation updated for section:', currentSectionIndex);
 }
 
-// Navigation functions
+// Navigation functions - UPDATED for on-demand analysis
 function nextSection() {
     if (currentSectionIndex < sections.length - 1) {
-        loadSection(currentSectionIndex + 1);
+        loadSectionWithoutAnalysis(currentSectionIndex + 1);
     } else {
         showNotification('Already at the last section', 'info');
     }
@@ -535,7 +626,7 @@ function nextSection() {
 
 function previousSection() {
     if (currentSectionIndex > 0) {
-        loadSection(currentSectionIndex - 1);
+        loadSectionWithoutAnalysis(currentSectionIndex - 1);
     } else {
         showNotification('Already at the first section', 'info');
     }
@@ -559,11 +650,21 @@ function showMainContent() {
 // Initialize progress functions
 document.addEventListener('DOMContentLoaded', function() {
     console.log('Progress functions loaded successfully');
-    
+
     // Always override the global functions with our enhanced versions
     window.startAnalysis = startAnalysis;
     window.loadSection = loadSection;
     window.showMainContent = showMainContent;
-    
-    console.log('Progress functions: startAnalysis and loadSection overridden');
+
+    // ✅ FIX: Attach analysis and navigation functions to window for onclick handlers
+    window.analyzeCurrentSection = analyzeCurrentSection;
+    window.loadSectionWithoutAnalysis = loadSectionWithoutAnalysis;
+    window.nextSection = nextSection;
+    window.previousSection = previousSection;
+    window.retryAnalysis = retryAnalysis;
+
+    console.log('✅ Progress functions: All functions attached to window object');
+    console.log('   - analyzeCurrentSection:', typeof window.analyzeCurrentSection);
+    console.log('   - nextSection:', typeof window.nextSection);
+    console.log('   - previousSection:', typeof window.previousSection);
 });

@@ -986,6 +986,343 @@
             border-color: #30363d !important;
         }
 
+        /* ✅ FIX: Dark mode for modal content with inline styles */
+        .dark-mode .modal-content button {
+            color: #f0f6fc !important;
+        }
+
+        .dark-mode .modal-content .btn-primary {
+            background: #1f6feb !important;
+            color: #ffffff !important;
+        }
+
+        .dark-mode .modal-content .btn-success {
+            background: #238636 !important;
+            color: #ffffff !important;
+        }
+
+        .dark-mode .modal-content .btn-danger {
+            background: #da3633 !important;
+            color: #ffffff !important;
+        }
+
+        .dark-mode .modal-content .btn-info {
+            background: #1f6feb !important;
+            color: #ffffff !important;
+        }
+
+        .dark-mode .modal-content .btn-secondary {
+            background: #6e7681 !important;
+            color: #ffffff !important;
+        }
+
+        .dark-mode .modal-content .btn-warning {
+            background: #fb8500 !important;
+            color: #000000 !important;
+        }
+
+        /* Ensure text in modals is always visible in dark mode */
+        .dark-mode .modal-content p,
+        .dark-mode .modal-content div,
+        .dark-mode .modal-content span {
+            color: #f0f6fc !important;
+        }
+
+        .dark-mode .modal-content h1,
+        .dark-mode .modal-content h2,
+        .dark-mode .modal-content h3,
+        .dark-mode .modal-content h4,
+        .dark-mode .modal-content h5,
+        .dark-mode .modal-content h6 {
+            color: #f0f6fc !important;
+        }
+
+        /* Fix inline styled elements in modals for dark mode */
+        .dark-mode [style*="background: white"],
+        .dark-mode [style*="background: #fff"],
+        .dark-mode [style*="background:#fff"],
+        .dark-mode [style*="background-color: white"],
+        .dark-mode [style*="background-color: #fff"],
+        .dark-mode [style*="background-color:#fff"] {
+            background: #21262d !important;
+        }
+
+        .dark-mode [style*="color: #000"],
+        .dark-mode [style*="color: black"],
+        .dark-mode [style*="color:#000"] {
+            color: #f0f6fc !important;
+        }
+
+        /* 🚨 NUCLEAR OPTION: Override EVERYTHING in dark mode modals */
+        .dark-mode .modal,
+        .dark-mode .modal * {
+            color: #f0f6fc !important;
+        }
+
+        /* Force ALL backgrounds in modals to be dark */
+        .dark-mode .modal *[style*="background"],
+        .dark-mode .modal div,
+        .dark-mode .modal span,
+        .dark-mode .modal p {
+            background-color: transparent !important;
+        }
+
+        /* EXTREME: Override ALL inline styles in modals */
+        .dark-mode .modal [style*="color:"],
+        .dark-mode .modal [style*="color :"],
+        .dark-mode .modal [style*="color :"] {
+            color: #f0f6fc !important;
+        }
+
+        /* Ensure ALL buttons are ALWAYS visible */
+        .dark-mode .modal button,
+        .dark-mode .modal .btn,
+        .dark-mode .modal input[type="button"],
+        .dark-mode .modal input[type="submit"],
+        .dark-mode button,
+        .dark-mode .btn {
+            color: #ffffff !important;
+            background-color: #238636 !important;
+            border: 2px solid #30363d !important;
+            opacity: 1 !important;
+            visibility: visible !important;
+            font-weight: 600 !important;
+        }
+
+        /* Button hover states */
+        .dark-mode .modal button:hover,
+        .dark-mode .modal .btn:hover {
+            background-color: #2ea043 !important;
+        }
+
+        /* Override gradient backgrounds - force solid dark */
+        .dark-mode [style*="background: linear-gradient"],
+        .dark-mode [style*="background:linear-gradient"],
+        .dark-mode [style*="background-image"],
+        .dark-mode [style*="background-color: white"],
+        .dark-mode [style*="background-color:white"],
+        .dark-mode [style*="background: white"],
+        .dark-mode [style*="background:white"],
+        .dark-mode [style*="background: #fff"],
+        .dark-mode [style*="background:#fff"] {
+            background: #21262d !important;
+            background-color: #21262d !important;
+            background-image: none !important;
+        }
+
+        /* Fix ALL gray/black text colors */
+        .dark-mode [style*="color: #000"],
+        .dark-mode [style*="color:#000"],
+        .dark-mode [style*="color: black"],
+        .dark-mode [style*="color:black"],
+        .dark-mode [style*="color: #666"],
+        .dark-mode [style*="color:#666"],
+        .dark-mode [style*="color: #999"],
+        .dark-mode [style*="color:#999"],
+        .dark-mode [style*="color: #555"],
+        .dark-mode [style*="color:#555"],
+        .dark-mode [style*="color: #333"],
+        .dark-mode [style*="color:#333"] {
+            color: #f0f6fc !important;
+        }
+
+        /* Headings in modals MUST be visible */
+        .dark-mode .modal h1,
+        .dark-mode .modal h2,
+        .dark-mode .modal h3,
+        .dark-mode .modal h4,
+        .dark-mode .modal h5,
+        .dark-mode .modal h6,
+        .dark-mode h1,
+        .dark-mode h2,
+        .dark-mode h3,
+        .dark-mode h4,
+        .dark-mode h5,
+        .dark-mode h6 {
+            color: #58a6ff !important;
+        }
+
+        /* Paragraphs and text MUST be visible */
+        .dark-mode .modal p,
+        .dark-mode .modal span,
+        .dark-mode .modal div,
+        .dark-mode .modal li,
+        .dark-mode .modal label,
+        .dark-mode .modal a {
+            color: #c9d1d9 !important;
+        }
+
+        /* Strong emphasis text */
+        .dark-mode .modal strong,
+        .dark-mode .modal b {
+            color: #f0f6fc !important;
+        }
+
+        /* 🔥 ULTRA AGGRESSIVE: Force ALL text to be visible including numbers and emoji labels */
+        .dark-mode .modal * {
+            color: #f0f6fc !important;
+        }
+
+        /* Override ANY color property set inline */
+        .dark-mode .modal [style] {
+            color: #f0f6fc !important;
+        }
+
+        /* Target pattern modal specifically */
+        .dark-mode .modal .pattern-stat,
+        .dark-mode .modal .pattern-count,
+        .dark-mode .modal .metric-value,
+        .dark-mode .modal .stat-number {
+            color: #58a6ff !important;
+            font-weight: 700 !important;
+        }
+
+        /* 🔥 HELP SYSTEM DARK MODE FIX: Tutorial, FAQ, Shortcuts, Patterns, Learning */
+        .dark-mode .modal .feature-header,
+        .dark-mode .modal .feature-content,
+        .dark-mode .modal .feature-intro,
+        .dark-mode .modal .shortcuts-categories,
+        .dark-mode .modal .shortcut-category,
+        .dark-mode .modal .tutorial-steps,
+        .dark-mode .modal .tutorial-step,
+        .dark-mode .modal .faq-container,
+        .dark-mode .modal .faq-item,
+        .dark-mode .modal .pattern-container,
+        .dark-mode .modal .learning-container {
+            color: #f0f6fc !important;
+        }
+
+        /* Force all headings in modals to be visible */
+        .dark-mode .modal h3,
+        .dark-mode .modal h4,
+        .dark-mode .modal h5 {
+            color: #58a6ff !important;
+        }
+
+        /* Force all paragraphs and spans to be visible */
+        .dark-mode .modal p,
+        .dark-mode .modal span,
+        .dark-mode .modal small,
+        .dark-mode .modal li,
+        .dark-mode .modal div {
+            color: #f0f6fc !important;
+        }
+
+        /* Keyboard shortcut keys */
+        .dark-mode .modal kbd {
+            background: #21262d !important;
+            border: 1px solid #58a6ff !important;
+            color: #58a6ff !important;
+            font-weight: 700 !important;
+        }
+
+        /* Shortcut items grid */
+        .dark-mode .modal .shortcut-item,
+        .dark-mode .modal .shortcuts-grid > div {
+            background: #21262d !important;
+            border: 1px solid #30363d !important;
+            color: #f0f6fc !important;
+        }
+
+        /* Tutorial step numbers */
+        .dark-mode .modal .step-number {
+            background: #1f6feb !important;
+            color: #ffffff !important;
+        }
+
+        /* Toggle icons */
+        .dark-mode .modal .toggle-icon {
+            color: #58a6ff !important;
+        }
+
+        /* Example boxes and code blocks */
+        .dark-mode .modal .example-box,
+        .dark-mode .modal code,
+        .dark-mode .modal pre {
+            background: #21262d !important;
+            border: 1px solid #30363d !important;
+            color: #79c0ff !important;
+        }
+
+        /* Stat cards in patterns/learning */
+        .dark-mode .modal .stat-card,
+        .dark-mode .modal .metric-card {
+            background: #21262d !important;
+            border: 1px solid #30363d !important;
+            color: #f0f6fc !important;
+        }
+
+        /* Emoji should always be visible regardless of color */
+        .dark-mode .modal .emoji {
+            filter: none !important;
+            opacity: 1 !important;
+        }
+
+        /* 🔥 COMPREHENSIVE MODAL/POPUP DARK MODE FIX (Issue #3) */
+        /* All modals need solid backgrounds and light text */
+        .dark-mode .modal,
+        .dark-mode #genericModal,
+        .dark-mode .modal-content,
+        .dark-mode .swal2-popup {
+            background: #0d1117 !important;
+            color: #f0f6fc !important;
+            border: 2px solid #30363d !important;
+        }
+
+        /* All text elements in modals */
+        .dark-mode .modal p,
+        .dark-mode .modal h1,
+        .dark-mode .modal h2,
+        .dark-mode .modal h3,
+        .dark-mode .modal h4,
+        .dark-mode .modal h5,
+        .dark-mode .modal h6,
+        .dark-mode .modal span,
+        .dark-mode .modal div,
+        .dark-mode .modal label,
+        .dark-mode .modal li {
+            color: #f0f6fc !important;
+        }
+
+        /* Input fields in modals */
+        .dark-mode .modal input,
+        .dark-mode .modal textarea,
+        .dark-mode .modal select {
+            background: #21262d !important;
+            color: #f0f6fc !important;
+            border: 1px solid #30363d !important;
+        }
+
+        /* Modal headers */
+        .dark-mode .modal-header,
+        .dark-mode .modal h3 {
+            background: #161b22 !important;
+            color: #58a6ff !important;
+            border-bottom: 1px solid #30363d !important;
+        }
+
+        /* Progress indicators in modals */
+        .dark-mode .modal .progress,
+        .dark-mode .modal .progress-bar {
+            background: #21262d !important;
+        }
+
+        /* Buttons in dark mode already handled */
+        .dark-mode .modal .btn {
+            opacity: 1 !important;
+        }
+
+        /* Link colors in modals */
+        .dark-mode .modal a {
+            color: #58a6ff !important;
+        }
+
+        /* Lists in modals */
+        .dark-mode .modal ul,
+        .dark-mode .modal ol {
+            color: #f0f6fc !important;
+        }
+
         /* Fix specific white background issues from images */
         .dark-mode .custom-feedback-panel {
             background: #21262d !important;
@@ -2277,9 +2614,9 @@
                 <!-- Feedback Tab -->
                 <div class="tab-content active" id="feedbackTab">
                     <div class="feedback-content-scroll" style="display: flex; flex-direction: column;">
-                        <!-- User Added Feedback Display - Show First -->
-                        <div id="userFeedbackDisplay" style="margin-bottom: 20px; order: 1;">
-                            <!-- User feedback will be displayed here -->
+                        <!-- User Added Feedback Display - HIDDEN (feedback shown in "All My Custom Feedback" section instead) -->
+                        <div id="userFeedbackDisplay" style="display: none;">
+                            <!-- User feedback will be displayed in "All My Custom Feedback" section only -->
                         </div>
                         
                         <div id="feedbackContainer" style="order: 2;">
@@ -2305,22 +2642,7 @@
                     <div style="display: flex; flex-direction: column; height: 100%;">
                         <div class="chat-container" id="chatContainer" style="flex: 1; background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%); border: 2px solid #4f46e5; border-radius: 15px 15px 0 0; padding: 10px; min-height: 400px; overflow-y: auto; margin-bottom: 0;">
                             <div class="chat-message assistant" style="background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); color: white; border-radius: 12px; padding: 20px; margin: 10px; box-shadow: 0 5px 15px rgba(79, 70, 229, 0.3);">
-                                <strong>🪷 AI-Prism Your Intelligent Assistant:</strong><br><br>
-                                <strong>Welcome to AI-Prism Professional Document Analysis</strong><br><br>
-                                I'm your dedicated AI assistant for comprehensive document analysis and compliance validation. My expertise includes:<br><br>
-                                <div style="margin: 10px 0; padding-left: 15px; position: relative;"><span style="position: absolute; left: 0;">•</span><strong>In-depth Document Assessment</strong> - Thorough evaluation of content quality and structural integrity</div>
-                                <div style="margin: 10px 0; padding-left: 15px; position: relative;"><span style="position: absolute; left: 0;">•</span><strong>Hawkeye Framework Implementation</strong> - Strategic analysis using proven 20-point methodology</div>
-                                <div style="margin: 10px 0; padding-left: 15px; position: relative;"><span style="position: absolute; left: 0;">•</span><strong>Enhancement Recommendations</strong> - Actionable suggestions for content improvement</div>
-                                <div style="margin: 10px 0; padding-left: 15px; position: relative;"><span style="position: absolute; left: 0;">•</span><strong>Risk Evaluation</strong> - Clear identification and classification of potential issues</div>
-                                <div style="margin: 10px 0; padding-left: 15px; position: relative;"><span style="position: absolute; left: 0;">•</span><strong>Best Practice Guidance</strong> - Industry-standard recommendations for optimal results</div><br>
-                                I'm ready to assist you in achieving document excellence through systematic analysis and professional guidance.<br><br>
-                                <div style="background: rgba(255,255,255,0.2); padding: 10px; border-radius: 8px; margin-top: 15px; font-size: 0.9em;">
-                                    💡 <strong>Try asking me:</strong><br>
-                                    • "What does this feedback mean?"<br>
-                                    • "How can I improve this section?"<br>
-                                    • "Explain the Hawkeye framework"<br>
-                                    • "What are the risk levels?"<br>
-                                </div>
+                                <strong>🪷 AI-Prism:</strong> Your intelligent assistant for document analysis. I can help with feedback interpretation, section improvements, risk assessment, and Hawkeye framework questions. Ask me anything!
                             </div>
                         </div>
                         
@@ -2403,17 +2725,11 @@
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
                             <h5 style="background: linear-gradient(45deg, #4f46e5, #ec4899); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; margin: 0; font-size: 1.2em; font-weight: 700;">📄 All My Custom Feedback</h5>
                             <div>
-                                <button onclick="refreshUserFeedbackList()" style="background: linear-gradient(135deg, #06b6d4, #0891b2); border: none; color: white; cursor: pointer; font-size: 12px; margin-right: 10px; padding: 8px 12px; border-radius: 8px; font-weight: 600;" title="Refresh list">🔄</button>
-                                <button onclick="showUserFeedbackManager()" style="background: linear-gradient(135deg, #f59e0b, #d97706); border: none; color: white; cursor: pointer; font-size: 12px; padding: 8px 12px; border-radius: 8px; font-weight: 600;" title="Manage all feedback">⚙️</button>
+                                <button onclick="refreshUserFeedbackList()" style="background: linear-gradient(135deg, #06b6d4, #0891b2); border: none; color: white; cursor: pointer; font-size: 12px; padding: 8px 12px; border-radius: 8px; font-weight: 600;" title="Refresh list">🔄</button>
                             </div>
                         </div>
                         <div id="customFeedbackList" class="custom-feedback-list">
                             <!-- All user feedback will be listed here -->
-                        </div>
-                        <div style="text-align: center; margin-top: 15px; padding-top: 15px; border-top: 2px solid rgba(79, 70, 229, 0.2);">
-                            <button class="btn btn-info" onclick="showUserFeedbackManager()" style="font-size: 14px; padding: 10px 20px; border-radius: 15px; font-weight: 600;">
-                                📝 View All My Feedback
-                            </button>
                         </div>
                     </div>
                 </div>
@@ -2461,23 +2777,14 @@
             <button class="btn btn-secondary" onclick="provideFeedbackOnTool()" id="toolFeedbackBtn">
                 💬 Improve This Tool
             </button>
-            <button class="btn btn-success" id="completeReviewBtn" onclick="completeReview()" disabled>
-                ✅ Complete Review
+            <button class="btn btn-success" id="submitAllFeedbacksBtn" onclick="submitAllFeedbacks()" disabled>
+                📤 Submit All Feedbacks
             </button>
             <button class="btn btn-info" onclick="exportChatHistory()" id="exportChatBtn">
                 📎 Export AI-Prism Conversation
             </button>
             <button class="btn btn-secondary" onclick="downloadGuidelines()" id="downloadGuidelinesBtn">
                 📄 Download Guidelines
-            </button>
-            <button class="btn btn-info" onclick="showUserFeedbackManager()" id="userFeedbackManagerBtn">
-                📝 Manage My Feedback
-            </button>
-            <button class="btn btn-warning" onclick="exportAllUserFeedback()" id="exportUserFeedbackBtn">
-                📄 Export My Feedback
-            </button>
-            <button class="btn btn-secondary" onclick="clearAllSectionCustomFeedback()" id="clearSectionFeedbackBtn">
-                🧹 Clear Section Feedback
             </button>
             <button class="btn btn-info" onclick="downloadStatistics()" id="downloadStatsBtn">
                 📊 Download Statistics
@@ -2844,17 +3151,26 @@
                 if (typeof window.startAnalysis === 'undefined' && typeof startAnalysis !== 'undefined') {
                     window.startAnalysis = startAnalysis;
                 }
-                
+
+                // ❌ DELETED: showActivityLogs assignment - function rebuilt in global_function_fixes.js
+
                 showNotification('🌟 AI-Prism loaded successfully! Upload a document to begin analysis.', 'success');
-                
+
                 // Startup modal is hidden by default - only show when user clicks the highlighting feature button
                 const startupModal = document.getElementById('startupModal');
                 if (startupModal) startupModal.style.display = 'none';
-                
-                // Show helpful tip after a moment
+
+                // Show first-time text highlighting popup (only shows once)
+                setTimeout(() => {
+                    if (window.showTextHighlightingFeatureFirstTime) {
+                        window.showTextHighlightingFeatureFirstTime();
+                    }
+                }, 2000);
+
+                // Show helpful tip after popup
                 setTimeout(() => {
                     showNotification('💡 Tip: Drag and drop a .docx file or use the upload button to get started', 'info');
-                }, 3000);
+                }, 5000);
                 
             } catch (error) {
                 console.error('Initialization error:', error);
@@ -3312,188 +3628,10 @@
             console.log('Statistics updated');
         }
         
-        function showActivityLogs() {
-            // Check multiple session sources
-            const sessionId = window.currentSession || (typeof currentSession !== 'undefined' ? currentSession : null) || sessionStorage.getItem('currentSession');
-
-            if (!sessionId) {
-                // Show helpful modal instead of just error (Fix for Issue #10)
-                const modalContent = `
-                    <div style="text-align: center; padding: 40px;">
-                        <div style="font-size: 3em; margin-bottom: 20px;">📋</div>
-                        <h3 style="color: #4f46e5; margin-bottom: 20px;">No Session Active</h3>
-                        <p style="color: #666; margin-bottom: 30px;">Upload a document to start tracking activity logs.</p>
-                        <button class="btn btn-primary" onclick="closeModal('genericModal')" style="padding: 12px 25px; border-radius: 20px;">Got it!</button>
-                    </div>
-                `;
-                showModal('genericModal', 'Activity Logs', modalContent);
-                return;
-            }
-
-            // Show loading state (Fix for Issue #10)
-            const loadingContent = `
-                <div style="text-align: center; padding: 40px;">
-                    <div style="font-size: 3em; margin-bottom: 20px; animation: pulse 1.5s infinite;">📋</div>
-                    <h3 style="color: #4f46e5; margin-bottom: 20px;">Loading Activity Logs...</h3>
-                    <div style="background: #f0f0f0; height: 8px; border-radius: 4px; overflow: hidden; max-width: 300px; margin: 0 auto;">
-                        <div style="background: linear-gradient(90deg, #4f46e5, #7c3aed); height: 100%; width: 100%; animation: loading 2s infinite;"></div>
-                    </div>
-                </div>
-                <style>
-                    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
-                    @keyframes loading { 0% { transform: translateX(-100%); } 100% { transform: translateX(100%); } }
-                </style>
-            `;
-            showModal('genericModal', 'Activity Logs', loadingContent);
-
-            console.log('Loading activity logs for session:', sessionId);
-
-            fetch(`/get_activity_logs?session_id=${sessionId}&format=html`)
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-                }
-                return response.json();
-            })
-            .then(data => {
-                if (data.success && data.logs_html) {
-                    showModal('genericModal', 'Activity Logs', data.logs_html);
-                } else if (data.success && data.logs) {
-                    displayActivityLogsModal(data.logs, data.summary);
-                } else {
-                    throw new Error(data.error || 'Failed to load logs');
-                }
-            })
-            .catch(error => {
-                console.error('Activity logs error:', error);
-                const errorContent = `
-                    <div style="text-align: center; padding: 40px;">
-                        <div style="font-size: 3em; margin-bottom: 20px;">❌</div>
-                        <h3 style="color: #ef4444; margin-bottom: 20px;">Failed to Load Logs</h3>
-                        <p style="color: #666; margin-bottom: 30px;">${error.message}</p>
-                        <button class="btn btn-primary" onclick="closeModal('genericModal')" style="padding: 12px 25px; border-radius: 20px;">Close</button>
-                    </div>
-                `;
-                showModal('genericModal', 'Activity Logs Error', errorContent);
-            });
-        }
-        
-        function displayActivityLogsModal(logs, summary) {
-            // Fallback function for when HTML format is not available
-            const modalContent = `
-                <div style="max-height: 80vh; overflow-y: auto; padding: 20px;">
-                    <div style="background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); color: white; padding: 25px; border-radius: 15px; margin-bottom: 25px; box-shadow: 0 8px 25px rgba(79, 70, 229, 0.3);">
-                        <h3 style="margin: 0 0 15px 0; font-size: 1.8em;">📋 Activity Logs & Session Summary</h3>
-                        <p style="margin: 0; font-size: 1.1em; opacity: 0.9;">Complete audit trail of all activities in this session</p>
-                    </div>
-                    
-                    <!-- Session Summary -->
-                    <div style="background: linear-gradient(135deg, #f8f9ff 0%, #e3f2fd 100%); padding: 25px; border-radius: 15px; margin-bottom: 25px; border: 3px solid #4f46e5;">
-                        <h4 style="color: #4f46e5; margin-bottom: 20px; font-size: 1.3em;">📊 Session Summary</h4>
-                        
-                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; margin-bottom: 20px;">
-                            <div style="background: white; padding: 15px; border-radius: 10px; text-align: center; box-shadow: 0 3px 10px rgba(0,0,0,0.1);">
-                                <div style="font-size: 2em; font-weight: bold; color: #4f46e5;">${summary?.total_activities || logs?.length || 0}</div>
-                                <div style="font-size: 0.9em; color: #666;">Total Activities</div>
-                            </div>
-                            <div style="background: white; padding: 15px; border-radius: 10px; text-align: center; box-shadow: 0 3px 10px rgba(0,0,0,0.1);">
-                                <div style="font-size: 2em; font-weight: bold; color: #10b981;">${summary?.success_count || 0}</div>
-                                <div style="font-size: 0.9em; color: #666;">Successful</div>
-                            </div>
-                            <div style="background: white; padding: 15px; border-radius: 10px; text-align: center; box-shadow: 0 3px 10px rgba(0,0,0,0.1);">
-                                <div style="font-size: 2em; font-weight: bold; color: #ef4444;">${summary?.failed_count || 0}</div>
-                                <div style="font-size: 0.9em; color: #666;">Failed</div>
-                            </div>
-                            <div style="background: white; padding: 15px; border-radius: 10px; text-align: center; box-shadow: 0 3px 10px rgba(0,0,0,0.1);">
-                                <div style="font-size: 2em; font-weight: bold; color: #f59e0b;">${summary?.success_rate || 0}%</div>
-                                <div style="font-size: 0.9em; color: #666;">Success Rate</div>
-                            </div>
-                        </div>
-                        
-                        <div style="background: rgba(79, 70, 229, 0.1); padding: 15px; border-radius: 10px;">
-                            <p style="margin: 0; color: #4f46e5; font-weight: 600; font-size: 0.95em;">
-                                💡 Session Duration: ${summary?.session_duration || 'Unknown'} minutes | Last Activity: ${summary?.last_activity ? new Date(summary.last_activity).toLocaleString() : 'None'}
-                            </p>
-                        </div>
-                    </div>
-                    
-                    <!-- Recent Activities -->
-                    <div style="background: white; padding: 20px; border-radius: 12px; box-shadow: 0 3px 10px rgba(0,0,0,0.1);">
-                        <h4 style="color: #4f46e5; margin-bottom: 20px;">📝 Recent Activities</h4>
-                        
-                        <div style="max-height: 400px; overflow-y: auto;">
-                            ${logs && logs.length > 0 ? logs.slice(-20).reverse().map(log => {
-                                const statusColor = log.status === 'success' ? '#10b981' : 
-                                                  log.status === 'failed' ? '#ef4444' : 
-                                                  log.status === 'warning' ? '#f59e0b' : '#6b7280';
-                                const statusIcon = log.status === 'success' ? '✅' : 
-                                                 log.status === 'failed' ? '❌' : 
-                                                 log.status === 'warning' ? '⚠️' : '🔄';
-                                
-                                return `
-                                    <div style="display: flex; gap: 15px; padding: 12px; background: #f8f9ff; border-radius: 8px; margin-bottom: 8px; border-left: 4px solid ${statusColor};">
-                                        <div style="font-family: monospace; color: #666; min-width: 80px; font-size: 0.8em;">
-                                            ${log.timestamp ? new Date(log.timestamp).toLocaleTimeString() : 'Unknown'}
-                                        </div>
-                                        <div style="font-size: 1.2em; min-width: 20px;">${statusIcon}</div>
-                                        <div style="flex: 1;">
-                                            <div style="font-weight: 600; color: ${statusColor}; margin-bottom: 4px;">
-                                                ${log.action ? log.action.replace(/_/g, ' ').toUpperCase() : 'UNKNOWN ACTION'}
-                                            </div>
-                                            ${log.details ? `
-                                                <div style="font-size: 0.9em; color: #666; margin-bottom: 4px;">
-                                                    ${typeof log.details === 'object' ? Object.entries(log.details).map(([key, value]) => 
-                                                        `<span style="margin-right: 15px;"><strong>${key}:</strong> ${value}</span>`
-                                                    ).join('') : log.details}
-                                                </div>
-                                            ` : ''}
-                                            ${log.error ? `
-                                                <div style="font-size: 0.85em; color: #ef4444; background: rgba(239, 68, 68, 0.1); padding: 5px 8px; border-radius: 4px;">
-                                                    ❌ ${log.error}
-                                                </div>
-                                            ` : ''}
-                                        </div>
-                                    </div>
-                                `;
-                            }).join('') : '<div style="text-align: center; padding: 20px; color: #666;">No activities found</div>'}
-                        </div>
-                    </div>
-                    
-                    <div style="display: flex; gap: 15px; justify-content: center; margin-top: 25px; flex-wrap: wrap;">
-                        <button class="btn btn-primary" onclick="exportActivityLogs()" style="padding: 12px 25px; border-radius: 20px; font-weight: 600;">
-                            📥 Export Logs
-                        </button>
-                        <button class="btn btn-info" onclick="refreshActivityLogs()" style="padding: 12px 25px; border-radius: 20px;">
-                            🔄 Refresh
-                        </button>
-                        <button class="btn btn-secondary" onclick="closeModal('genericModal')" style="padding: 12px 25px; border-radius: 20px;">
-                            ✅ Close
-                        </button>
-                    </div>
-                </div>
-            `;
-            
-            showModal('genericModal', 'Activity Logs', modalContent);
-        }
-        
-        function exportActivityLogs() {
-            const sessionId = window.currentSession || (typeof currentSession !== 'undefined' ? currentSession : null) || sessionStorage.getItem('currentSession');
-            
-            if (!sessionId) {
-                showNotification('No active session', 'error');
-                return;
-            }
-            
-            window.location.href = `/export_activity_logs?session_id=${sessionId}`;
-            showNotification('📥 Exporting activity logs...', 'info');
-        }
-        
-        function refreshActivityLogs() {
-            closeModal('genericModal');
-            setTimeout(() => {
-                showActivityLogs();
-            }, 100);
-        }
+        // Attach to window immediately for inline onclick handlers
+        // ❌ DELETED: All activity logs functions (showActivityLogs, displayActivityLogsModal, exportActivityLogs, refreshActivityLogs)
+        // Rebuilt from scratch in global_function_fixes.js with proper architecture
+        // See global_function_fixes.js for clean, centralized implementation
         function showLearning() { 
             const sessionId = window.currentSession || (typeof currentSession !== 'undefined' ? currentSession : null) || sessionStorage.getItem('currentSession');
             
@@ -4809,8 +4947,8 @@
                 hideDocumentProgress();
                 loadSection(0); // Load first section
                 updateStatistics();
-                const completeBtn = document.getElementById('completeReviewBtn');
-                if (completeBtn) completeBtn.disabled = false;
+                const submitBtn = document.getElementById('submitAllFeedbacksBtn');
+                if (submitBtn) submitBtn.disabled = false;
                 showNotification('🎉 Comprehensive analysis completed! Navigate through sections to review AI-generated feedback.', 'success');
             }, 3000);
         }
@@ -6768,49 +6906,9 @@
             setTimeout(() => showPatterns(), 100);
         }
 
-        function showLogs() {
-            if (!currentSession) {
-                showNotification('No active session', 'error');
-                return;
-            }
-            
-            fetch(`/get_logs?session_id=${currentSession}`)
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    let html = '<h4>📋 Activity Logs</h4>';
-                    html += '<div style="max-height: 400px; overflow-y: auto;">';
-                    
-                    if (data.logs.length === 0) {
-                        html += '<p>No activity logs available.</p>';
-                    } else {
-                        html += '<table style="width: 100%; border-collapse: collapse;">';
-                        html += '<tr><th style="text-align: left; padding: 8px; border-bottom: 1px solid #eee;">Time</th><th style="text-align: left; padding: 8px; border-bottom: 1px solid #eee;">Action</th><th style="text-align: left; padding: 8px; border-bottom: 1px solid #eee;">Details</th></tr>';
-                        
-                        data.logs.forEach(log => {
-                            const time = new Date(log.timestamp).toLocaleTimeString();
-                            html += `
-                                <tr>
-                                    <td style="padding: 8px; border-bottom: 1px solid #eee;">${time}</td>
-                                    <td style="padding: 8px; border-bottom: 1px solid #eee;">${log.action}</td>
-                                    <td style="padding: 8px; border-bottom: 1px solid #eee;">${log.details}</td>
-                                </tr>
-                            `;
-                        });
-                        
-                        html += '</table>';
-                    }
-                    
-                    html += '</div>';
-                    showModal('genericModal', '📋 Activity Logs', html);
-                } else {
-                    showNotification(data.error || 'Failed to load logs', 'error');
-                }
-            })
-            .catch(error => {
-                showNotification('Failed to load logs: ' + error.message, 'error');
-            });
-        }
+        // ❌ DELETED: showLogs() function - duplicate implementation
+        // Activity Logs is properly implemented in global_function_fixes.js as showActivityLogs()
+        // Buttons use showActivityLogs() which is the correct implementation
 
         function showLearning() {
             if (!currentSession) {
@@ -8289,5 +8387,9 @@
     <!-- NOTE: Removed duplicate script loads to prevent function override conflicts -->
     <!-- All necessary functions are properly defined in global_function_fixes.js -->
     <script src="{{ url_for('static', filename='js/global_function_fixes.js') }}"></script>
+
+    <!-- ✅ NEW: Activity Logs - Brand New Implementation (Nov 16, 2025) -->
+    <!-- Completely rewritten from scratch for reliability -->
+    <script src="{{ url_for('static', filename='js/activity_logs.js') }}"></script>
 </body>
 </html>

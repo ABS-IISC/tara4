@@ -132,7 +132,7 @@ function loadSection(index) {
                 <h3 style="color: #7c3aed; margin-bottom: 20px; font-weight: normal;">"${sectionName}"</h3>
                 <div style="background: white; padding: 20px; border-radius: 10px; margin: 20px auto; max-width: 500px; box-shadow: 0 4px 15px rgba(79, 70, 229, 0.2);">
                     <p style="color: #666; font-size: 1.1em; margin: 0;">
-                        ⏳ Please wait while Claude 3.5 Sonnet analyzes this section...
+                        ⏳ Please wait while AI Prism analyzes this section...
                     </p>
                     <div style="margin-top: 15px;">
                         <div style="height: 4px; background: #e0e0e0; border-radius: 2px; overflow: hidden;">

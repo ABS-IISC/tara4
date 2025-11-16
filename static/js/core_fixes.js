@@ -160,7 +160,19 @@
             showNotification('Testing Claude AI connection...', 'info');
 
             fetch('/test_claude_connection')
-                .then(response => response.json())
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`Server error: ${response.status} ${response.statusText}`);
+                    }
+                    return response.text().then(text => {
+                        try {
+                            return JSON.parse(text);
+                        } catch (e) {
+                            console.error('Invalid JSON response:', text);
+                            throw new Error('Server returned invalid response. Please check backend logs.');
+                        }
+                    });
+                })
                 .then(data => {
                     if (data.success && data.claude_status) {
                         const status = data.claude_status;
@@ -175,10 +187,11 @@
                             showNotification(`⚠️ Claude Issue: ${status.error || 'Not accessible'}`, 'warning');
                         }
                     } else {
-                        showNotification('❌ Claude test failed', 'error');
+                        showNotification(`❌ Claude test failed: ${data.error || 'Unknown error'}`, 'error');
                     }
                 })
                 .catch(error => {
+                    console.error('Claude test error:', error);
                     showNotification(`❌ Claude error: ${error.message}`, 'error');
                 });
         });

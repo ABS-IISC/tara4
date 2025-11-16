@@ -877,7 +877,19 @@ function sendChatMessage() {
             current_section: window.sections[window.currentSectionIndex] || null
         })
     })
-    .then(response => response.json())
+    .then(response => {
+        if (!response.ok) {
+            throw new Error(`Server error: ${response.status} ${response.statusText}`);
+        }
+        return response.text().then(text => {
+            try {
+                return JSON.parse(text);
+            } catch (e) {
+                console.error('Invalid JSON response:', text);
+                throw new Error('Server returned invalid response. Please check backend logs.');
+            }
+        });
+    })
     .then(data => {
         // Remove thinking indicator
         if (thinkingMessage && thinkingMessage.parentNode) {
@@ -887,7 +899,7 @@ function sendChatMessage() {
         if (data.success) {
             addChatMessage(data.response, 'assistant');
         } else {
-            addChatMessage('Sorry, I encountered an error. Please try again.', 'assistant');
+            addChatMessage(`Sorry, I encountered an error: ${data.error || 'Unknown error'}`, 'assistant');
         }
     })
     .catch(error => {
@@ -895,7 +907,8 @@ function sendChatMessage() {
         if (thinkingMessage && thinkingMessage.parentNode) {
             thinkingMessage.remove();
         }
-        addChatMessage('Sorry, I encountered an error. Please try again.', 'assistant');
+        console.error('Chat error:', error);
+        addChatMessage(`Sorry, I encountered an error: ${error.message}`, 'assistant');
     });
 }
 
@@ -1295,15 +1308,19 @@ document.addEventListener('DOMContentLoaded', function() {
             updateAllCustomFeedbackList();
         }
     }, 1000);
-    
-    // Show text highlighting tutorial on first visit
-    const hasSeenHighlightingPopup = localStorage.getItem('hasSeenTextHighlightingPopup');
-    if (!hasSeenHighlightingPopup && typeof showTextHighlightingFeature === 'function') {
-        setTimeout(() => {
-            showTextHighlightingFeature();
-            localStorage.setItem('hasSeenTextHighlightingPopup', 'true');
-        }, 2000);
-    }
+
+    // ❌ OLD POPUP SYSTEM DISABLED - Conflicts with global_function_fixes.js
+    // The new system uses window.showTextHighlightingFeatureFirstTime() which is called from enhanced_index.html
+    // and properly waits for user to click "Got it!" before setting localStorage flag
+
+    // REMOVED: Old popup system that set flag immediately without user confirmation
+    // const hasSeenHighlightingPopup = localStorage.getItem('hasSeenTextHighlightingPopup');
+    // if (!hasSeenHighlightingPopup && typeof showTextHighlightingFeature === 'function') {
+    //     setTimeout(() => {
+    //         showTextHighlightingFeature();
+    //         localStorage.setItem('hasSeenTextHighlightingPopup', 'true');
+    //     }, 2000);
+    // }
 });
 
 // Text Highlighting Feature Instructions

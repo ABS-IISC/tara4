@@ -514,67 +514,9 @@ function showPatterns() {
     showModal('genericModal', 'Pattern Recognition', modalContent);
 }
 
-// Enhanced showLogs function
-function showLogs() {
-    const modalContent = `
-        <div style="max-height: 80vh; overflow-y: auto;">
-            <div class="feature-header" onclick="toggleFeatureSection('logs')">
-                <h3>📋 Activity Logs</h3>
-                <span class="toggle-icon" id="logs-toggle">▼</span>
-            </div>
-            <div class="feature-content" id="logs-content">
-                <div class="feature-intro">
-                    <p>📊 <strong>Complete Audit Trail!</strong> Track every action, decision, and interaction for full accountability.</p>
-                </div>
-                
-                <div class="logs-dashboard">
-                    <div class="logs-stats">
-                        <div class="log-stat">
-                            <div class="stat-icon">📝</div>
-                            <div class="stat-info">
-                                <div class="stat-number">0</div>
-                                <div class="stat-label">Total Actions</div>
-                            </div>
-                        </div>
-                        <div class="log-stat">
-                            <div class="stat-icon">📄</div>
-                            <div class="stat-info">
-                                <div class="stat-number">0</div>
-                                <div class="stat-label">Documents Reviewed</div>
-                            </div>
-                        </div>
-                        <div class="log-stat">
-                            <div class="stat-icon">⏱️</div>
-                            <div class="stat-info">
-                                <div class="stat-number">0m</div>
-                                <div class="stat-label">Total Time</div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="logs-actions">
-                    <button class="logs-btn" onclick="refreshLogs()">🔄 Refresh Logs</button>
-                    <button class="logs-btn" onclick="exportLogs()">📊 Export CSV</button>
-                    <button class="logs-btn" onclick="clearLogs()">🗑️ Clear History</button>
-                </div>
-                
-                <div class="logs-recent">
-                    <h4>📋 Recent Activity</h4>
-                    <div class="recent-logs" id="recent-logs-list">
-                        <div class="log-entry">
-                            <span class="log-time">--:--:--</span>
-                            <span class="log-action">Session started</span>
-                            <span class="log-details">Waiting for document upload...</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    `;
-    
-    showModal('genericModal', 'Activity Logs', modalContent);
-}
+// ❌ DELETED: showLogs() stub function - not used, replaced by showActivityLogs()
+// Activity Logs is properly implemented in global_function_fixes.js as window.showActivityLogs()
+// with full backend integration, stats, timeline, and export functionality
 
 // Enhanced showLearning function
 function showLearning() {
@@ -643,9 +585,35 @@ function showLearning() {
 function refreshPatterns() { showNotification('Pattern data refreshed!', 'info'); }
 function exportPatterns() { showNotification('Pattern analysis exported!', 'success'); }
 function clearPatterns() { showNotification('Pattern history cleared!', 'info'); }
-function refreshLogs() { showNotification('Activity logs refreshed!', 'info'); }
-function exportLogs() { showNotification('Logs exported as CSV!', 'success'); }
-function clearLogs() { showNotification('Activity logs cleared!', 'info'); }
+// ❌ REMOVED: Activity logs helper functions (refreshLogs, exportLogs, clearLogs)
+// Activity Logs has proper implementation in global_function_fixes.js
 function viewLearningDetails() { showNotification('Learning details displayed!', 'info'); }
 function resetLearning() { showNotification('AI learning reset!', 'info'); }
 function exportLearningData() { showNotification('Learning data exported!', 'success'); }
+
+// ✅ FIX: Attach all help system functions to window for onclick handlers
+window.showShortcuts = showShortcuts;
+window.showTutorial = showTutorial;
+window.showFAQ = showFAQ;
+window.showPatterns = showPatterns;
+// ❌ REMOVED: window.showActivityLogs = showActivityLogs; (was undefined, breaking the button)
+// Activity Logs is properly implemented in global_function_fixes.js
+window.showLearning = showLearning;
+window.toggleFeatureSection = toggleFeatureSection;
+window.refreshPatterns = refreshPatterns;
+window.exportPatterns = exportPatterns;
+window.clearPatterns = clearPatterns;
+// ❌ REMOVED: window.refreshLogs, window.exportLogs, window.clearLogs
+// Activity Logs has complete implementation in global_function_fixes.js with:
+// - window.refreshActivityLogs() - Refresh logs display
+// - window.exportActivityLogs() - Export in JSON/CSV/TXT formats
+// - window.downloadActivityLogsFormat() - Download trigger
+window.viewLearningDetails = viewLearningDetails;
+window.resetLearning = resetLearning;
+window.exportLearningData = exportLearningData;
+
+console.log('✅ Enhanced help system: All functions attached to window object');
+console.log('   - showShortcuts:', typeof window.showShortcuts);
+console.log('   - showTutorial:', typeof window.showTutorial);
+console.log('   - showFAQ:', typeof window.showFAQ);
+console.log('   - showPatterns:', typeof window.showPatterns);

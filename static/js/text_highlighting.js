@@ -7,7 +7,7 @@ window.currentSelectedRange = window.currentSelectedRange || null;
 
 // Set highlight color and enable selection mode
 function setHighlightColor(color) {
-    currentHighlightColor = color;
+    window.currentHighlightColor = color;
     
     // Update button states
     document.querySelectorAll('.highlight-tools button').forEach(btn => {
@@ -300,6 +300,7 @@ function showHighlightCommentDialog(highlightId, selectedText) {
                     <div>
                         <label style="font-weight: 600; color: #555; margin-bottom: 5px; display: block;">📁 Category:</label>
                         <select id="highlightCommentCategory" style="width: 100%; padding: 10px; border: 2px solid #4f46e5; border-radius: 8px;">
+                            <option value="Text Highlighting" selected>Text Highlighting</option>
                             <option value="Initial Assessment">Initial Assessment</option>
                             <option value="Investigation Process">Investigation Process</option>
                             <option value="Root Cause Analysis">Root Cause Analysis</option>
@@ -367,8 +368,8 @@ function saveHighlightComment(highlightId) {
             session_id: window.currentSession,
             section_name: window.sections && window.currentSectionIndex >= 0 ? window.sections[window.currentSectionIndex] : 'Unknown',
             type: type,
-            category: category,
-            description: `[Highlighted: "${highlightData.text.substring(0, 50)}${highlightData.text.length > 50 ? '...' : ''}"] ${description}`,
+            category: category || 'Text Highlighting',
+            description: description,
             highlight_id: highlightId,
             highlighted_text: highlightData.text
         })
@@ -380,8 +381,8 @@ function saveHighlightComment(highlightId) {
             const feedbackItem = {
                 id: data.feedback_item.id,
                 type: type,
-                category: category,
-                description: `[Highlighted: "${highlightData.text.substring(0, 50)}${highlightData.text.length > 50 ? '...' : ''}"] ${description}`,
+                category: category || 'Text Highlighting',
+                description: description,
                 section: window.sections && window.currentSectionIndex >= 0 ? window.sections[window.currentSectionIndex] : 'Unknown',
                 timestamp: new Date().toISOString(),
                 user_created: true,

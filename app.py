@@ -78,6 +78,7 @@ except ImportError as e:
         def log_ai_analysis(self, *args, **kwargs): pass
         def log_feedback_action(self, *args, **kwargs): pass
         def log_s3_operation(self, *args, **kwargs): pass
+        def log_activity(self, *args, **kwargs): pass  # ✅ FIX: Added missing method
         def log_session_event(self, *args, **kwargs): pass
         def get_activity_summary(self): return {"total_activities": 0, "success_count": 0, "failed_count": 0, "success_rate": 0}
         def export_activities(self): return {"activities": [], "summary": {}}
@@ -700,8 +701,25 @@ def chat():
         return jsonify({'success': True, 'response': response, 'model_used': actual_model})
         
     except Exception as e:
+        import traceback
+        error_trace = traceback.format_exc()
         print(f"ERROR Chat error: {str(e)}")
-        return jsonify({'error': f'Chat failed: {str(e)}'}), 500
+        print(f"ERROR Traceback:\n{error_trace}")
+
+        # Return detailed error for debugging
+        error_message = f'Chat failed: {str(e)}'
+
+        # Check if it's an AI engine issue
+        if 'ai_engine' in str(e).lower() or 'process_chat_query' in str(e).lower():
+            error_message = 'AI engine not available. Please try again or check system configuration.'
+        elif 'session' in str(e).lower():
+            error_message = 'Invalid session. Please upload a document first.'
+
+        return jsonify({
+            'success': False,
+            'error': error_message,
+            'details': str(e) if app.debug else None
+        }), 500
 
 @app.route('/delete_document', methods=['POST'])
 def delete_document():
@@ -1220,6 +1238,47 @@ def generate_improvement_suggestions(acceptance_rate, user_engagement):
     suggestions.append("Use the chat feature to clarify feedback when needed")
     
     return suggestions
+
+@app.route('/get_section_content', methods=['GET'])
+def get_section_content():
+    """
+    NEW ENDPOINT: Get section content WITHOUT analysis
+    Used for on-demand analysis workflow
+    """
+    try:
+        session_id = request.args.get('session_id') or session.get('session_id')
+        section_name = request.args.get('section_name')
+
+        if not session_id or session_id not in sessions:
+            return jsonify({'success': False, 'error': 'Invalid session'}), 400
+
+        if not section_name:
+            return jsonify({'success': False, 'error': 'No section name provided'}), 400
+
+        review_session = sessions[session_id]
+
+        # Get section content from document analyzer (use 'sections' not 'document_sections')
+        if hasattr(review_session, 'sections') and section_name in review_session.sections:
+            content = review_session.sections[section_name]
+
+            return jsonify({
+                'success': True,
+                'content': content,
+                'section_name': section_name
+            })
+        else:
+            # Log available sections for debugging
+            available_sections = list(review_session.sections.keys()) if hasattr(review_session, 'sections') else []
+            print(f"ERROR: Section '{section_name}' not found. Available sections: {available_sections}")
+
+            return jsonify({
+                'success': False,
+                'error': f'Section "{section_name}" not found. Available sections: {available_sections}'
+            }), 404
+
+    except Exception as e:
+        print(f"ERROR Get section content: {str(e)}")
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/complete_review', methods=['POST'])
 def complete_review():
@@ -2026,13 +2085,12 @@ def test_claude_connection():
         if session_id and session_id in sessions:
             review_session = sessions[session_id]
             review_session.activity_logger.log_activity(
-                'Claude Connection Test',
-                {
-                    'status': 'success' if test_response['connected'] else 'failed',
+                action='Claude Connection Test',
+                status='success' if test_response['connected'] else 'failed',
+                details={
                     'model': test_response.get('model', 'unknown'),
                     'response_time': test_response.get('response_time', 0)
-                },
-                category='AI'
+                }
             )
 
         return jsonify({

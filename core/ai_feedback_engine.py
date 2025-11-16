@@ -125,13 +125,14 @@ class AIFeedbackEngine:
             return self.feedback_cache[cache_key]
 
         # Use prompts from config/ai_prompts.py if available
+        # ✅ FIX: Increased content limit from 2500 to 8000 for complete detailed analysis (Issue #5)
         if ai_prompts:
-            prompt = ai_prompts.build_section_analysis_prompt(section_name, content[:2500], doc_type)
+            prompt = ai_prompts.build_section_analysis_prompt(section_name, content[:8000], doc_type)
             system_prompt = ai_prompts.build_enhanced_system_prompt(self.hawkeye_checklist) + "\n\n" + ai_prompts.SECTION_ANALYSIS_SYSTEM_PROMPT
         else:
             # Fallback to basic prompts if config not available
             section_guidance = self._get_section_guidance(section_name)
-            prompt = f"Analyze section '{section_name}' with content: {content[:2500]}"
+            prompt = f"Analyze section '{section_name}' with content: {content[:8000]}"
             system_prompt = "You are an investigation analyst. Provide JSON feedback."
 
         response = self._invoke_bedrock(system_prompt, prompt)
@@ -188,21 +189,21 @@ class AIFeedbackEngine:
         if 'feedback_items' not in result:
             result['feedback_items'] = []
         
-        # Validate and enhance feedback items - limit to top 3
+        # Validate and enhance feedback items - process ALL items, filter by confidence later (✅ FIX: Removed limit, filter by confidence >= 80%)
         validated_items = []
-        for i, item in enumerate(result.get('feedback_items', [])[:3]):  # Limit to 3 items
+        for i, item in enumerate(result.get('feedback_items', [])):  # Process ALL items
             if not isinstance(item, dict):
                 print(f"⚠️ Skipping invalid feedback item {i}: {type(item)}")
                 continue
-                
+
             # Ensure all required fields exist with improved defaults
             validated_item = {
                 'id': item.get('id', f"{section_name}_{i}_{datetime.now().strftime('%H%M%S')}"),
                 'type': item.get('type', 'suggestion'),
                 'category': item.get('category', 'Investigation Process'),
-                'description': self._truncate_text(item.get('description', 'Analysis gap identified'), 100),
-                'suggestion': self._truncate_text(item.get('suggestion', ''), 80),
-                'example': self._truncate_text(item.get('example', ''), 60),
+                'description': self._truncate_text(item.get('description', 'Analysis gap identified'), 1000),  # ✅ FIX: Increased from 100 to 1000
+                'suggestion': self._truncate_text(item.get('suggestion', ''), 500),  # ✅ FIX: Increased from 80 to 500
+                'example': self._truncate_text(item.get('example', ''), 300),  # ✅ FIX: Increased from 60 to 300
                 'questions': item.get('questions', [])[:2] if isinstance(item.get('questions'), list) else [],  # Limit to 2 questions
                 'hawkeye_refs': item.get('hawkeye_refs', [])[:3] if isinstance(item.get('hawkeye_refs'), list) else [],  # Limit to 3 refs
                 'risk_level': item.get('risk_level', 'Low'),
@@ -221,9 +222,20 @@ class AIFeedbackEngine:
                 validated_item['risk_level'] = self._classify_risk_level(validated_item)
             
             validated_items.append(validated_item)
-        
-        # Update result with validated items
-        result['feedback_items'] = validated_items
+
+        # ✅ FIX: Filter feedback items with confidence >= 80% (0.8)
+        high_confidence_items = [item for item in validated_items if item['confidence'] >= 0.8]
+
+        # ✅ FIX: Remove duplicates and near-duplicates (similarity check)
+        unique_items = self._remove_duplicate_feedback(high_confidence_items)
+
+        # ✅ FIX: Sort by confidence in ascending order (lowest confidence first)
+        unique_items.sort(key=lambda x: x['confidence'])
+
+        print(f"📊 Filtered: {len(validated_items)} total → {len(high_confidence_items)} high-confidence → {len(unique_items)} unique items")
+
+        # Update result with filtered, deduplicated, and sorted items
+        result['feedback_items'] = unique_items
 
         # Only cache successful results (not errors or fallbacks)
         # This prevents caching mock/fallback responses that would persist after fixes
@@ -233,7 +245,7 @@ class AIFeedbackEngine:
         else:
             print(f"⚠️ Skipping cache for fallback/error response")
 
-        print(f"✅ Analysis complete: {len(validated_items)} focused feedback items (max 3)")
+        print(f"✅ Analysis complete: {len(high_confidence_items)} high-confidence feedback items (ALL items with confidence >= 80%, sorted ascending)")  # ✅ FIX: Show ALL items >= 80%
         return result
 
     def _get_section_guidance(self, section_name):
@@ -478,6 +490,51 @@ class AIFeedbackEngine:
         if not text or len(text) <= max_length:
             return text
         return text[:max_length-3] + "..."
+
+    def _remove_duplicate_feedback(self, items):
+        """Remove duplicate and near-duplicate feedback items based on similarity"""
+        if not items:
+            return []
+
+        from difflib import SequenceMatcher
+
+        unique_items = []
+
+        for item in items:
+            description = item.get('description', '').strip().lower()
+
+            if not description:
+                # Skip items with empty descriptions
+                continue
+
+            # Check similarity with existing items
+            is_duplicate = False
+            for idx, existing_item in enumerate(unique_items):
+                existing_desc = existing_item.get('description', '').strip().lower()
+
+                # Calculate similarity ratio
+                similarity = SequenceMatcher(None, description, existing_desc).ratio()
+
+                # If similarity >= 85%, consider it a duplicate
+                if similarity >= 0.85:
+                    is_duplicate = True
+                    # Keep the one with higher confidence
+                    if item['confidence'] > existing_item['confidence']:
+                        print(f"🔄 Replacing similar item (similarity: {similarity:.2%}, old confidence: {existing_item['confidence']:.2%}, new confidence: {item['confidence']:.2%})")
+                        unique_items[idx] = item
+                    else:
+                        print(f"⏭️ Skipping similar item (similarity: {similarity:.2%}, keeping higher confidence: {existing_item['confidence']:.2%})")
+                    break
+
+            if not is_duplicate:
+                unique_items.append(item)
+
+        return unique_items
+
+    def _calculate_similarity(self, text1, text2):
+        """Calculate similarity ratio between two text strings"""
+        from difflib import SequenceMatcher
+        return SequenceMatcher(None, text1.strip().lower(), text2.strip().lower()).ratio()
     
     def _mock_chat_response(self, query, context):
         """Generate concise, focused mock chat responses"""
