@@ -71,17 +71,30 @@ def main():
         print(f"Temperature: {temperature}")
         print(f"Reasoning: {reasoning_enabled} (Budget: {reasoning_budget})")
         
-        # Check AWS credentials
-        aws_access_key = os.environ.get('AWS_ACCESS_KEY_ID')
-        aws_secret_key = os.environ.get('AWS_SECRET_ACCESS_KEY')
-        
-        if aws_access_key and aws_secret_key:
-            print(f"AWS Credentials: [OK] Configured")
-            print(f"Real AI analysis enabled with Claude Sonnet!")
-        else:
-            print(f"AWS Credentials: [NOT SET] Not configured")
+        # Check AWS credentials (environment variables OR IAM role)
+        try:
+            import boto3
+            from botocore.exceptions import NoCredentialsError
+
+            # Try to get credentials from boto3 (works with IAM roles too!)
+            session = boto3.Session()
+            credentials = session.get_credentials()
+
+            if credentials:
+                # Check if from environment variables or IAM role
+                aws_access_key = os.environ.get('AWS_ACCESS_KEY_ID')
+                if aws_access_key:
+                    print(f"AWS Credentials: [OK] From environment variables")
+                else:
+                    print(f"AWS Credentials: [OK] From IAM role (App Runner)")
+                print(f"Real AI analysis enabled with Claude Sonnet!")
+            else:
+                print(f"AWS Credentials: [NOT SET] Not configured")
+                print(f"Mock AI responses will be used for testing")
+                print(f"Run 'python test_bedrock_connection.py' to test AWS setup")
+        except Exception as e:
+            print(f"AWS Credentials: [ERROR] Failed to check credentials: {e}")
             print(f"Mock AI responses will be used for testing")
-            print(f"Run 'python test_bedrock_connection.py' to test AWS setup")
         
         # Ensure required directories exist
         os.makedirs('uploads', exist_ok=True)
