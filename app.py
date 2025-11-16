@@ -315,29 +315,38 @@ def analyze_section():
                 'message': 'Section is empty - no analysis needed'
             })
         
-        print(f"ANALYZING section: {section_name} ({len(section_content)} characters)")
-        
+        print(f"=" * 80)
+        print(f"🔍 ANALYZE_SECTION CALLED")
+        print(f"   Section: {section_name}")
+        print(f"   Content length: {len(section_content)} characters")
+        print(f"   Content preview: {section_content[:100]}")
+        print(f"=" * 80)
+
         # Analyze with AI engine with timing
         analysis_start_time = datetime.now()
         try:
-            print(f"Starting AI analysis for section: {section_name}")
+            print(f"📞 Calling ai_engine.analyze_section()")
             review_session.activity_logger.start_operation('ai_analysis', {
                 'section': section_name,
                 'content_length': len(section_content)
             })
-            
+
             analysis_result = ai_engine.analyze_section(section_name, section_content)
-            
+
             analysis_duration = (datetime.now() - analysis_start_time).total_seconds()
             feedback_count = len(analysis_result.get('feedback_items', []))
-            
+
+            print(f"✅ AI analysis completed!")
+            print(f"   Duration: {analysis_duration:.2f}s")
+            print(f"   Feedback items: {feedback_count}")
+            print(f"   Result keys: {list(analysis_result.keys())}")
+
             review_session.activity_logger.complete_operation(success=True, details={
                 'feedback_generated': feedback_count,
                 'analysis_duration': analysis_duration
             })
-            
+
             review_session.activity_logger.log_ai_analysis(section_name, feedback_count, analysis_duration, success=True)
-            print(f"AI analysis completed")
             
         except Exception as ai_error:
             analysis_duration = (datetime.now() - analysis_start_time).total_seconds()
