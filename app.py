@@ -728,16 +728,22 @@ def chat():
         response = ai_engine.process_chat_query(message, context)
         
         response_time = (datetime.now() - chat_start_time).total_seconds()
-        
+
         # Log chat interaction
         review_session.activity_logger.log_chat_interaction(
             'user_query',
             len(message),
             response_time
         )
-        
+
         # Add AI response to history
-        actual_model = model_config.get_model_config()['model_name']
+        # Get actual model name with fallback if config module not available
+        try:
+            from config.model_config import model_config as mc
+            actual_model = mc.get_model_config()['model_name']
+        except (ImportError, ModuleNotFoundError, KeyError):
+            actual_model = os.environ.get('BEDROCK_MODEL_ID', 'claude-3-5-sonnet')
+
         review_session.chat_history.append({
             'role': 'assistant',
             'content': response,
