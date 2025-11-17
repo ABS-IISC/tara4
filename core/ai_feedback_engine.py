@@ -34,6 +34,13 @@ except ImportError:
     ai_prompts = None
     
     class FallbackModelConfig:
+        # Supported models map (minimal for fallback)
+        SUPPORTED_MODELS = {
+            'claude-3-5-sonnet': {'name': 'Claude 3.5 Sonnet'},
+            'claude-3-sonnet': {'name': 'Claude 3 Sonnet'},
+            'claude-3-haiku': {'name': 'Claude 3 Haiku'}
+        }
+
         def get_model_config(self):
             return {
                 'model_id': os.environ.get('BEDROCK_MODEL_ID', 'anthropic.claude-3-5-sonnet-20240620-v1:0'),
@@ -44,7 +51,7 @@ except ImportError:
                 'anthropic_version': 'bedrock-2023-05-31',
                 'fallback_models': []  # No fallback models when using environment config
             }
-        
+
         def has_credentials(self):
             """Check if AWS credentials are available (env vars OR IAM role)"""
             try:
@@ -67,7 +74,7 @@ except ImportError:
                     return False
             except:
                 return False
-        
+
         def get_bedrock_request_body(self, system_prompt, user_prompt):
             config = self.get_model_config()
             body = {
@@ -78,7 +85,7 @@ except ImportError:
                 "messages": [{"role": "user", "content": user_prompt}]
             }
             return json.dumps(body)
-        
+
         def extract_response_content(self, response_body):
             try:
                 content = response_body.get('content', [])
@@ -87,6 +94,26 @@ except ImportError:
                 return response_body.get('completion', response_body.get('message', ''))
             except:
                 return "Error extracting response content"
+
+        def _extract_base_model(self, model_id):
+            """Extract base model name from full model ID"""
+            # e.g., "anthropic.claude-3-5-sonnet-20240620-v1:0" -> "claude-3-5-sonnet"
+            if 'claude-3-5-sonnet' in model_id:
+                return 'claude-3-5-sonnet'
+            elif 'claude-3-sonnet' in model_id:
+                return 'claude-3-sonnet'
+            elif 'claude-3-haiku' in model_id:
+                return 'claude-3-haiku'
+            return 'claude-3-5-sonnet'  # Default
+
+        def get_fallback_model_id(self, base_name):
+            """Get full model ID from base name"""
+            model_map = {
+                'claude-3-5-sonnet': 'anthropic.claude-3-5-sonnet-20240620-v1:0',
+                'claude-3-sonnet': 'anthropic.claude-3-sonnet-20240229-v1:0',
+                'claude-3-haiku': 'anthropic.claude-3-haiku-20240307-v1:0'
+            }
+            return model_map.get(base_name, model_map['claude-3-5-sonnet'])
     
     model_config = FallbackModelConfig()
 
@@ -881,8 +908,8 @@ Document Type: Full Write-up"""
             prompt = f"Answer this query: {query}"
             system_prompt = "You are a helpful assistant."
 
-        # Check if multi-model chat is enabled
-        enable_multi_model = os.environ.get('CHAT_ENABLE_MULTI_MODEL', 'true').lower() == 'true'
+        # Check if multi-model chat is enabled (default to false for stability)
+        enable_multi_model = os.environ.get('CHAT_ENABLE_MULTI_MODEL', 'false').lower() == 'true'
 
         if enable_multi_model:
             return self._process_chat_with_fallback(system_prompt, prompt, query, context)
