@@ -11,7 +11,18 @@ const originalFetch = window.fetch;
 // Enhanced fetch with error handling and retry
 window.fetch = function(url, options = {}) {
     // Add default timeout if not specified
-    const timeout = options.timeout || 30000; // 30 seconds default
+    // Use longer timeout for AI endpoints (120 seconds)
+    let defaultTimeout = 30000; // 30 seconds default
+
+    // AI analysis endpoints need more time
+    if (url.includes('/analyze_section') ||
+        url.includes('/chat') ||
+        url.includes('/complete_review') ||
+        url.includes('/analyze_all_sections')) {
+        defaultTimeout = 120000; // 120 seconds (2 minutes) for AI operations
+    }
+
+    const timeout = options.timeout || defaultTimeout;
 
     // Create timeout promise
     const timeoutPromise = new Promise((_, reject) => {

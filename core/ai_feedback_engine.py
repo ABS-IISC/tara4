@@ -459,9 +459,18 @@ The JSON must have a "feedback_items" array containing your analysis."""
             config = model_config.get_model_config()
 
             # Create Bedrock client using default credentials (works with both env vars and IAM roles)
+            # Add timeout configuration to prevent hanging requests
+            from botocore.config import Config
+            boto_config = Config(
+                connect_timeout=10,  # 10 seconds to establish connection
+                read_timeout=90,     # 90 seconds to read response (AI takes time)
+                retries={'max_attempts': 2, 'mode': 'standard'}
+            )
+
             runtime = boto3.client(
                 'bedrock-runtime',
-                region_name=config['region']
+                region_name=config['region'],
+                config=boto_config
             )
 
             # Check credential source for logging
