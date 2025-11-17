@@ -10,14 +10,20 @@ from collections import defaultdict
 # Add current directory to Python path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-# Import model manager for multi-model fallback
+# Import model manager for multi-model fallback (V2 with per-request isolation)
 try:
-    from core.model_manager import model_manager
+    from core.model_manager_v2 import model_manager_v2 as model_manager
     MODEL_FALLBACK_ENABLED = True
-    print("✅ Multi-model fallback enabled")
+    print("✅ Multi-model fallback enabled (V2 - Per-Request Isolation)")
 except ImportError:
-    MODEL_FALLBACK_ENABLED = False
-    print("ℹ️  Multi-model fallback not available")
+    try:
+        # Fallback to V1 if V2 not available
+        from core.model_manager import model_manager
+        MODEL_FALLBACK_ENABLED = True
+        print("✅ Multi-model fallback enabled (V1)")
+    except ImportError:
+        MODEL_FALLBACK_ENABLED = False
+        print("ℹ️  Multi-model fallback not available")
 
 try:
     from config.model_config import model_config
@@ -463,31 +469,41 @@ The JSON must have a "feedback_items" array containing your analysis."""
             return self._mock_ai_response(user_prompt)
 
     def _invoke_with_model_fallback(self, runtime, system_prompt, user_prompt, max_retries_per_model):
-        """Try multiple models with automatic fallback on throttling"""
+        """
+        Try multiple models with automatic fallback on throttling (V2 - Per-Request Isolation)
+
+        Key Design:
+        - Each request gets fresh model list (starts with primary)
+        - Other users' throttles don't affect this request
+        - Only skip model if it was just throttled (< 2s ago)
+        - Maintains user independence
+        """
+        import uuid
+        request_id = str(uuid.uuid4())[:8]  # Short ID for logging
+
+        print(f"🔄 Request {request_id} starting - getting available models", flush=True)
+
+        # Get models for THIS request (per-request isolation)
+        models_to_try = model_manager.get_models_for_request(request_id)
+
+        print(f"📋 Request {request_id} will try {len(models_to_try)} models: {[m['name'] for m in models_to_try]}", flush=True)
+
         models_tried = []
 
-        # Try all available models
-        while True:
-            # Get next available model
-            model = model_manager.get_available_model()
-
-            if model is None:
-                # All models throttled
-                print(f"❌ All models exhausted. Tried: {', '.join(models_tried)}", flush=True)
-                raise Exception("All Claude models are currently throttled")
-
-            models_tried.append(model['name'])
+        # Try each model in priority order
+        for model in models_to_try:
             model_id = model['id']
+            models_tried.append(model['name'])
 
-            print(f"🎯 Attempting with {model['name']}", flush=True)
+            print(f"🎯 Request {request_id} attempting with {model['name']}", flush=True)
 
             # Try this model with retries
             try:
                 result = self._try_model(runtime, model, system_prompt, user_prompt, max_retries_per_model)
 
-                # Success! Mark model as healthy
-                model_manager.mark_success(model_id)
-                print(f"✅ Success with {model['name']} ({len(result)} chars)", flush=True)
+                # Success! Record it
+                model_manager.record_success(model_id)
+                print(f"✅ Request {request_id} succeeded with {model['name']} ({len(result)} chars)", flush=True)
                 return result
 
             except Exception as e:
@@ -495,14 +511,18 @@ The JSON must have a "feedback_items" array containing your analysis."""
 
                 # Check if throttling error
                 if 'throttling' in error_str or 'too many requests' in error_str or 'rate' in error_str:
-                    print(f"🚫 {model['name']} throttled, trying next model...", flush=True)
-                    model_manager.mark_throttled(model_id, str(e))
+                    print(f"🚫 Request {request_id}: {model['name']} throttled, trying next model...", flush=True)
+                    model_manager.record_throttle(model_id, str(e))
                     # Continue to next model
                     continue
                 else:
                     # Non-throttling error, don't try other models
-                    print(f"❌ {model['name']} failed with non-throttling error: {str(e)}", flush=True)
+                    print(f"❌ Request {request_id}: {model['name']} failed with non-throttling error: {str(e)}", flush=True)
                     raise e
+
+        # All models failed for this request
+        print(f"❌ Request {request_id} exhausted all models. Tried: {', '.join(models_tried)}", flush=True)
+        raise Exception(f"All {len(models_tried)} Claude models throttled for this request")
 
     def _try_model(self, runtime, model, system_prompt, user_prompt, max_retries):
         """Try a specific model with exponential backoff retry"""

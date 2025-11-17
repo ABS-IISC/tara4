@@ -2477,12 +2477,21 @@ def export_activity_logs():
 def model_stats():
     """Get statistics about available models and their health status"""
     try:
-        from core.model_manager import model_manager
+        # Try V2 first (per-request isolation)
+        try:
+            from core.model_manager_v2 import model_manager_v2 as model_manager
+            version = "V2 (Per-Request Isolation)"
+        except ImportError:
+            # Fallback to V1
+            from core.model_manager import model_manager
+            version = "V1"
+
         stats = model_manager.get_model_stats()
         return jsonify({
             'success': True,
             'stats': stats,
-            'multi_model_enabled': True
+            'multi_model_enabled': True,
+            'version': version
         })
     except ImportError:
         return jsonify({
@@ -2501,7 +2510,13 @@ def model_stats():
 def reset_model_cooldowns():
     """Emergency endpoint to reset all model cooldowns"""
     try:
-        from core.model_manager import model_manager
+        # Try V2 first (per-request isolation)
+        try:
+            from core.model_manager_v2 import model_manager_v2 as model_manager
+        except ImportError:
+            # Fallback to V1
+            from core.model_manager import model_manager
+
         model_manager.reset_all_cooldowns()
         return jsonify({
             'success': True,
