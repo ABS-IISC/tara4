@@ -2470,6 +2470,56 @@ def export_activity_logs():
         return jsonify({'error': f'Export activity logs failed: {str(e)}'}), 500
 
 # ============================================================================
+# MODEL HEALTH AND MANAGEMENT ENDPOINTS
+# ============================================================================
+
+@app.route('/model_stats', methods=['GET'])
+def model_stats():
+    """Get statistics about available models and their health status"""
+    try:
+        from core.model_manager import model_manager
+        stats = model_manager.get_model_stats()
+        return jsonify({
+            'success': True,
+            'stats': stats,
+            'multi_model_enabled': True
+        })
+    except ImportError:
+        return jsonify({
+            'success': False,
+            'multi_model_enabled': False,
+            'message': 'Multi-model fallback not configured'
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@app.route('/reset_model_cooldowns', methods=['POST'])
+def reset_model_cooldowns():
+    """Emergency endpoint to reset all model cooldowns"""
+    try:
+        from core.model_manager import model_manager
+        model_manager.reset_all_cooldowns()
+        return jsonify({
+            'success': True,
+            'message': 'All model cooldowns have been reset'
+        })
+    except ImportError:
+        return jsonify({
+            'success': False,
+            'error': 'Multi-model fallback not configured'
+        }), 503
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+# ============================================================================
 # CELERY TASK MANAGEMENT ENDPOINTS
 # ============================================================================
 

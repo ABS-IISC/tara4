@@ -10,6 +10,15 @@ from collections import defaultdict
 # Add current directory to Python path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+# Import model manager for multi-model fallback
+try:
+    from core.model_manager import model_manager
+    MODEL_FALLBACK_ENABLED = True
+    print("✅ Multi-model fallback enabled")
+except ImportError:
+    MODEL_FALLBACK_ENABLED = False
+    print("ℹ️  Multi-model fallback not available")
+
 try:
     from config.model_config import model_config
     from config import ai_prompts
@@ -398,8 +407,11 @@ The JSON must have a "feedback_items" array containing your analysis."""
         
         return "Low"
 
-    def _invoke_bedrock(self, system_prompt, user_prompt, max_retries=5):
-        """Invoke AWS Bedrock using model configuration with exponential backoff retry - FOR ANALYSIS ONLY"""
+    def _invoke_bedrock(self, system_prompt, user_prompt, max_retries_per_model=3):
+        """
+        Invoke AWS Bedrock with multi-model fallback on throttling
+        Tries models in priority order, automatically switching on throttle
+        """
         try:
             # Check if credentials are available
             print(f"🔍 Checking AWS credentials for document analysis...", flush=True)
@@ -424,48 +436,12 @@ The JSON must have a "feedback_items" array containing your analysis."""
             else:
                 print(f"🔑 Using AWS credentials from IAM role (App Runner)", flush=True)
 
-            # Generate request body using model config
-            body = model_config.get_bedrock_request_body(system_prompt, user_prompt)
-
-            print(f"🤖 Invoking {config['model_name']} for analysis (ID: {config['model_id']})", flush=True)
-
-            # Retry loop with exponential backoff
-            last_exception = None
-            for attempt in range(max_retries):
-                try:
-                    response = runtime.invoke_model(
-                        body=body,
-                        modelId=config['model_id'],
-                        accept="application/json",
-                        contentType="application/json"
-                    )
-
-                    response_body = json.loads(response.get('body').read())
-                    result = model_config.extract_response_content(response_body)
-
-                    print(f"✅ Claude analysis response received ({len(result)} chars)", flush=True)
-                    return result
-
-                except Exception as retry_error:
-                    last_exception = retry_error
-                    error_str = str(retry_error).lower()
-
-                    # Check if it's a throttling error
-                    if 'throttling' in error_str or 'too many requests' in error_str or 'rate' in error_str:
-                        # Calculate exponential backoff delay
-                        wait_time = (2 ** attempt) + (time.time() % 1)  # 1s, 2s, 4s, 8s, 16s + jitter
-
-                        if attempt < max_retries - 1:  # Don't wait on last attempt
-                            print(f"⏳ Rate limited - waiting {wait_time:.1f}s before retry {attempt + 1}/{max_retries}...", flush=True)
-                            time.sleep(wait_time)
-                        else:
-                            print(f"❌ Rate limit exceeded after {max_retries} attempts", flush=True)
-                    else:
-                        # Non-throttling error, don't retry
-                        raise retry_error
-
-            # If we get here, all retries failed
-            raise last_exception
+            # Try multi-model fallback if enabled
+            if MODEL_FALLBACK_ENABLED:
+                return self._invoke_with_model_fallback(runtime, system_prompt, user_prompt, max_retries_per_model)
+            else:
+                # Use single model with retry (old behavior)
+                return self._invoke_single_model(runtime, config, system_prompt, user_prompt, max_retries_per_model)
 
         except Exception as e:
             print(f"❌ Bedrock analysis error: {str(e)}", flush=True)
@@ -479,12 +455,151 @@ The JSON must have a "feedback_items" array containing your analysis."""
             elif 'not found' in error_str or 'model' in error_str:
                 print("💡 Fix: Verify Claude model access in your AWS account", flush=True)
             elif 'throttling' in error_str or 'limit' in error_str or 'too many requests' in error_str:
-                print("💡 Fix: Rate limiting - AWS Bedrock throttled your requests. Retried with backoff but still failed.", flush=True)
-                print("💡 Suggestion: Wait 30-60 seconds before trying again, or reduce concurrent requests", flush=True)
+                print("💡 Fix: Rate limiting - AWS Bedrock throttled your requests.", flush=True)
+                print("💡 Suggestion: Wait 30-60 seconds or enable multi-model fallback", flush=True)
 
             # Return mock analysis response for testing
             print("🎭 Falling back to mock analysis response", flush=True)
             return self._mock_ai_response(user_prompt)
+
+    def _invoke_with_model_fallback(self, runtime, system_prompt, user_prompt, max_retries_per_model):
+        """Try multiple models with automatic fallback on throttling"""
+        models_tried = []
+
+        # Try all available models
+        while True:
+            # Get next available model
+            model = model_manager.get_available_model()
+
+            if model is None:
+                # All models throttled
+                print(f"❌ All models exhausted. Tried: {', '.join(models_tried)}", flush=True)
+                raise Exception("All Claude models are currently throttled")
+
+            models_tried.append(model['name'])
+            model_id = model['id']
+
+            print(f"🎯 Attempting with {model['name']}", flush=True)
+
+            # Try this model with retries
+            try:
+                result = self._try_model(runtime, model, system_prompt, user_prompt, max_retries_per_model)
+
+                # Success! Mark model as healthy
+                model_manager.mark_success(model_id)
+                print(f"✅ Success with {model['name']} ({len(result)} chars)", flush=True)
+                return result
+
+            except Exception as e:
+                error_str = str(e).lower()
+
+                # Check if throttling error
+                if 'throttling' in error_str or 'too many requests' in error_str or 'rate' in error_str:
+                    print(f"🚫 {model['name']} throttled, trying next model...", flush=True)
+                    model_manager.mark_throttled(model_id, str(e))
+                    # Continue to next model
+                    continue
+                else:
+                    # Non-throttling error, don't try other models
+                    print(f"❌ {model['name']} failed with non-throttling error: {str(e)}", flush=True)
+                    raise e
+
+    def _try_model(self, runtime, model, system_prompt, user_prompt, max_retries):
+        """Try a specific model with exponential backoff retry"""
+        model_id = model['id']
+
+        # Build request body for this model
+        body_dict = {
+            "anthropic_version": "bedrock-2023-05-31",
+            "max_tokens": model['max_tokens'],
+            "temperature": model['temperature'],
+            "system": system_prompt,
+            "messages": [{"role": "user", "content": user_prompt}]
+        }
+        body = json.dumps(body_dict)
+
+        last_exception = None
+
+        # Retry loop with exponential backoff
+        for attempt in range(max_retries):
+            try:
+                response = runtime.invoke_model(
+                    body=body,
+                    modelId=model_id,
+                    accept="application/json",
+                    contentType="application/json"
+                )
+
+                response_body = json.loads(response.get('body').read())
+
+                # Extract response content
+                content = response_body.get('content', [])
+                if content and len(content) > 0:
+                    result = content[0].get('text', '')
+                else:
+                    result = response_body.get('completion', response_body.get('message', ''))
+
+                return result
+
+            except Exception as retry_error:
+                last_exception = retry_error
+                error_str = str(retry_error).lower()
+
+                # Check if it's a throttling error
+                if 'throttling' in error_str or 'too many requests' in error_str or 'rate' in error_str:
+                    if attempt < max_retries - 1:
+                        wait_time = (2 ** attempt) + (time.time() % 1)
+                        print(f"   ⏳ Retry {attempt + 1}/{max_retries} after {wait_time:.1f}s...", flush=True)
+                        time.sleep(wait_time)
+                    else:
+                        # All retries for this model exhausted
+                        raise retry_error
+                else:
+                    # Non-throttling error, fail immediately
+                    raise retry_error
+
+        # If we get here, all retries failed
+        raise last_exception
+
+    def _invoke_single_model(self, runtime, config, system_prompt, user_prompt, max_retries):
+        """Original single-model implementation (fallback when model manager disabled)"""
+        # Generate request body using model config
+        body = model_config.get_bedrock_request_body(system_prompt, user_prompt)
+
+        print(f"🤖 Invoking {config['model_name']} for analysis (ID: {config['model_id']})", flush=True)
+
+        last_exception = None
+        for attempt in range(max_retries):
+            try:
+                response = runtime.invoke_model(
+                    body=body,
+                    modelId=config['model_id'],
+                    accept="application/json",
+                    contentType="application/json"
+                )
+
+                response_body = json.loads(response.get('body').read())
+                result = model_config.extract_response_content(response_body)
+
+                print(f"✅ Claude analysis response received ({len(result)} chars)", flush=True)
+                return result
+
+            except Exception as retry_error:
+                last_exception = retry_error
+                error_str = str(retry_error).lower()
+
+                if 'throttling' in error_str or 'too many requests' in error_str or 'rate' in error_str:
+                    wait_time = (2 ** attempt) + (time.time() % 1)
+
+                    if attempt < max_retries - 1:
+                        print(f"⏳ Rate limited - waiting {wait_time:.1f}s before retry {attempt + 1}/{max_retries}...", flush=True)
+                        time.sleep(wait_time)
+                    else:
+                        print(f"❌ Rate limit exceeded after {max_retries} attempts", flush=True)
+                else:
+                    raise retry_error
+
+        raise last_exception
     
 
     
