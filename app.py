@@ -24,6 +24,25 @@ try:
 except ImportError as e:
     print(f"⚠️ Import error: {e}")
     print("Creating fallback components...")
+
+# Import Celery integration helper
+try:
+    from celery_integration import (
+        is_celery_available,
+        submit_analysis_task,
+        submit_chat_task,
+        submit_test_task,
+        get_task_status,
+        get_queue_stats
+    )
+    CELERY_ENABLED = is_celery_available()
+    if CELERY_ENABLED:
+        print("✅ Celery task queue is available and configured")
+    else:
+        print("ℹ️  Celery not available - using synchronous processing")
+except ImportError:
+    print("ℹ️  Celery integration not found - using synchronous processing")
+    CELERY_ENABLED = False
     
     # Create minimal fallback classes
     class DocumentAnalyzer:
@@ -326,47 +345,71 @@ def analyze_section():
         print("=" * 80, flush=True)
         sys.stdout.flush()
 
-        # Analyze with AI engine with timing
-        analysis_start_time = datetime.now()
-        try:
-            print(f"📞 Calling ai_engine.analyze_section()", flush=True)
-            sys.stdout.flush()
+        # Check if Celery is available for async processing
+        if CELERY_ENABLED:
+            # Submit task to Celery queue
+            print(f"📤 Submitting analysis task to Celery queue", flush=True)
+            task_id, is_async = submit_analysis_task(
+                section_name=section_name,
+                content=section_content,
+                doc_type="Full Write-up",
+                session_id=session_id
+            )
 
-            review_session.activity_logger.start_operation('ai_analysis', {
-                'section': section_name,
-                'content_length': len(section_content)
-            })
+            if is_async:
+                # Return task ID for async polling
+                return jsonify({
+                    'success': True,
+                    'task_id': task_id,
+                    'status': 'processing',
+                    'message': 'Analysis task submitted to queue',
+                    'async': True
+                })
+            else:
+                # Celery not available, got result directly
+                analysis_result = task_id  # task_id is actually the result in sync mode
+        else:
+            # Analyze with AI engine with timing (synchronous fallback)
+            analysis_start_time = datetime.now()
+            try:
+                print(f"📞 Calling ai_engine.analyze_section()", flush=True)
+                sys.stdout.flush()
 
-            analysis_result = ai_engine.analyze_section(section_name, section_content)
+                review_session.activity_logger.start_operation('ai_analysis', {
+                    'section': section_name,
+                    'content_length': len(section_content)
+                })
 
-            analysis_duration = (datetime.now() - analysis_start_time).total_seconds()
-            feedback_count = len(analysis_result.get('feedback_items', []))
+                analysis_result = ai_engine.analyze_section(section_name, section_content)
 
-            print(f"✅ AI analysis completed!", flush=True)
-            print(f"   Duration: {analysis_duration:.2f}s", flush=True)
-            print(f"   Feedback items: {feedback_count}", flush=True)
-            print(f"   Result keys: {list(analysis_result.keys())}", flush=True)
-            sys.stdout.flush()
+                analysis_duration = (datetime.now() - analysis_start_time).total_seconds()
+                feedback_count = len(analysis_result.get('feedback_items', []))
 
-            review_session.activity_logger.complete_operation(success=True, details={
-                'feedback_generated': feedback_count,
-                'analysis_duration': analysis_duration
-            })
+                print(f"✅ AI analysis completed!", flush=True)
+                print(f"   Duration: {analysis_duration:.2f}s", flush=True)
+                print(f"   Feedback items: {feedback_count}", flush=True)
+                print(f"   Result keys: {list(analysis_result.keys())}", flush=True)
+                sys.stdout.flush()
 
-            review_session.activity_logger.log_ai_analysis(section_name, feedback_count, analysis_duration, success=True)
-            
-        except Exception as ai_error:
-            analysis_duration = (datetime.now() - analysis_start_time).total_seconds()
-            
-            review_session.activity_logger.complete_operation(success=False, error=str(ai_error))
-            review_session.activity_logger.log_ai_analysis(section_name, 0, analysis_duration, success=False, error=str(ai_error))
-            
-            print(f"AI analysis failed: {str(ai_error)}")
-            analysis_result = {
-                'feedback_items': [],
-                'error': f'AI analysis failed: {str(ai_error)}',
-                'fallback': True
-            }
+                review_session.activity_logger.complete_operation(success=True, details={
+                    'feedback_generated': feedback_count,
+                    'analysis_duration': analysis_duration
+                })
+
+                review_session.activity_logger.log_ai_analysis(section_name, feedback_count, analysis_duration, success=True)
+
+            except Exception as ai_error:
+                analysis_duration = (datetime.now() - analysis_start_time).total_seconds()
+
+                review_session.activity_logger.complete_operation(success=False, error=str(ai_error))
+                review_session.activity_logger.log_ai_analysis(section_name, 0, analysis_duration, success=False, error=str(ai_error))
+
+                print(f"AI analysis failed: {str(ai_error)}")
+                analysis_result = {
+                    'feedback_items': [],
+                    'error': f'AI analysis failed: {str(ai_error)}',
+                    'fallback': True
+                }
         
         # Ensure we have a valid result structure
         if not isinstance(analysis_result, dict):
@@ -737,20 +780,42 @@ def chat():
             'rejected_count': len(review_session.rejected_feedback.get(current_section, []))
         }
         
-        # Track chat response time
-        chat_start_time = datetime.now()
-        
-        # AI engine now handles fallback internally
-        response = ai_engine.process_chat_query(message, context)
-        
-        response_time = (datetime.now() - chat_start_time).total_seconds()
+        # Check if Celery is available for async processing
+        if CELERY_ENABLED:
+            # Submit task to Celery queue
+            print(f"📤 Submitting chat task to Celery queue", flush=True)
+            task_id, is_async = submit_chat_task(
+                query=message,
+                context=context
+            )
 
-        # Log chat interaction
-        review_session.activity_logger.log_chat_interaction(
-            'user_query',
-            len(message),
-            response_time
-        )
+            if is_async:
+                # Return task ID for async polling
+                return jsonify({
+                    'success': True,
+                    'task_id': task_id,
+                    'status': 'processing',
+                    'message': 'Chat task submitted to queue',
+                    'async': True
+                })
+            else:
+                # Celery not available, got result directly
+                response = task_id  # task_id is actually the result in sync mode
+        else:
+            # Track chat response time (synchronous fallback)
+            chat_start_time = datetime.now()
+
+            # AI engine now handles fallback internally
+            response = ai_engine.process_chat_query(message, context)
+
+            response_time = (datetime.now() - chat_start_time).total_seconds()
+
+            # Log chat interaction
+            review_session.activity_logger.log_chat_interaction(
+                'user_query',
+                len(message),
+                response_time
+            )
 
         # Add AI response to history
         # Get actual model name with fallback if config module not available
@@ -2206,8 +2271,27 @@ def test_claude_connection():
     try:
         session_id = request.args.get('session_id') or session.get('session_id')
 
-        # Test Claude connection with a simple test prompt
-        test_response = ai_engine.test_connection()
+        # Check if Celery is available for async processing
+        if CELERY_ENABLED:
+            # Submit task to Celery queue
+            print(f"📤 Submitting test connection task to Celery queue", flush=True)
+            task_id, is_async = submit_test_task()
+
+            if is_async:
+                # Return task ID for async polling
+                return jsonify({
+                    'success': True,
+                    'task_id': task_id,
+                    'status': 'testing',
+                    'message': 'Connection test submitted to queue',
+                    'async': True
+                })
+            else:
+                # Celery not available, got result directly
+                test_response = task_id['result'] if isinstance(task_id, dict) and 'result' in task_id else task_id
+        else:
+            # Test Claude connection with a simple test prompt (synchronous fallback)
+            test_response = ai_engine.test_connection()
 
         # Get model configuration for additional details (with fallback)
         try:
@@ -2384,6 +2468,77 @@ def export_activity_logs():
         
     except Exception as e:
         return jsonify({'error': f'Export activity logs failed: {str(e)}'}), 500
+
+# ============================================================================
+# CELERY TASK MANAGEMENT ENDPOINTS
+# ============================================================================
+
+@app.route('/task_status/<task_id>', methods=['GET'])
+def task_status(task_id):
+    """Get status of a Celery task"""
+    try:
+        if not CELERY_ENABLED:
+            return jsonify({
+                'error': 'Celery not available',
+                'task_id': task_id,
+                'state': 'UNAVAILABLE'
+            }), 503
+
+        status = get_task_status(task_id)
+        return jsonify(status)
+
+    except Exception as e:
+        return jsonify({
+            'error': str(e),
+            'task_id': task_id,
+            'state': 'ERROR'
+        }), 500
+
+
+@app.route('/queue_stats', methods=['GET'])
+def queue_stats():
+    """Get Celery queue statistics"""
+    try:
+        stats = get_queue_stats()
+        return jsonify(stats)
+
+    except Exception as e:
+        return jsonify({
+            'available': False,
+            'error': str(e)
+        }), 500
+
+
+@app.route('/cancel_task/<task_id>', methods=['POST'])
+def cancel_task(task_id):
+    """Cancel a running Celery task"""
+    try:
+        if not CELERY_ENABLED:
+            return jsonify({
+                'error': 'Celery not available',
+                'cancelled': False
+            }), 503
+
+        from celery_config import celery_app
+        celery_app.control.revoke(task_id, terminate=True, signal='SIGKILL')
+
+        return jsonify({
+            'success': True,
+            'task_id': task_id,
+            'cancelled': True,
+            'message': 'Task cancellation requested'
+        })
+
+    except Exception as e:
+        return jsonify({
+            'error': str(e),
+            'task_id': task_id,
+            'cancelled': False
+        }), 500
+
+# ============================================================================
+# APPLICATION STARTUP
+# ============================================================================
 
 if __name__ == '__main__':
     try:
