@@ -398,18 +398,18 @@ The JSON must have a "feedback_items" array containing your analysis."""
         
         return "Low"
 
-    def _invoke_bedrock(self, system_prompt, user_prompt):
-        """Invoke AWS Bedrock using model configuration - FOR ANALYSIS ONLY"""
+    def _invoke_bedrock(self, system_prompt, user_prompt, max_retries=5):
+        """Invoke AWS Bedrock using model configuration with exponential backoff retry - FOR ANALYSIS ONLY"""
         try:
             # Check if credentials are available
-            print(f"🔍 Checking AWS credentials for document analysis...")
+            print(f"🔍 Checking AWS credentials for document analysis...", flush=True)
             has_creds = model_config.has_credentials()
-            print(f"🔍 Credentials check result: {has_creds}")
+            print(f"🔍 Credentials check result: {has_creds}", flush=True)
 
             if not has_creds:
-                print("⚠️ No AWS credentials found - using mock analysis response")
+                print("⚠️ No AWS credentials found - using mock analysis response", flush=True)
                 return self._mock_ai_response(user_prompt)
-            
+
             config = model_config.get_model_config()
 
             # Create Bedrock client using default credentials (works with both env vars and IAM roles)
@@ -420,44 +420,70 @@ The JSON must have a "feedback_items" array containing your analysis."""
 
             # Check credential source for logging
             if os.environ.get('AWS_ACCESS_KEY_ID'):
-                print(f"🔑 Using AWS credentials from environment variables")
+                print(f"🔑 Using AWS credentials from environment variables", flush=True)
             else:
-                print(f"🔑 Using AWS credentials from IAM role (App Runner)")
-            
+                print(f"🔑 Using AWS credentials from IAM role (App Runner)", flush=True)
+
             # Generate request body using model config
             body = model_config.get_bedrock_request_body(system_prompt, user_prompt)
-            
-            print(f"🤖 Invoking {config['model_name']} for analysis (ID: {config['model_id']})")
-            
-            response = runtime.invoke_model(
-                body=body,
-                modelId=config['model_id'],
-                accept="application/json",
-                contentType="application/json"
-            )
-            
-            response_body = json.loads(response.get('body').read())
-            result = model_config.extract_response_content(response_body)
-            
-            print(f"✅ Claude analysis response received ({len(result)} chars)")
-            return result
-            
+
+            print(f"🤖 Invoking {config['model_name']} for analysis (ID: {config['model_id']})", flush=True)
+
+            # Retry loop with exponential backoff
+            last_exception = None
+            for attempt in range(max_retries):
+                try:
+                    response = runtime.invoke_model(
+                        body=body,
+                        modelId=config['model_id'],
+                        accept="application/json",
+                        contentType="application/json"
+                    )
+
+                    response_body = json.loads(response.get('body').read())
+                    result = model_config.extract_response_content(response_body)
+
+                    print(f"✅ Claude analysis response received ({len(result)} chars)", flush=True)
+                    return result
+
+                except Exception as retry_error:
+                    last_exception = retry_error
+                    error_str = str(retry_error).lower()
+
+                    # Check if it's a throttling error
+                    if 'throttling' in error_str or 'too many requests' in error_str or 'rate' in error_str:
+                        # Calculate exponential backoff delay
+                        wait_time = (2 ** attempt) + (time.time() % 1)  # 1s, 2s, 4s, 8s, 16s + jitter
+
+                        if attempt < max_retries - 1:  # Don't wait on last attempt
+                            print(f"⏳ Rate limited - waiting {wait_time:.1f}s before retry {attempt + 1}/{max_retries}...", flush=True)
+                            time.sleep(wait_time)
+                        else:
+                            print(f"❌ Rate limit exceeded after {max_retries} attempts", flush=True)
+                    else:
+                        # Non-throttling error, don't retry
+                        raise retry_error
+
+            # If we get here, all retries failed
+            raise last_exception
+
         except Exception as e:
-            print(f"❌ Bedrock analysis error: {str(e)}")
-            
+            print(f"❌ Bedrock analysis error: {str(e)}", flush=True)
+
             # Provide specific error guidance
             error_str = str(e).lower()
             if 'credentials' in error_str or 'access' in error_str:
-                print("💡 Fix: Check AWS credentials configuration")
+                print("💡 Fix: Check AWS credentials configuration", flush=True)
             elif 'region' in error_str:
-                print("💡 Fix: Verify AWS region and Bedrock availability")
+                print("💡 Fix: Verify AWS region and Bedrock availability", flush=True)
             elif 'not found' in error_str or 'model' in error_str:
-                print("💡 Fix: Verify Claude model access in your AWS account")
-            elif 'throttling' in error_str or 'limit' in error_str:
-                print("💡 Fix: Rate limiting - try again in a moment")
-            
+                print("💡 Fix: Verify Claude model access in your AWS account", flush=True)
+            elif 'throttling' in error_str or 'limit' in error_str or 'too many requests' in error_str:
+                print("💡 Fix: Rate limiting - AWS Bedrock throttled your requests. Retried with backoff but still failed.", flush=True)
+                print("💡 Suggestion: Wait 30-60 seconds before trying again, or reduce concurrent requests", flush=True)
+
             # Return mock analysis response for testing
-            print("🎭 Falling back to mock analysis response")
+            print("🎭 Falling back to mock analysis response", flush=True)
             return self._mock_ai_response(user_prompt)
     
 
@@ -728,8 +754,8 @@ Document Type: Full Write-up"""
         else:
             return self._process_chat_single_model(system_prompt, prompt, query, context)
 
-    def _process_chat_single_model(self, system_prompt, prompt, query, context):
-        """Process chat with single primary model"""
+    def _process_chat_single_model(self, system_prompt, prompt, query, context, max_retries=5):
+        """Process chat with single primary model with exponential backoff retry"""
         try:
             # Use real Bedrock for chat
             import boto3
@@ -743,30 +769,54 @@ Document Type: Full Write-up"""
 
             # Check credential source for logging
             if os.environ.get('AWS_ACCESS_KEY_ID'):
-                print(f"🔑 Chat using AWS credentials from environment variables")
+                print(f"🔑 Chat using AWS credentials from environment variables", flush=True)
             else:
-                print(f"🔑 Chat using AWS credentials from IAM role (App Runner)")
+                print(f"🔑 Chat using AWS credentials from IAM role (App Runner)", flush=True)
 
             body = model_config.get_bedrock_request_body(system_prompt, prompt)
 
-            print(f"🤖 Chat query to {config['model_name']}")
+            print(f"🤖 Chat query to {config['model_name']}", flush=True)
 
-            response = runtime.invoke_model(
-                body=body,
-                modelId=config['model_id'],
-                accept="application/json",
-                contentType="application/json"
-            )
+            # Retry loop with exponential backoff
+            last_exception = None
+            for attempt in range(max_retries):
+                try:
+                    response = runtime.invoke_model(
+                        body=body,
+                        modelId=config['model_id'],
+                        accept="application/json",
+                        contentType="application/json"
+                    )
 
-            response_body = json.loads(response.get('body').read())
-            result = model_config.extract_response_content(response_body)
+                    response_body = json.loads(response.get('body').read())
+                    result = model_config.extract_response_content(response_body)
 
-            print(f"✅ Claude chat response received")
-            return self._format_chat_response(result)
+                    print(f"✅ Claude chat response received", flush=True)
+                    return self._format_chat_response(result)
+
+                except Exception as retry_error:
+                    last_exception = retry_error
+                    error_str = str(retry_error).lower()
+
+                    # Check if it's a throttling error
+                    if 'throttling' in error_str or 'too many requests' in error_str or 'rate' in error_str:
+                        wait_time = (2 ** attempt) + (time.time() % 1)  # Exponential backoff with jitter
+
+                        if attempt < max_retries - 1:
+                            print(f"⏳ Chat rate limited - waiting {wait_time:.1f}s before retry {attempt + 1}/{max_retries}...", flush=True)
+                            time.sleep(wait_time)
+                        else:
+                            print(f"❌ Chat rate limit exceeded after {max_retries} attempts", flush=True)
+                    else:
+                        # Non-throttling error, don't retry
+                        raise retry_error
+
+            # If we get here, all retries failed
+            raise last_exception
 
         except Exception as e:
-            print(f"❌ Chat processing error: {str(e)}")
-            print("🎭 Falling back to mock chat response")
+            print(f"❌ Chat processing error: {str(e)}", flush=True)
+            print("🎭 Falling back to mock chat response", flush=True)
             return self._mock_chat_response(query, context)
 
     def _process_chat_with_fallback(self, system_prompt, prompt, query, context):
@@ -877,8 +927,8 @@ Document Type: Full Write-up"""
         print("❌ All models exhausted - falling back to mock response")
         return self._mock_chat_response(query, context)
 
-    def test_connection(self):
-        """Test Claude AI connection and return status"""
+    def test_connection(self, max_retries=3):
+        """Test Claude AI connection with exponential backoff retry"""
         import time
         start_time = time.time()
 
@@ -894,23 +944,17 @@ Document Type: Full Write-up"""
 
             config = model_config.get_model_config()
 
-            # Create Bedrock runtime client
-            runtime = None
-            try:
-                # Try with admin-abhsatsa profile
-                session = boto3.Session(profile_name='admin-abhsatsa')
-                runtime = session.client(
-                    'bedrock-runtime',
-                    region_name=config['region']
-                )
-                print(f"🔑 Testing with AWS profile: admin-abhsatsa")
-            except Exception:
-                # Fallback to default session
-                runtime = boto3.client(
-                    'bedrock-runtime',
-                    region_name=config['region']
-                )
-                print(f"🔑 Testing with default AWS credentials")
+            # Create Bedrock client using default credentials (works with both env vars and IAM roles)
+            runtime = boto3.client(
+                'bedrock-runtime',
+                region_name=config['region']
+            )
+
+            # Check credential source for logging
+            if os.environ.get('AWS_ACCESS_KEY_ID'):
+                print(f"🔑 Testing with AWS credentials from environment variables", flush=True)
+            else:
+                print(f"🔑 Testing with default AWS credentials", flush=True)
 
             # Simple test prompt
             test_prompt = "Respond with 'OK' if you can read this message."
@@ -918,34 +962,58 @@ Document Type: Full Write-up"""
 
             body = model_config.get_bedrock_request_body(system_prompt, test_prompt)
 
-            print(f"🤖 Testing connection to {config['model_name']} (ID: {config['model_id']})")
+            print(f"🤖 Testing connection to {config['model_name']} (ID: {config['model_id']})", flush=True)
 
-            response = runtime.invoke_model(
-                body=body,
-                modelId=config['model_id'],
-                accept="application/json",
-                contentType="application/json"
-            )
+            # Retry loop with exponential backoff
+            last_exception = None
+            for attempt in range(max_retries):
+                try:
+                    response = runtime.invoke_model(
+                        body=body,
+                        modelId=config['model_id'],
+                        accept="application/json",
+                        contentType="application/json"
+                    )
 
-            response_body = json.loads(response.get('body').read())
-            result = model_config.extract_response_content(response_body)
+                    response_body = json.loads(response.get('body').read())
+                    result = model_config.extract_response_content(response_body)
 
-            response_time = time.time() - start_time
+                    response_time = time.time() - start_time
 
-            print(f"✅ Claude connection test successful ({response_time:.2f}s)")
+                    print(f"✅ Claude connection test successful ({response_time:.2f}s)", flush=True)
 
-            return {
-                'connected': True,
-                'model': config['model_name'],
-                'model_id': config['model_id'],
-                'response_time': round(response_time, 2),
-                'test_response': result[:50] + '...' if len(result) > 50 else result,
-                'region': config['region']
-            }
+                    return {
+                        'connected': True,
+                        'model': config['model_name'],
+                        'model_id': config['model_id'],
+                        'response_time': round(response_time, 2),
+                        'test_response': result[:50] + '...' if len(result) > 50 else result,
+                        'region': config['region']
+                    }
+
+                except Exception as retry_error:
+                    last_exception = retry_error
+                    error_str = str(retry_error).lower()
+
+                    # Check if it's a throttling error
+                    if 'throttling' in error_str or 'too many requests' in error_str or 'rate' in error_str:
+                        wait_time = (2 ** attempt) + (time.time() % 1)  # Exponential backoff with jitter
+
+                        if attempt < max_retries - 1:
+                            print(f"⏳ Test rate limited - waiting {wait_time:.1f}s before retry {attempt + 1}/{max_retries}...", flush=True)
+                            time.sleep(wait_time)
+                        else:
+                            print(f"❌ Test rate limit exceeded after {max_retries} attempts", flush=True)
+                    else:
+                        # Non-throttling error, don't retry
+                        raise retry_error
+
+            # If we get here, all retries failed due to throttling
+            raise last_exception
 
         except Exception as e:
             response_time = time.time() - start_time
-            print(f"❌ Claude connection test failed: {str(e)}")
+            print(f"❌ Claude connection test failed: {str(e)}", flush=True)
 
             return {
                 'connected': False,
