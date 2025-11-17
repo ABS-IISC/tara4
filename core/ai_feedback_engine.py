@@ -345,16 +345,18 @@ The JSON must have a "feedback_items" array containing your analysis."""
             
             validated_items.append(validated_item)
 
-        # ✅ FIX: Filter feedback items with confidence >= 80% (0.8)
-        high_confidence_items = [item for item in validated_items if item['confidence'] >= 0.8]
+        # ✅ FIX: Filter feedback items with confidence >= 60% (was 80% - too strict!)
+        # Most AI feedback is 60-75% confidence, so 80% threshold was filtering out too many valid items
+        high_confidence_items = [item for item in validated_items if item['confidence'] >= 0.6]
 
         # ✅ FIX: Remove duplicates and near-duplicates (similarity check)
         unique_items = self._remove_duplicate_feedback(high_confidence_items)
 
-        # ✅ FIX: Sort by confidence in ascending order (lowest confidence first)
-        unique_items.sort(key=lambda x: x['confidence'])
+        # ✅ FIX: Sort by confidence in DESCENDING order (highest confidence first)
+        # This was backwards before - was showing lowest confidence first!
+        unique_items.sort(key=lambda x: x['confidence'], reverse=True)
 
-        print(f"📊 Filtered: {len(validated_items)} total → {len(high_confidence_items)} high-confidence → {len(unique_items)} unique items")
+        print(f"📊 Filtered: {len(validated_items)} total → {len(high_confidence_items)} confidence>=60% → {len(unique_items)} unique items")
 
         # Update result with filtered, deduplicated, and sorted items
         result['feedback_items'] = unique_items
@@ -367,7 +369,7 @@ The JSON must have a "feedback_items" array containing your analysis."""
         else:
             print(f"⚠️ Skipping cache for fallback/error response")
 
-        print(f"✅ Analysis complete: {len(high_confidence_items)} high-confidence feedback items (ALL items with confidence >= 80%, sorted ascending)")  # ✅ FIX: Show ALL items >= 80%
+        print(f"✅ Analysis complete: {len(unique_items)} feedback items (confidence >= 60%, sorted highest first)")  # ✅ FIX: Show ALL items >= 60%
         return result
 
     def _get_section_guidance(self, section_name):
