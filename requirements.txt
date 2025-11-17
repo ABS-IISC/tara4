@@ -17,7 +17,7 @@ six==1.16.0
 
 # Celery task queue (optional - requires Redis)
 celery[redis]==5.3.4
-redis==5.0.1
+redis==4.6.0
 kombu==5.3.4
 vine==5.1.0
 amqp==5.2.0
