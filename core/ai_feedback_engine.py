@@ -447,24 +447,18 @@ The JSON must have a "feedback_items" array containing your analysis."""
         Tries models in priority order, automatically switching on throttle
         """
         try:
-            # Check if credentials are available
-            print(f"🔍 Checking AWS credentials for document analysis...", flush=True)
-            has_creds = model_config.has_credentials()
-            print(f"🔍 Credentials check result: {has_creds}", flush=True)
-
-            if not has_creds:
-                print("⚠️ No AWS credentials found - using mock analysis response", flush=True)
-                return self._mock_ai_response(user_prompt)
+            # Skip slow credential check - just try to use Bedrock and catch errors
+            print(f"🔍 Attempting to connect to AWS Bedrock...", flush=True)
 
             config = model_config.get_model_config()
 
             # Create Bedrock client using default credentials (works with both env vars and IAM roles)
-            # Add timeout configuration to prevent hanging requests
+            # Add AGGRESSIVE timeout configuration to prevent hanging requests
             from botocore.config import Config
             boto_config = Config(
-                connect_timeout=10,  # 10 seconds to establish connection
-                read_timeout=90,     # 90 seconds to read response (AI takes time)
-                retries={'max_attempts': 2, 'mode': 'standard'}
+                connect_timeout=5,   # 5 seconds to establish connection (fail fast)
+                read_timeout=60,     # 60 seconds to read response (reduced from 90)
+                retries={'max_attempts': 1, 'mode': 'standard'}  # Only 1 retry to fail faster
             )
 
             runtime = boto3.client(
@@ -486,12 +480,20 @@ The JSON must have a "feedback_items" array containing your analysis."""
                 # Use single model with retry (old behavior)
                 return self._invoke_single_model(runtime, config, system_prompt, user_prompt, max_retries_per_model)
 
+        except TimeoutError as te:
+            print(f"⏱️ Bedrock request timed out: {str(te)}", flush=True)
+            print("🎭 Using mock response instead", flush=True)
+            return self._mock_ai_response(user_prompt)
+
         except Exception as e:
             print(f"❌ Bedrock analysis error: {str(e)}", flush=True)
 
             # Provide specific error guidance
             error_str = str(e).lower()
-            if 'credentials' in error_str or 'access' in error_str:
+            if 'timeout' in error_str:
+                print("💡 Timeout occurred - falling back to mock response", flush=True)
+                return self._mock_ai_response(user_prompt)
+            elif 'credentials' in error_str or 'access' in error_str:
                 print("💡 Fix: Check AWS credentials configuration", flush=True)
             elif 'region' in error_str:
                 print("💡 Fix: Verify AWS region and Bedrock availability", flush=True)
