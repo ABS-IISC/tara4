@@ -8,12 +8,12 @@ from celery import Celery
 # Get Redis URL from environment or use default
 REDIS_URL = os.environ.get('REDIS_URL', 'redis://localhost:6379/0')
 
-# Create Celery app
+# Create Celery app with enhanced tasks
 celery_app = Celery(
     'aiprism_tasks',
     broker=REDIS_URL,
     backend=REDIS_URL,
-    include=['celery_tasks']
+    include=['celery_tasks_enhanced']  # ✅ UPDATED: Using enhanced tasks with multi-model fallback
 )
 
 # Celery configuration
@@ -39,28 +39,28 @@ celery_app.conf.update(
 
     # Rate limiting (KEY FEATURE for throttling!)
     task_annotations={
-        'celery_tasks.analyze_section_task': {
-            'rate_limit': '5/m',  # Max 5 analysis tasks per minute
+        'celery_tasks_enhanced.analyze_section_task': {  # ✅ UPDATED
+            'rate_limit': '10/m',  # Max 10 analysis tasks per minute (increased with multi-model)
             'time_limit': 300,     # 5 minute timeout
             'soft_time_limit': 240  # Soft timeout at 4 minutes
         },
-        'celery_tasks.process_chat_task': {
-            'rate_limit': '10/m',  # Max 10 chat tasks per minute
+        'celery_tasks_enhanced.process_chat_task': {  # ✅ UPDATED
+            'rate_limit': '15/m',  # Max 15 chat tasks per minute (increased)
             'time_limit': 120,      # 2 minute timeout
             'soft_time_limit': 90   # Soft timeout at 90 seconds
         },
-        'celery_tasks.test_connection_task': {
-            'rate_limit': '3/m',  # Max 3 test tasks per minute
-            'time_limit': 30,      # 30 second timeout
-            'soft_time_limit': 20  # Soft timeout at 20 seconds
+        'celery_tasks_enhanced.monitor_health': {  # ✅ NEW: Health monitoring
+            'rate_limit': '1/m',   # Once per minute
+            'time_limit': 60,
+            'soft_time_limit': 45
         }
     },
 
     # Queue settings
     task_routes={
-        'celery_tasks.analyze_section_task': {'queue': 'analysis'},
-        'celery_tasks.process_chat_task': {'queue': 'chat'},
-        'celery_tasks.test_connection_task': {'queue': 'test'}
+        'celery_tasks_enhanced.analyze_section_task': {'queue': 'analysis'},  # ✅ UPDATED
+        'celery_tasks_enhanced.process_chat_task': {'queue': 'chat'},  # ✅ UPDATED
+        'celery_tasks_enhanced.monitor_health': {'queue': 'monitoring'}  # ✅ NEW
     },
 
     # Retry settings

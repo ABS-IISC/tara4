@@ -43,7 +43,41 @@ try:
 except ImportError:
     print("ℹ️  Celery integration not found - using synchronous processing")
     CELERY_ENABLED = False
-    
+
+# ✅ Import Enhanced Celery Tasks (NEW - Multi-model fallback with throttling protection)
+ENHANCED_MODE = False
+try:
+    from celery_tasks_enhanced import (
+        analyze_section_task,
+        process_chat_task,
+        monitor_health
+    )
+    from core.async_request_manager import get_async_request_manager
+    from config.model_config_enhanced import get_default_models
+    ENHANCED_MODE = True
+    print("✅ ✨ ENHANCED MODE ACTIVATED ✨")
+    print("   Features enabled:")
+    print("   • Multi-model fallback (5 models)")
+    print("   • Extended thinking (Sonnet 4.5)")
+    print("   • 5-layer throttling protection")
+    print("   • Token optimization (TOON)")
+    print("   • us-east-2 region for Bedrock")
+
+    # Display available models
+    try:
+        models = get_default_models()
+        print(f"   • Loaded {len(models)} Claude models:")
+        for model in models:
+            thinking = " [Extended Thinking]" if model.supports_extended_thinking else ""
+            print(f"     {model.priority}. {model.name}{thinking}")
+    except Exception as e:
+        print(f"   ⚠️  Could not load model details: {e}")
+
+except ImportError as e:
+    print(f"ℹ️  Enhanced mode not available: {e}")
+    print("   Using standard Celery tasks (fallback mode)")
+    ENHANCED_MODE = False
+
     # Create minimal fallback classes
     class DocumentAnalyzer:
         def extract_sections_from_docx(self, file_path):
@@ -367,10 +401,37 @@ def analyze_section():
         print("=" * 80, flush=True)
         sys.stdout.flush()
 
-        # Check if Celery is available for async processing
-        if CELERY_ENABLED:
-            # Submit task to Celery queue
-            print(f"📤 Submitting analysis task to Celery queue", flush=True)
+        # ✅ Check if Enhanced Mode is available (NEW - Multi-model fallback)
+        if ENHANCED_MODE and CELERY_ENABLED:
+            # Use enhanced async processing with multi-model fallback
+            print(f"✨ Submitting to ENHANCED task queue (multi-model fallback)", flush=True)
+            task = analyze_section_task.delay(
+                section_name=section_name,
+                content=section_content,
+                doc_type="Full Write-up",
+                session_id=session_id
+            )
+
+            # Return task ID for async polling
+            return jsonify({
+                'success': True,
+                'task_id': task.id,
+                'status': 'processing',
+                'message': 'Analysis started with multi-model fallback and throttling protection',
+                'async': True,
+                'enhanced': True,
+                'features': {
+                    'multi_model_fallback': True,
+                    'extended_thinking': True,
+                    'throttle_protection': True,
+                    'token_optimization': True
+                }
+            })
+
+        # Check if standard Celery is available
+        elif CELERY_ENABLED:
+            # Submit task to standard Celery queue
+            print(f"📤 Submitting analysis task to standard Celery queue", flush=True)
             task_id, is_async = submit_analysis_task(
                 section_name=section_name,
                 content=section_content,

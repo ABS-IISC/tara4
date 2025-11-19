@@ -11,7 +11,7 @@ const originalFetch = window.fetch;
 // Enhanced fetch with error handling and retry
 window.fetch = function(url, options = {}) {
     // Add default timeout if not specified
-    // Use longer timeout for AI endpoints (120 seconds)
+    // Use longer timeout for AI endpoints (240 seconds / 4 minutes)
     let defaultTimeout = 30000; // 30 seconds default
 
     // AI analysis endpoints need more time
@@ -19,7 +19,7 @@ window.fetch = function(url, options = {}) {
         url.includes('/chat') ||
         url.includes('/complete_review') ||
         url.includes('/analyze_all_sections')) {
-        defaultTimeout = 120000; // 120 seconds (2 minutes) for AI operations
+        defaultTimeout = 240000; // 240 seconds (4 minutes) for AI operations - increased for reliable analysis
     }
 
     const timeout = options.timeout || defaultTimeout;
@@ -58,7 +58,17 @@ window.fetch = function(url, options = {}) {
         let userMessage = 'Network request failed';
 
         if (error.message === 'Request timeout') {
-            userMessage = 'Request timed out. Please check your connection and try again.';
+            // Check if this is an AI analysis endpoint
+            if (url.includes('/analyze_section') || url.includes('/chat') ||
+                url.includes('/complete_review') || url.includes('/analyze_all_sections')) {
+                userMessage = 'AI analysis is taking longer than expected (>4 minutes). This may be due to:\n' +
+                             '• High AWS Bedrock load or API throttling\n' +
+                             '• Network connectivity issues\n' +
+                             '• Large document content\n\n' +
+                             'Please wait a moment and try again, or contact support if the issue persists.';
+            } else {
+                userMessage = 'Request timed out. Please check your connection and try again.';
+            }
         } else if (error.message === 'Failed to fetch') {
             userMessage = 'Unable to connect to server. Please ensure:\n' +
                          '1. The server is running (python app.py)\n' +

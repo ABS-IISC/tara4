@@ -10,6 +10,18 @@ from collections import defaultdict
 # Add current directory to Python path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+# Import request manager for handling parallel requests (optional)
+try:
+    from core.request_manager import get_request_manager
+    REQUEST_MANAGER_ENABLED = os.environ.get('ENABLE_REQUEST_MANAGER', 'true').lower() == 'true'
+    if REQUEST_MANAGER_ENABLED:
+        print("✅ Request Manager enabled for parallel request handling")
+    else:
+        print("ℹ️  Request Manager disabled - using direct AWS calls")
+except ImportError:
+    REQUEST_MANAGER_ENABLED = False
+    print("ℹ️  Request Manager not available - using direct AWS calls")
+
 # Import model manager for multi-model fallback (V2 with per-request isolation)
 try:
     from core.model_manager_v2 import model_manager_v2 as model_manager
@@ -118,7 +130,8 @@ except ImportError:
     model_config = FallbackModelConfig()
 
 class AIFeedbackEngine:
-    def __init__(self):
+    def __init__(self, session_id=None):
+        self.session_id = session_id  # For request manager user tracking
         self.hawkeye_sections = {
             1: "Initial Assessment",
             2: "Investigation Process", 
@@ -445,6 +458,45 @@ The JSON must have a "feedback_items" array containing your analysis."""
         """
         Invoke AWS Bedrock with multi-model fallback on throttling
         Tries models in priority order, automatically switching on throttle
+
+        If REQUEST_MANAGER_ENABLED, requests are queued and rate-limited to prevent
+        AWS throttling when multiple users are active simultaneously.
+        """
+        # If request manager is enabled, queue the request
+        if REQUEST_MANAGER_ENABLED:
+            try:
+                request_manager = get_request_manager()
+
+                # Submit request to manager (will be rate-limited and queued)
+                request_id, request_data = request_manager.submit_request(
+                    callback=self._invoke_bedrock_direct,
+                    args=(system_prompt, user_prompt, max_retries_per_model),
+                    user_id=self.session_id or 'anonymous',
+                    priority=5  # Normal priority (1=highest, 10=lowest)
+                )
+
+                # Wait for request to complete (synchronous wait)
+                while request_data['status'] == 'queued':
+                    time.sleep(0.1)
+
+                if request_data['status'] == 'completed':
+                    return request_data['result']
+                elif request_data['status'] == 'failed':
+                    raise Exception(request_data.get('error', 'Request failed'))
+                else:
+                    raise Exception(f"Unknown request status: {request_data['status']}")
+
+            except Exception as e:
+                print(f"⚠️ Request Manager error: {str(e)}, falling back to direct call", flush=True)
+                # Fall through to direct call
+
+        # Direct call (no request manager)
+        return self._invoke_bedrock_direct(system_prompt, user_prompt, max_retries_per_model)
+
+    def _invoke_bedrock_direct(self, system_prompt, user_prompt, max_retries_per_model=3):
+        """
+        Direct AWS Bedrock invocation (without request manager)
+        This is called either directly or through the request manager
         """
         try:
             # Skip slow credential check - just try to use Bedrock and catch errors
@@ -453,12 +505,12 @@ The JSON must have a "feedback_items" array containing your analysis."""
             config = model_config.get_model_config()
 
             # Create Bedrock client using default credentials (works with both env vars and IAM roles)
-            # Add AGGRESSIVE timeout configuration to prevent hanging requests
+            # Add timeout configuration with sufficient time for AI analysis
             from botocore.config import Config
             boto_config = Config(
-                connect_timeout=5,   # 5 seconds to establish connection (fail fast)
-                read_timeout=60,     # 60 seconds to read response (reduced from 90)
-                retries={'max_attempts': 1, 'mode': 'standard'}  # Only 1 retry to fail faster
+                connect_timeout=10,   # 10 seconds to establish connection
+                read_timeout=180,     # 180 seconds (3 minutes) to read response - AI needs time
+                retries={'max_attempts': 2, 'mode': 'standard'}  # 2 retries for reliability
             )
 
             runtime = boto3.client(
@@ -481,8 +533,9 @@ The JSON must have a "feedback_items" array containing your analysis."""
                 return self._invoke_single_model(runtime, config, system_prompt, user_prompt, max_retries_per_model)
 
         except TimeoutError as te:
-            print(f"⏱️ Bedrock request timed out: {str(te)}", flush=True)
-            print("🎭 Using mock response instead", flush=True)
+            print(f"⏱️ Bedrock request timed out after 180+ seconds: {str(te)}", flush=True)
+            print("💡 This may be due to AWS throttling or high load", flush=True)
+            print("🎭 Using mock response to allow user to continue", flush=True)
             return self._mock_ai_response(user_prompt)
 
         except Exception as e:
