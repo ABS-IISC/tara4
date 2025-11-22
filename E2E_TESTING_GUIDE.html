@@ -1,0 +1,1004 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>AI-Prism E2E Testing Guide</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .test-card {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .test-header {
+            border-bottom: 2px solid #4f46e5;
+            padding-bottom: 10px;
+            margin-bottom: 15px;
+        }
+        .test-id {
+            color: #4f46e5;
+            font-weight: bold;
+            font-size: 14px;
+        }
+        .test-name {
+            font-size: 20px;
+            font-weight: bold;
+            margin: 5px 0;
+        }
+        .test-description {
+            color: #666;
+            font-size: 14px;
+        }
+        .section-title {
+            font-weight: bold;
+            margin-top: 15px;
+            margin-bottom: 10px;
+            color: #333;
+        }
+        .step {
+            background: #f9f9f9;
+            padding: 10px;
+            margin: 5px 0;
+            border-left: 3px solid #4f46e5;
+        }
+        .step-num {
+            color: #4f46e5;
+            font-weight: bold;
+        }
+        .expected {
+            color: #059669;
+            margin-top: 5px;
+            font-size: 13px;
+        }
+        .log-pattern {
+            font-family: 'Courier New', monospace;
+            background: #1e293b;
+            color: #10b981;
+            padding: 5px 10px;
+            border-radius: 4px;
+            margin: 3px 0;
+            font-size: 12px;
+        }
+        .backend-call {
+            background: #eff6ff;
+            padding: 8px;
+            border-left: 3px solid #3b82f6;
+            margin: 5px 0;
+            font-size: 13px;
+        }
+        .method {
+            font-weight: bold;
+            color: #3b82f6;
+        }
+        .note {
+            background: #fef3c7;
+            padding: 10px;
+            border-left: 3px solid #f59e0b;
+            margin: 5px 0;
+            font-size: 13px;
+        }
+        .checkbox {
+            margin-right: 10px;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .summary {
+            background: #4f46e5;
+            color: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🧪 AI-Prism End-to-End Testing Guide</h1>
+        <p>Complete manual testing instructions for all features</p>
+        <p><strong>Generated:</strong> 2025-11-20 16:00:58</p>
+    </div>
+
+    <div class="summary">
+        <h2>📊 Test Summary</h2>
+        <p><strong>Total Tests:</strong> 15</p>
+        <p><strong>Before starting:</strong></p>
+        <ul>
+            <li>Ensure application is running on http://localhost:8080</li>
+            <li>Open browser Developer Tools (F12)</li>
+            <li>Open Console tab to see logs</li>
+            <li>Open Network tab to see API calls</li>
+            <li>Have test document ready (test_sample.docx)</li>
+        </ul>
+    </div>
+
+    <div class="test-card">
+        <div class="test-header">
+            <div class="test-id">TEST-001</div>
+            <div class="test-name">
+                <input type="checkbox" class="checkbox" id="TEST-001">
+                <label for="TEST-001">Document Upload - Basic</label>
+            </div>
+            <div class="test-description">Test uploading a Word document and verifying section extraction</div>
+        </div>
+
+        <div class="section-title">📝 Test Steps:</div>
+
+        <div class="step">
+            <div><span class="step-num">Step 1:</span> Open http://localhost:8080 in browser</div>
+            <div class="expected">✓ Expected: Landing page loads with upload form</div>
+        </div>
+
+        <div class="step">
+            <div><span class="step-num">Step 2:</span> Click "Choose File" button</div>
+            <div class="expected">✓ Expected: File picker dialog opens</div>
+        </div>
+
+        <div class="step">
+            <div><span class="step-num">Step 3:</span> Select test_sample.docx</div>
+            <div class="expected">✓ Expected: Filename appears next to button</div>
+        </div>
+
+        <div class="step">
+            <div><span class="step-num">Step 4:</span> Click "Upload & Start Analysis" button</div>
+            <div class="expected">✓ Expected: Upload begins, progress indicator appears</div>
+        </div>
+
+        <div class="step">
+            <div><span class="step-num">Step 5:</span> Wait for upload to complete</div>
+            <div class="expected">✓ Expected: Success notification appears: "Documents uploaded successfully! Select a section to start analysis."</div>
+        </div>
+
+        <div class="step">
+            <div><span class="step-num">Step 6:</span> Check section dropdown</div>
+            <div class="expected">✓ Expected: Dropdown populated with 4 sections: Executive Summary, Timeline of Events, Root Cause Analysis, Preventative Actions</div>
+        </div>
+
+        <div class="section-title">📋 Expected Console Logs:</div>
+        <div class="log-pattern">Document uploaded successfully</div>
+        <div class="log-pattern">Sections extracted: 4</div>
+        <div class="log-pattern">Session ID: ...</div>
+
+        <div class="section-title">🔌 Expected Backend Calls:</div>
+        <div class="backend-call">
+            <span class="method">POST</span> /upload → {'document': 'FormData'}
+        </div>
+
+        <div class="section-title">💡 Important Notes:</div>
+        <div class="note">⚠️ Upload should complete in under 1 second</div>
+        <div class="note">⚠️ NO analysis should happen automatically - this is the new workflow!</div>
+
+    </div>
+
+    <div class="test-card">
+        <div class="test-header">
+            <div class="test-id">TEST-002</div>
+            <div class="test-name">
+                <input type="checkbox" class="checkbox" id="TEST-002">
+                <label for="TEST-002">Section Analysis - On-Demand</label>
+            </div>
+            <div class="test-description">Test analyzing a section when user clicks on it</div>
+        </div>
+
+        <div class="section-title">📝 Test Steps:</div>
+
+        <div class="step">
+            <div><span class="step-num">Step 1:</span> Click on section dropdown</div>
+            <div class="expected">✓ Expected: Dropdown opens showing all sections</div>
+        </div>
+
+        <div class="step">
+            <div><span class="step-num">Step 2:</span> Select "Executive Summary"</div>
+            <div class="expected">✓ Expected: Loading spinner appears with modal overlay</div>
+        </div>
+
+        <div class="step">
+            <div><span class="step-num">Step 3:</span> Verify background is frozen</div>
+            <div class="expected">✓ Expected: Cannot click on anything behind modal overlay (backdrop is blurred)</div>
+        </div>
+
+        <div class="step">
+            <div><span class="step-num">Step 4:</span> Wait for analysis (20-40 seconds)</div>
+            <div class="expected">✓ Expected: Spinner continues rotating</div>
+        </div>
+
+        <div class="step">
+            <div><span class="step-num">Step 5:</span> Wait for completion</div>
+            <div class="expected">✓ Expected: Spinner disappears, modal overlay removed</div>
+        </div>
+
+        <div class="step">
+            <div><span class="step-num">Step 6:</span> Check section content area</div>
+            <div class="expected">✓ Expected: Executive Summary text displays</div>
+        </div>
+
+        <div class="step">
+            <div><span class="step-num">Step 7:</span> Scroll down to feedback panel</div>
+            <div class="expected">✓ Expected: 8-12 feedback cards display</div>
+        </div>
+
+        <div class="step">
+            <div><span class="step-num">Step 8:</span> Verify each card shows: ID, Type badge, Category, Description, Suggestion, Risk level, Hawkeye references</div>
+            <div class="expected">✓ Expected: All fields populated</div>
+        </div>
+
+        <div class="section-title">📋 Expected Console Logs:</div>
+        <div class="log-pattern">📊 Analyzing section "Executive Summary" on-demand...</div>
+        <div class="log-pattern">✅ Async analysis task submitted</div>
+        <div class="log-pattern">Task ID: ...</div>
+        <div class="log-pattern">✅ Stored section content</div>
+        <div class="log-pattern">📊 Analysis polling attempt 1: PROGRESS</div>
+        <div class="log-pattern">✅ Analysis complete for "Executive Summary"</div>
+
+        <div class="section-title">🔌 Expected Backend Calls:</div>
+        <div class="backend-call">
+            <span class="method">POST</span> /analyze_section → {'session_id': '...', 'section_name': 'Executive Summary'}
+        </div>
+        <div class="backend-call">
+            <span class="method">GET</span> /task_status/{task_id}
+        </div>
+
+        <div class="section-title">💡 Important Notes:</div>
+        <div class="note">⚠️ Analysis takes 20-40 seconds with Extended Thinking mode</div>
+        <div class="note">⚠️ This is the KEY new workflow - analysis ONLY happens when user clicks</div>
+
+    </div>
+
+    <div class="test-card">
+        <div class="test-header">
+            <div class="test-id">TEST-003</div>
+            <div class="test-name">
+                <input type="checkbox" class="checkbox" id="TEST-003">
+                <label for="TEST-003">Feedback Management - Accept</label>
+            </div>
+            <div class="test-description">Test accepting AI-generated feedback items</div>
+        </div>
+
+        <div class="section-title">📝 Test Steps:</div>
+
+        <div class="step">
+            <div><span class="step-num">Step 1:</span> Locate first feedback card</div>
+            <div class="expected">✓ Expected: Card visible with Accept/Reject buttons</div>
+        </div>
+
+        <div class="step">
+            <div><span class="step-num">Step 2:</span> Click "Accept" button (green checkmark icon)</div>
+            <div class="expected">✓ Expected: Button state changes - background turns green</div>
+        </div>
+
+        <div class="step">
+            <div><span class="step-num">Step 3:</span> Check statistics panel</div>
+            <div class="expected">✓ Expected: Accepted count increases by 1</div>
+        </div>
+
+        <div class="step">
+            <div><span class="step-num">Step 4:</span> Click on different section (Timeline of Events)</div>
+            <div class="expected">✓ Expected: Section changes</div>
+        </div>
+
+        <div class="step">
+            <div><span class="step-num">Step 5:</span> Return to Executive Summary</div>
+            <div class="expected">✓ Expected: Previously accepted feedback still shows as accepted (green)</div>
+        </div>
+
+        <div class="section-title">📋 Expected Console Logs:</div>
+        <div class="log-pattern">Feedback accepted: FB001</div>
+        <div class="log-pattern">Statistics updated</div>
+
+        <div class="section-title">💡 Important Notes:</div>
+        <div class="note">⚠️ Accept state stored in window.sectionData</div>
+        <div class="note">⚠️ No backend call - client-side state management</div>
+
+    </div>
+
+    <div class="test-card">
+        <div class="test-header">
+            <div class="test-id">TEST-004</div>
+            <div class="test-name">
+                <input type="checkbox" class="checkbox" id="TEST-004">
+                <label for="TEST-004">Feedback Management - Reject</label>
+            </div>
+            <div class="test-description">Test rejecting AI-generated feedback items</div>
+        </div>
+
+        <div class="section-title">📝 Test Steps:</div>
+
+        <div class="step">
+            <div><span class="step-num">Step 1:</span> Locate second feedback card</div>
+            <div class="expected">✓ Expected: Card visible with Accept/Reject buttons</div>
+        </div>
+
+        <div class="step">
+            <div><span class="step-num">Step 2:</span> Click "Reject" button (red X icon)</div>
+            <div class="expected">✓ Expected: Button state changes - background turns red</div>
+        </div>
+
+        <div class="step">
+            <div><span class="step-num">Step 3:</span> Check statistics panel</div>
+            <div class="expected">✓ Expected: Rejected count increases by 1</div>
+        </div>
+
+        <div class="step">
+            <div><span class="step-num">Step 4:</span> Navigate to different section</div>
+            <div class="expected">✓ Expected: Section changes</div>
+        </div>
+
+        <div class="step">
+            <div><span class="step-num">Step 5:</span> Return to Executive Summary</div>
+            <div class="expected">✓ Expected: Previously rejected feedback still shows as rejected (red)</div>
+        </div>
+
+        <div class="section-title">📋 Expected Console Logs:</div>
+        <div class="log-pattern">Feedback rejected: FB002</div>
+        <div class="log-pattern">Statistics updated</div>
+
+        <div class="section-title">💡 Important Notes:</div>
+        <div class="note">⚠️ Reject state stored in window.sectionData</div>
+
+    </div>
+
+    <div class="test-card">
+        <div class="test-header">
+            <div class="test-id">TEST-005</div>
+            <div class="test-name">
+                <input type="checkbox" class="checkbox" id="TEST-005">
+                <label for="TEST-005">Text Highlighting - Apply Highlight</label>
+            </div>
+            <div class="test-description">Test highlighting text in document content (THIS IS REPORTED AS BROKEN)</div>
+        </div>
+
+        <div class="section-title">📝 Test Steps:</div>
+
+        <div class="step">
+            <div><span class="step-num">Step 1:</span> Scroll to section content area</div>
+            <div class="expected">✓ Expected: Document text visible</div>
+        </div>
+
+        <div class="step">
+            <div><span class="step-num">Step 2:</span> Select a sentence or phrase with mouse</div>
+            <div class="expected">✓ Expected: Text becomes selected (blue highlight)</div>
+        </div>
+
+        <div class="step">
+            <div><span class="step-num">Step 3:</span> Look for highlight button or right-click menu</div>
+            <div class="expected">✓ Expected: Highlight option should appear</div>
+        </div>
+
+        <div class="step">
+            <div><span class="step-num">Step 4:</span> Click "Highlight" option</div>
+            <div class="expected">✓ Expected: Selected text background changes to yellow</div>
+        </div>
+
+        <div class="step">
+            <div><span class="step-num">Step 5:</span> Click elsewhere to deselect</div>
+            <div class="expected">✓ Expected: Highlight persists (yellow background)</div>
+        </div>
+
+        <div class="step">
+            <div><span class="step-num">Step 6:</span> Select different text and highlight</div>
+            <div class="expected">✓ Expected: Second highlight appears</div>
+        </div>
+
+        <div class="section-title">📋 Expected Console Logs:</div>
+        <div class="log-pattern">Text highlighted: ...</div>
+        <div class="log-pattern">Highlight saved</div>
+
+        <div class="section-title">💡 Important Notes:</div>
+        <div class="note">⚠️ 🔴 USER REPORTED THIS AS NOT WORKING - CHECK CAREFULLY</div>
+        <div class="note">⚠️ Check if CSS classes are applied</div>
+        <div class="note">⚠️ Check if highlight state is saved in window.highlightedTexts</div>
+        <div class="note">⚠️ Check console for any JavaScript errors</div>
+
+    </div>
+
+    <div class="test-card">
+        <div class="test-header">
+            <div class="test-id">TEST-006</div>
+            <div class="test-name">
+                <input type="checkbox" class="checkbox" id="TEST-006">
+                <label for="TEST-006">Text Highlighting - Remove Highlight</label>
+            </div>
+            <div class="test-description">Test removing highlights from text</div>
+        </div>
+
+        <div class="section-title">📝 Test Steps:</div>
+
+        <div class="step">
+            <div><span class="step-num">Step 1:</span> Click on previously highlighted text</div>
+            <div class="expected">✓ Expected: Highlight becomes selected</div>
+        </div>
+
+        <div class="step">
+            <div><span class="step-num">Step 2:</span> Right-click or look for remove option</div>
+            <div class="expected">✓ Expected: "Remove Highlight" option appears</div>
+        </div>
+
+        <div class="step">
+            <div><span class="step-num">Step 3:</span> Click "Remove Highlight"</div>
+            <div class="expected">✓ Expected: Yellow background disappears</div>
+        </div>
+
+        <div class="step">
+            <div><span class="step-num">Step 4:</span> Navigate away and return</div>
+            <div class="expected">✓ Expected: Highlight remains removed</div>
+        </div>
+
+        <div class="section-title">📋 Expected Console Logs:</div>
+        <div class="log-pattern">Highlight removed</div>
+
+        <div class="section-title">💡 Important Notes:</div>
+        <div class="note">⚠️ Check if highlight is removed from window.highlightedTexts array</div>
+
+    </div>
+
+    <div class="test-card">
+        <div class="test-header">
+            <div class="test-id">TEST-007</div>
+            <div class="test-name">
+                <input type="checkbox" class="checkbox" id="TEST-007">
+                <label for="TEST-007">Custom Feedback - Add New Item</label>
+            </div>
+            <div class="test-description">Test adding user-created feedback items</div>
+        </div>
+
+        <div class="section-title">📝 Test Steps:</div>
+
+        <div class="step">
+            <div><span class="step-num">Step 1:</span> Scroll to feedback panel</div>
+            <div class="expected">✓ Expected: Feedback cards visible</div>
+        </div>
+
+        <div class="step">
+            <div><span class="step-num">Step 2:</span> Click "Add Custom Feedback" button</div>
+            <div class="expected">✓ Expected: Modal form appears</div>
+        </div>
+
+        <div class="step">
+            <div><span class="step-num">Step 3:</span> Verify form has fields: Type, Category, Description, Suggestion</div>
+            <div class="expected">✓ Expected: All fields visible</div>
+        </div>
+
+        <div class="step">
+            <div><span class="step-num">Step 4:</span> Fill in Type: "Enhancement"</div>
+            <div class="expected">✓ Expected: Field populated</div>
+        </div>
+
+        <div class="step">
+            <div><span class="step-num">Step 5:</span> Fill in Category: "Process Improvement"</div>
+            <div class="expected">✓ Expected: Field populated</div>
+        </div>
+
+        <div class="step">
+            <div><span class="step-num">Step 6:</span> Fill in Description: "Consider adding stakeholder communication timeline"</div>
+            <div class="expected">✓ Expected: Field populated</div>
+        </div>
+
+        <div class="step">
+            <div><span class="step-num">Step 7:</span> Fill in Suggestion: "Add section detailing when each stakeholder was contacted"</div>
+            <div class="expected">✓ Expected: Field populated</div>
+        </div>
+
+        <div class="step">
+            <div><span class="step-num">Step 8:</span> Click "Submit" or "Add Feedback" button</div>
+            <div class="expected">✓ Expected: Modal closes</div>
+        </div>
+
+        <div class="step">
+            <div><span class="step-num">Step 9:</span> Scroll to feedback panel</div>
+            <div class="expected">✓ Expected: New feedback card appears at bottom</div>
+        </div>
+
+        <div class="step">
+            <div><span class="step-num">Step 10:</span> Verify card has "Custom" badge</div>
+            <div class="expected">✓ Expected: Badge visible distinguishing from AI feedback</div>
+        </div>
+
+        <div class="section-title">📋 Expected Console Logs:</div>
+        <div class="log-pattern">Custom feedback added</div>
+        <div class="log-pattern">Feedback ID: ...</div>
+
+        <div class="section-title">🔌 Expected Backend Calls:</div>
+        <div class="backend-call">
+            <span class="method">POST</span> /add_user_feedback → {'type': '...', 'category': '...', 'description': '...', 'suggestion': '...'}
+        </div>
+
+        <div class="section-title">💡 Important Notes:</div>
+        <div class="note">⚠️ Custom feedback should be distinguishable from AI feedback</div>
+
+    </div>
+
+    <div class="test-card">
+        <div class="test-header">
+            <div class="test-id">TEST-008</div>
+            <div class="test-name">
+                <input type="checkbox" class="checkbox" id="TEST-008">
+                <label for="TEST-008">Chat Assistant - Send Message</label>
+            </div>
+            <div class="test-description">Test asking questions about current section</div>
+        </div>
+
+        <div class="section-title">📝 Test Steps:</div>
+
+        <div class="step">
+            <div><span class="step-num">Step 1:</span> Locate chat panel (right side or bottom)</div>
+            <div class="expected">✓ Expected: Chat interface visible</div>
+        </div>
+
+        <div class="step">
+            <div><span class="step-num">Step 2:</span> Type question: "What Hawkeye checkpoints apply to Executive Summary?"</div>
+            <div class="expected">✓ Expected: Text appears in input field</div>
+        </div>
+
+        <div class="step">
+            <div><span class="step-num">Step 3:</span> Press Enter key</div>
+            <div class="expected">✓ Expected: Message appears in chat history</div>
+        </div>
+
+        <div class="step">
+            <div><span class="step-num">Step 4:</span> Verify "Thinking..." indicator appears</div>
+            <div class="expected">✓ Expected: Indicator visible with animated dots</div>
+        </div>
+
+        <div class="step">
+            <div><span class="step-num">Step 5:</span> Wait for response (10-30 seconds)</div>
+            <div class="expected">✓ Expected: Thinking indicator continues</div>
+        </div>
+
+        <div class="step">
+            <div><span class="step-num">Step 6:</span> Verify response appears</div>
+            <div class="expected">✓ Expected: AI message appears in chat</div>
+        </div>
+
+        <div class="step">
+            <div><span class="step-num">Step 7:</span> Read response</div>
+            <div class="expected">✓ Expected: Response is relevant to Executive Summary and mentions Hawkeye checkpoints</div>
+        </div>
+
+        <div class="section-title">📋 Expected Console Logs:</div>
+        <div class="log-pattern">Chat message sent: ...</div>
+        <div class="log-pattern">Task ID: ...</div>
+        <div class="log-pattern">Chat response received</div>
+
+        <div class="section-title">🔌 Expected Backend Calls:</div>
+        <div class="backend-call">
+            <span class="method">POST</span> /chat → {'message': '...', 'session_id': '...', 'current_section': 'Executive Summary'}
+        </div>
+        <div class="backend-call">
+            <span class="method">GET</span> /task_status/{task_id}
+        </div>
+
+        <div class="section-title">💡 Important Notes:</div>
+        <div class="note">⚠️ Response should be contextual to current section</div>
+        <div class="note">⚠️ Chat history should persist during session</div>
+
+    </div>
+
+    <div class="test-card">
+        <div class="test-header">
+            <div class="test-id">TEST-009</div>
+            <div class="test-name">
+                <input type="checkbox" class="checkbox" id="TEST-009">
+                <label for="TEST-009">Section Navigation - Next Button</label>
+            </div>
+            <div class="test-description">Test navigating to next section</div>
+        </div>
+
+        <div class="section-title">📝 Test Steps:</div>
+
+        <div class="step">
+            <div><span class="step-num">Step 1:</span> Ensure on "Executive Summary" section</div>
+            <div class="expected">✓ Expected: Section visible</div>
+        </div>
+
+        <div class="step">
+            <div><span class="step-num">Step 2:</span> Locate "Next Section" button</div>
+            <div class="expected">✓ Expected: Button visible in content area</div>
+        </div>
+
+        <div class="step">
+            <div><span class="step-num">Step 3:</span> Click "Next Section" button</div>
+            <div class="expected">✓ Expected: Loading spinner appears (if section not yet analyzed)</div>
+        </div>
+
+        <div class="step">
+            <div><span class="step-num">Step 4:</span> Wait for section to load</div>
+            <div class="expected">✓ Expected: Timeline of Events section appears</div>
+        </div>
+
+        <div class="step">
+            <div><span class="step-num">Step 5:</span> Verify section content displays</div>
+            <div class="expected">✓ Expected: Timeline text visible</div>
+        </div>
+
+        <div class="step">
+            <div><span class="step-num">Step 6:</span> If first time viewing: wait for analysis</div>
+            <div class="expected">✓ Expected: Feedback cards appear after 20-40 seconds</div>
+        </div>
+
+        <div class="section-title">📋 Expected Console Logs:</div>
+        <div class="log-pattern">Navigating to next section</div>
+        <div class="log-pattern">Loading section: Timeline of Events</div>
+
+        <div class="section-title">🔌 Expected Backend Calls:</div>
+        <div class="backend-call">
+            <span class="method">POST</span> /analyze_section → {'section_name': 'Timeline of Events'}
+        </div>
+
+        <div class="section-title">💡 Important Notes:</div>
+        <div class="note">⚠️ If section already analyzed, loads instantly from cache</div>
+        <div class="note">⚠️ If new section, triggers analysis</div>
+
+    </div>
+
+    <div class="test-card">
+        <div class="test-header">
+            <div class="test-id">TEST-010</div>
+            <div class="test-name">
+                <input type="checkbox" class="checkbox" id="TEST-010">
+                <label for="TEST-010">Section Navigation - Previous Button</label>
+            </div>
+            <div class="test-description">Test navigating to previous section</div>
+        </div>
+
+        <div class="section-title">📝 Test Steps:</div>
+
+        <div class="step">
+            <div><span class="step-num">Step 1:</span> Ensure on "Timeline of Events" section</div>
+            <div class="expected">✓ Expected: Section visible</div>
+        </div>
+
+        <div class="step">
+            <div><span class="step-num">Step 2:</span> Click "Previous Section" button</div>
+            <div class="expected">✓ Expected: Section changes immediately</div>
+        </div>
+
+        <div class="step">
+            <div><span class="step-num">Step 3:</span> Verify returns to "Executive Summary"</div>
+            <div class="expected">✓ Expected: Executive Summary content visible</div>
+        </div>
+
+        <div class="step">
+            <div><span class="step-num">Step 4:</span> Verify loads instantly</div>
+            <div class="expected">✓ Expected: No loading spinner (cached)</div>
+        </div>
+
+        <div class="step">
+            <div><span class="step-num">Step 5:</span> Verify previously accepted/rejected feedback states preserved</div>
+            <div class="expected">✓ Expected: Green/red buttons still show previous states</div>
+        </div>
+
+        <div class="section-title">📋 Expected Console Logs:</div>
+        <div class="log-pattern">Navigating to previous section</div>
+        <div class="log-pattern">Loading cached section: Executive Summary</div>
+
+        <div class="section-title">💡 Important Notes:</div>
+        <div class="note">⚠️ Should load instantly from window.sectionData</div>
+        <div class="note">⚠️ No backend call needed</div>
+
+    </div>
+
+    <div class="test-card">
+        <div class="test-header">
+            <div class="test-id">TEST-011</div>
+            <div class="test-name">
+                <input type="checkbox" class="checkbox" id="TEST-011">
+                <label for="TEST-011">Statistics Panel - Real-time Updates</label>
+            </div>
+            <div class="test-description">Test statistics panel updates correctly</div>
+        </div>
+
+        <div class="section-title">📝 Test Steps:</div>
+
+        <div class="step">
+            <div><span class="step-num">Step 1:</span> Locate statistics panel</div>
+            <div class="expected">✓ Expected: Panel visible showing counts</div>
+        </div>
+
+        <div class="step">
+            <div><span class="step-num">Step 2:</span> Note current values</div>
+            <div class="expected">✓ Expected: Values recorded</div>
+        </div>
+
+        <div class="step">
+            <div><span class="step-num">Step 3:</span> Accept a feedback item</div>
+            <div class="expected">✓ Expected: Accept button turns green</div>
+        </div>
+
+        <div class="step">
+            <div><span class="step-num">Step 4:</span> Check statistics panel</div>
+            <div class="expected">✓ Expected: Accepted count increases by 1</div>
+        </div>
+
+        <div class="step">
+            <div><span class="step-num">Step 5:</span> Reject a feedback item</div>
+            <div class="expected">✓ Expected: Reject button turns red</div>
+        </div>
+
+        <div class="step">
+            <div><span class="step-num">Step 6:</span> Check statistics panel</div>
+            <div class="expected">✓ Expected: Rejected count increases by 1</div>
+        </div>
+
+        <div class="step">
+            <div><span class="step-num">Step 7:</span> Analyze another section</div>
+            <div class="expected">✓ Expected: Sections analyzed count increases</div>
+        </div>
+
+        <div class="section-title">📋 Expected Console Logs:</div>
+        <div class="log-pattern">Statistics updated</div>
+
+        <div class="section-title">🔌 Expected Backend Calls:</div>
+        <div class="backend-call">
+            <span class="method">GET</span> /get_statistics?session_id=...
+        </div>
+
+        <div class="section-title">💡 Important Notes:</div>
+        <div class="note">⚠️ Statistics should update in real-time</div>
+
+    </div>
+
+    <div class="test-card">
+        <div class="test-header">
+            <div class="test-id">TEST-012</div>
+            <div class="test-name">
+                <input type="checkbox" class="checkbox" id="TEST-012">
+                <label for="TEST-012">Complete Review - Document Generation</label>
+            </div>
+            <div class="test-description">Test generating final document with accepted feedback</div>
+        </div>
+
+        <div class="section-title">📝 Test Steps:</div>
+
+        <div class="step">
+            <div><span class="step-num">Step 1:</span> Analyze at least 2 sections</div>
+            <div class="expected">✓ Expected: Multiple sections analyzed</div>
+        </div>
+
+        <div class="step">
+            <div><span class="step-num">Step 2:</span> Accept at least 3 feedback items</div>
+            <div class="expected">✓ Expected: Green checkmarks visible</div>
+        </div>
+
+        <div class="step">
+            <div><span class="step-num">Step 3:</span> Reject at least 1 feedback item</div>
+            <div class="expected">✓ Expected: Red X visible</div>
+        </div>
+
+        <div class="step">
+            <div><span class="step-num">Step 4:</span> Locate "Complete Review" button</div>
+            <div class="expected">✓ Expected: Button visible (should be enabled)</div>
+        </div>
+
+        <div class="step">
+            <div><span class="step-num">Step 5:</span> Click "Complete Review" button</div>
+            <div class="expected">✓ Expected: Confirmation modal appears</div>
+        </div>
+
+        <div class="step">
+            <div><span class="step-num">Step 6:</span> Verify modal shows summary: X feedback items will be added</div>
+            <div class="expected">✓ Expected: Count matches accepted items</div>
+        </div>
+
+        <div class="step">
+            <div><span class="step-num">Step 7:</span> Click "Generate Document" button</div>
+            <div class="expected">✓ Expected: Modal shows processing</div>
+        </div>
+
+        <div class="step">
+            <div><span class="step-num">Step 8:</span> Wait for generation (5-15 seconds)</div>
+            <div class="expected">✓ Expected: Progress indicator visible</div>
+        </div>
+
+        <div class="step">
+            <div><span class="step-num">Step 9:</span> Verify download link appears</div>
+            <div class="expected">✓ Expected: Link visible: "Download Reviewed Document"</div>
+        </div>
+
+        <div class="step">
+            <div><span class="step-num">Step 10:</span> Click download link</div>
+            <div class="expected">✓ Expected: File downloads to browser</div>
+        </div>
+
+        <div class="step">
+            <div><span class="step-num">Step 11:</span> Open downloaded .docx in Microsoft Word</div>
+            <div class="expected">✓ Expected: Document opens</div>
+        </div>
+
+        <div class="step">
+            <div><span class="step-num">Step 12:</span> Check for comments in right margin</div>
+            <div class="expected">✓ Expected: Comments visible with feedback text</div>
+        </div>
+
+        <div class="step">
+            <div><span class="step-num">Step 13:</span> Verify only accepted feedback appears</div>
+            <div class="expected">✓ Expected: Rejected feedback NOT in document</div>
+        </div>
+
+        <div class="section-title">📋 Expected Console Logs:</div>
+        <div class="log-pattern">Complete review initiated</div>
+        <div class="log-pattern">Generating document with X feedback items</div>
+        <div class="log-pattern">Document generated: ...</div>
+
+        <div class="section-title">🔌 Expected Backend Calls:</div>
+        <div class="backend-call">
+            <span class="method">POST</span> /complete_review → {'session_id': '...', 'accepted_feedback': [Ellipsis]}
+        </div>
+
+        <div class="section-title">💡 Important Notes:</div>
+        <div class="note">⚠️ CRITICAL: Only accepted feedback should appear in final document</div>
+        <div class="note">⚠️ Comments should be in Word document margins, not inline</div>
+
+    </div>
+
+    <div class="test-card">
+        <div class="test-header">
+            <div class="test-id">TEST-013</div>
+            <div class="test-name">
+                <input type="checkbox" class="checkbox" id="TEST-013">
+                <label for="TEST-013">Help System - Access Help</label>
+            </div>
+            <div class="test-description">Test help button and documentation</div>
+        </div>
+
+        <div class="section-title">📝 Test Steps:</div>
+
+        <div class="step">
+            <div><span class="step-num">Step 1:</span> Locate "Help" or "?" button</div>
+            <div class="expected">✓ Expected: Button visible in navigation</div>
+        </div>
+
+        <div class="step">
+            <div><span class="step-num">Step 2:</span> Click help button</div>
+            <div class="expected">✓ Expected: Help modal or panel opens</div>
+        </div>
+
+        <div class="step">
+            <div><span class="step-num">Step 3:</span> Verify help content displays</div>
+            <div class="expected">✓ Expected: Instructions visible</div>
+        </div>
+
+        <div class="step">
+            <div><span class="step-num">Step 4:</span> Close help modal</div>
+            <div class="expected">✓ Expected: Modal closes, returns to main interface</div>
+        </div>
+
+        <div class="section-title">💡 Important Notes:</div>
+        <div class="note">⚠️ Help should explain key features and workflow</div>
+
+    </div>
+
+    <div class="test-card">
+        <div class="test-header">
+            <div class="test-id">TEST-014</div>
+            <div class="test-name">
+                <input type="checkbox" class="checkbox" id="TEST-014">
+                <label for="TEST-014">Error Handling - Invalid File Type</label>
+            </div>
+            <div class="test-description">Test error message for invalid file upload</div>
+        </div>
+
+        <div class="section-title">📝 Test Steps:</div>
+
+        <div class="step">
+            <div><span class="step-num">Step 1:</span> Click "Choose File"</div>
+            <div class="expected">✓ Expected: File picker opens</div>
+        </div>
+
+        <div class="step">
+            <div><span class="step-num">Step 2:</span> Select a .pdf or .txt file</div>
+            <div class="expected">✓ Expected: Filename appears</div>
+        </div>
+
+        <div class="step">
+            <div><span class="step-num">Step 3:</span> Click "Upload & Start Analysis"</div>
+            <div class="expected">✓ Expected: Error notification appears</div>
+        </div>
+
+        <div class="step">
+            <div><span class="step-num">Step 4:</span> Verify error message: "Invalid file type. Please upload .docx file"</div>
+            <div class="expected">✓ Expected: Clear error message</div>
+        </div>
+
+        <div class="section-title">📋 Expected Console Logs:</div>
+        <div class="log-pattern">Upload error: Invalid file type</div>
+
+        <div class="section-title">💡 Important Notes:</div>
+        <div class="note">⚠️ Only .docx files should be accepted</div>
+
+    </div>
+
+    <div class="test-card">
+        <div class="test-header">
+            <div class="test-id">TEST-015</div>
+            <div class="test-name">
+                <input type="checkbox" class="checkbox" id="TEST-015">
+                <label for="TEST-015">Full Workflow - All 4 Sections</label>
+            </div>
+            <div class="test-description">Test analyzing all sections sequentially</div>
+        </div>
+
+        <div class="section-title">📝 Test Steps:</div>
+
+        <div class="step">
+            <div><span class="step-num">Step 1:</span> Upload document</div>
+            <div class="expected">✓ Expected: Upload succeeds</div>
+        </div>
+
+        <div class="step">
+            <div><span class="step-num">Step 2:</span> Analyze Executive Summary</div>
+            <div class="expected">✓ Expected: Feedback appears</div>
+        </div>
+
+        <div class="step">
+            <div><span class="step-num">Step 3:</span> Accept 2 feedback items</div>
+            <div class="expected">✓ Expected: Green checkmarks</div>
+        </div>
+
+        <div class="step">
+            <div><span class="step-num">Step 4:</span> Click Next → Timeline of Events</div>
+            <div class="expected">✓ Expected: Section analyzes</div>
+        </div>
+
+        <div class="step">
+            <div><span class="step-num">Step 5:</span> Accept 1 feedback item</div>
+            <div class="expected">✓ Expected: Green checkmark</div>
+        </div>
+
+        <div class="step">
+            <div><span class="step-num">Step 6:</span> Click Next → Root Cause Analysis</div>
+            <div class="expected">✓ Expected: Section analyzes</div>
+        </div>
+
+        <div class="step">
+            <div><span class="step-num">Step 7:</span> Reject 1 feedback item</div>
+            <div class="expected">✓ Expected: Red X</div>
+        </div>
+
+        <div class="step">
+            <div><span class="step-num">Step 8:</span> Click Next → Preventative Actions</div>
+            <div class="expected">✓ Expected: Section analyzes</div>
+        </div>
+
+        <div class="step">
+            <div><span class="step-num">Step 9:</span> Accept 2 feedback items</div>
+            <div class="expected">✓ Expected: Green checkmarks</div>
+        </div>
+
+        <div class="step">
+            <div><span class="step-num">Step 10:</span> Verify statistics: 4 sections analyzed, 5 accepted, 1 rejected</div>
+            <div class="expected">✓ Expected: Stats correct</div>
+        </div>
+
+        <div class="step">
+            <div><span class="step-num">Step 11:</span> Complete review and download document</div>
+            <div class="expected">✓ Expected: Document downloads</div>
+        </div>
+
+        <div class="section-title">💡 Important Notes:</div>
+        <div class="note">⚠️ This tests the complete user journey</div>
+        <div class="note">⚠️ Verify state persists across sections</div>
+
+    </div>
+
+    <div class="summary">
+        <h2>✅ Testing Complete!</h2>
+        <p>After completing all tests:</p>
+        <ol>
+            <li>Count checkboxes checked</li>
+            <li>Document any failures</li>
+            <li>Take screenshots of issues</li>
+            <li>Save console logs</li>
+            <li>Report findings</li>
+        </ol>
+    </div>
+</body>
+</html>

@@ -10,124 +10,110 @@ from collections import defaultdict
 # Add current directory to Python path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-# Import request manager for handling parallel requests (optional)
-try:
-    from core.request_manager import get_request_manager
-    REQUEST_MANAGER_ENABLED = os.environ.get('ENABLE_REQUEST_MANAGER', 'true').lower() == 'true'
-    if REQUEST_MANAGER_ENABLED:
-        print("✅ Request Manager enabled for parallel request handling")
-    else:
-        print("ℹ️  Request Manager disabled - using direct AWS calls")
-except ImportError:
-    REQUEST_MANAGER_ENABLED = False
-    print("ℹ️  Request Manager not available - using direct AWS calls")
+# Request manager removed - using async_request_manager instead
+REQUEST_MANAGER_ENABLED = False
 
-# Import model manager for multi-model fallback (V2 with per-request isolation)
-try:
-    from core.model_manager_v2 import model_manager_v2 as model_manager
-    MODEL_FALLBACK_ENABLED = True
-    print("✅ Multi-model fallback enabled (V2 - Per-Request Isolation)")
-except ImportError:
-    try:
-        # Fallback to V1 if V2 not available
-        from core.model_manager import model_manager
-        MODEL_FALLBACK_ENABLED = True
-        print("✅ Multi-model fallback enabled (V1)")
-    except ImportError:
-        MODEL_FALLBACK_ENABLED = False
-        print("ℹ️  Multi-model fallback not available")
+# Multi-model fallback handled by celery_tasks_enhanced
+# This fallback engine only used when enhanced mode unavailable
+MODEL_FALLBACK_ENABLED = False
 
-try:
-    from config.model_config import model_config
-    from config import ai_prompts
-except ImportError:
-    # Fallback if config module not found
-    print("⚠️ Config module not found, creating fallback configuration")
-    ai_prompts = None
-    
-    class FallbackModelConfig:
-        # Supported models map (minimal for fallback)
-        SUPPORTED_MODELS = {
-            'claude-3-5-sonnet': {'name': 'Claude 3.5 Sonnet'},
-            'claude-3-sonnet': {'name': 'Claude 3 Sonnet'},
-            'claude-3-haiku': {'name': 'Claude 3 Haiku'}
+# Define FallbackModelConfig first (always available)
+class FallbackModelConfig:
+    # Supported models map (minimal for fallback)
+    SUPPORTED_MODELS = {
+        'claude-3-5-sonnet': {'name': 'Claude 3.5 Sonnet'},
+        'claude-3-sonnet': {'name': 'Claude 3 Sonnet'},
+        'claude-3-haiku': {'name': 'Claude 3 Haiku'}
+    }
+
+    def get_model_config(self):
+        return {
+            'model_id': os.environ.get('BEDROCK_MODEL_ID', 'anthropic.claude-3-5-sonnet-20240620-v1:0'),
+            'model_name': 'Claude 3.5 Sonnet',
+            'region': os.environ.get('AWS_REGION', 'us-east-1'),
+            'max_tokens': int(os.environ.get('BEDROCK_MAX_TOKENS', '8192')),
+            'temperature': float(os.environ.get('BEDROCK_TEMPERATURE', '0.7')),
+            'anthropic_version': 'bedrock-2023-05-31',
+            'fallback_models': []  # No fallback models when using environment config
         }
 
-        def get_model_config(self):
-            return {
-                'model_id': os.environ.get('BEDROCK_MODEL_ID', 'anthropic.claude-3-5-sonnet-20240620-v1:0'),
-                'model_name': 'Claude 3.5 Sonnet',
-                'region': os.environ.get('AWS_REGION', 'us-east-1'),
-                'max_tokens': int(os.environ.get('BEDROCK_MAX_TOKENS', '8192')),
-                'temperature': float(os.environ.get('BEDROCK_TEMPERATURE', '0.7')),
-                'anthropic_version': 'bedrock-2023-05-31',
-                'fallback_models': []  # No fallback models when using environment config
-            }
-
-        def has_credentials(self):
-            """Check if AWS credentials are available (env vars OR IAM role)"""
-            try:
-                import boto3
-                session = boto3.Session()
-                credentials = session.get_credentials()
-                # For IAM roles, credentials exist but might not have direct access_key property
-                # Try to access it to force credential resolution
-                if credentials:
-                    try:
-                        _ = credentials.access_key  # Force credential fetch
-                        return True
-                    except:
-                        pass
-                # Fallback: Try creating a bedrock client as ultimate test
+    def has_credentials(self):
+        """Check if AWS credentials are available (env vars OR IAM role)"""
+        try:
+            import boto3
+            session = boto3.Session()
+            credentials = session.get_credentials()
+            # For IAM roles, credentials exist but might not have direct access_key property
+            # Try to access it to force credential resolution
+            if credentials:
                 try:
-                    bedrock = boto3.client('bedrock-runtime', region_name=os.environ.get('AWS_REGION', 'us-east-1'))
+                    _ = credentials.access_key  # Force credential fetch
                     return True
                 except:
-                    return False
+                    pass
+            # Fallback: Try creating a bedrock client as ultimate test
+            try:
+                bedrock = boto3.client('bedrock-runtime', region_name=os.environ.get('AWS_REGION', 'us-east-1'))
+                return True
             except:
                 return False
+        except:
+            return False
 
-        def get_bedrock_request_body(self, system_prompt, user_prompt):
-            config = self.get_model_config()
-            body = {
-                "anthropic_version": config['anthropic_version'],
-                "max_tokens": config['max_tokens'],
-                "temperature": config['temperature'],
-                "system": system_prompt,
-                "messages": [{"role": "user", "content": user_prompt}]
-            }
-            return json.dumps(body)
+    def get_bedrock_request_body(self, system_prompt, user_prompt):
+        config = self.get_model_config()
+        body = {
+            "anthropic_version": config['anthropic_version'],
+            "max_tokens": config['max_tokens'],
+            "temperature": config['temperature'],
+            "system": system_prompt,
+            "messages": [{"role": "user", "content": user_prompt}]
+        }
+        return json.dumps(body)
 
-        def extract_response_content(self, response_body):
-            try:
-                content = response_body.get('content', [])
-                if content and len(content) > 0:
-                    return content[0].get('text', '')
-                return response_body.get('completion', response_body.get('message', ''))
-            except:
-                return "Error extracting response content"
+    def extract_response_content(self, response_body):
+        try:
+            content = response_body.get('content', [])
+            if content and len(content) > 0:
+                return content[0].get('text', '')
+            return response_body.get('completion', response_body.get('message', ''))
+        except:
+            return "Error extracting response content"
 
-        def _extract_base_model(self, model_id):
-            """Extract base model name from full model ID"""
-            # e.g., "anthropic.claude-3-5-sonnet-20240620-v1:0" -> "claude-3-5-sonnet"
-            if 'claude-3-5-sonnet' in model_id:
-                return 'claude-3-5-sonnet'
-            elif 'claude-3-sonnet' in model_id:
-                return 'claude-3-sonnet'
-            elif 'claude-3-haiku' in model_id:
-                return 'claude-3-haiku'
-            return 'claude-3-5-sonnet'  # Default
+    def _extract_base_model(self, model_id):
+        """Extract base model name from full model ID"""
+        # e.g., "anthropic.claude-3-5-sonnet-20240620-v1:0" -> "claude-3-5-sonnet"
+        if 'claude-3-5-sonnet' in model_id:
+            return 'claude-3-5-sonnet'
+        elif 'claude-3-sonnet' in model_id:
+            return 'claude-3-sonnet'
+        elif 'claude-3-haiku' in model_id:
+            return 'claude-3-haiku'
+        return 'claude-3-5-sonnet'  # Default
 
-        def get_fallback_model_id(self, base_name):
-            """Get full model ID from base name"""
-            model_map = {
-                'claude-3-5-sonnet': 'anthropic.claude-3-5-sonnet-20240620-v1:0',
-                'claude-3-sonnet': 'anthropic.claude-3-sonnet-20240229-v1:0',
-                'claude-3-haiku': 'anthropic.claude-3-haiku-20240307-v1:0'
-            }
-            return model_map.get(base_name, model_map['claude-3-5-sonnet'])
-    
-    model_config = FallbackModelConfig()
+    def get_fallback_model_id(self, base_name):
+        """Get full model ID from base name"""
+        model_map = {
+            'claude-3-5-sonnet': 'anthropic.claude-3-5-sonnet-20240620-v1:0',
+            'claude-3-sonnet': 'anthropic.claude-3-sonnet-20240229-v1:0',
+            'claude-3-haiku': 'anthropic.claude-3-haiku-20240307-v1:0'
+        }
+        return model_map.get(base_name, model_map['claude-3-5-sonnet'])
+
+# Always create an instance (will be used if imports fail or for fallback)
+model_config = FallbackModelConfig()
+
+# Try to import enhanced config, but keep fallback if it fails
+try:
+    from config.model_config_enhanced import get_default_models, FEEDBACK_MIN_CONFIDENCE
+    from config import ai_prompts
+except ImportError:
+    # Use fallback configuration
+    print("⚠️ Enhanced config module not found, using fallback configuration")
+    ai_prompts = None
+    FEEDBACK_MIN_CONFIDENCE = 0.80
+    def get_default_models():
+        return []
 
 class AIFeedbackEngine:
     def __init__(self, session_id=None):
@@ -272,7 +258,7 @@ The JSON must have a "feedback_items" array containing your analysis."""
             
             print(f"🎭 Falling back to mock response for section: {section_name}")
             # Use mock response instead of returning error
-            response = self._mock_ai_response(prompt)
+            response = self._generate_mock_response('analysis',prompt)
         
         # Try to parse the response as JSON
         try:
@@ -342,7 +328,7 @@ The JSON must have a "feedback_items" array containing your analysis."""
                 'questions': item.get('questions', [])[:2] if isinstance(item.get('questions'), list) else [],  # Limit to 2 questions
                 'hawkeye_refs': item.get('hawkeye_refs', [])[:3] if isinstance(item.get('hawkeye_refs'), list) else [],  # Limit to 3 refs
                 'risk_level': item.get('risk_level', 'Low'),
-                'confidence': float(item.get('confidence', 0.8)) if isinstance(item.get('confidence'), (int, float)) else 0.8
+                'confidence': float(item.get('confidence', FEEDBACK_MIN_CONFIDENCE)) if isinstance(item.get('confidence'), (int, float)) else FEEDBACK_MIN_CONFIDENCE
             }
             
             # Add hawkeye references if missing
@@ -358,8 +344,8 @@ The JSON must have a "feedback_items" array containing your analysis."""
             
             validated_items.append(validated_item)
 
-        # ✅ FIX: Filter feedback items with confidence >= 80% (high quality only)
-        high_confidence_items = [item for item in validated_items if item['confidence'] >= 0.8]
+        # ✅ FIX: Filter feedback items with confidence >= threshold (high quality only)
+        high_confidence_items = [item for item in validated_items if item['confidence'] >= FEEDBACK_MIN_CONFIDENCE]
 
         # ✅ FIX: Remove duplicates and near-duplicates (similarity check)
         unique_items = self._remove_duplicate_feedback(high_confidence_items)
@@ -536,7 +522,7 @@ The JSON must have a "feedback_items" array containing your analysis."""
             print(f"⏱️ Bedrock request timed out after 180+ seconds: {str(te)}", flush=True)
             print("💡 This may be due to AWS throttling or high load", flush=True)
             print("🎭 Using mock response to allow user to continue", flush=True)
-            return self._mock_ai_response(user_prompt)
+            return self._generate_mock_response('analysis',user_prompt)
 
         except Exception as e:
             print(f"❌ Bedrock analysis error: {str(e)}", flush=True)
@@ -545,7 +531,7 @@ The JSON must have a "feedback_items" array containing your analysis."""
             error_str = str(e).lower()
             if 'timeout' in error_str:
                 print("💡 Timeout occurred - falling back to mock response", flush=True)
-                return self._mock_ai_response(user_prompt)
+                return self._generate_mock_response('analysis',user_prompt)
             elif 'credentials' in error_str or 'access' in error_str:
                 print("💡 Fix: Check AWS credentials configuration", flush=True)
             elif 'region' in error_str:
@@ -558,7 +544,7 @@ The JSON must have a "feedback_items" array containing your analysis."""
 
             # Return mock analysis response for testing
             print("🎭 Falling back to mock analysis response", flush=True)
-            return self._mock_ai_response(user_prompt)
+            return self._generate_mock_response('analysis',user_prompt)
 
     def _invoke_with_model_fallback(self, runtime, system_prompt, user_prompt, max_retries_per_model):
         """
@@ -717,78 +703,121 @@ The JSON must have a "feedback_items" array containing your analysis."""
     
 
     
-    def _mock_ai_response(self, user_prompt):
-        """Focused mock AI response with concise, actionable feedback"""
+    def _generate_mock_response(self, prompt_type='analysis', content='', context=None):
+        """
+        Consolidated mock response generator for testing/fallback
+
+        Args:
+            prompt_type: 'analysis' for document analysis, 'chat' for chat queries
+            content: The content to analyze or query text
+            context: Additional context (for chat queries)
+
+        Returns:
+            JSON string for analysis, plain text for chat
+        """
         # Simulate processing delay
-        time.sleep(1)
-        
-        # Generate contextual mock responses based on prompt content
-        prompt_lower = user_prompt.lower()
-        
-        if "timeline" in prompt_lower:
-            return json.dumps({
-                "feedback_items": [
-                    {
-                        "id": f"mock_timeline_{int(time.time())}",
-                        "type": "important",
-                        "category": "Timeline",
-                        "description": "Missing timestamps and >24hr gaps unexplained",
-                        "suggestion": "Add DD-MMM-YYYY HH:MM format and gap explanations",
-                        "questions": ["Who owned each timeline entry?"],
-                        "hawkeye_refs": [2, 13],
-                        "risk_level": "Medium",
-                        "confidence": 0.88
-                    }
-                ]
-            })
-        elif "root cause" in prompt_lower:
-            return json.dumps({
-                "feedback_items": [
-                    {
-                        "id": f"mock_rootcause_{int(time.time())}",
-                        "type": "critical",
-                        "category": "Root Cause",
-                        "description": "Analysis lacks 5-whys depth, addresses symptoms not causes",
-                        "suggestion": "Apply 5-whys to identify systemic root causes",
-                        "questions": ["What process failures enabled this?"],
-                        "hawkeye_refs": [11, 12],
-                        "risk_level": "High",
-                        "confidence": 0.92
-                    }
-                ]
-            })
-        elif "executive summary" in prompt_lower or "summary" in prompt_lower:
-            return json.dumps({
-                "feedback_items": [
-                    {
-                        "id": f"mock_summary_{int(time.time())}",
-                        "type": "important",
-                        "category": "Documentation",
-                        "description": "Missing quantified customer/business impact metrics",
-                        "suggestion": "Add specific impact numbers and affected customer count",
-                        "questions": ["What was the measurable business impact?"],
-                        "hawkeye_refs": [1, 13],
-                        "risk_level": "Medium",
-                        "confidence": 0.85
-                    }
-                ]
-            })
+        time.sleep(0.5 if prompt_type == 'chat' else 1)
+
+        if prompt_type == 'chat':
+            # Generate chat response
+            query_lower = content.lower()
+            current_section = context.get('current_section', 'current section') if context else 'current section'
+
+            if 'help' in query_lower or 'how' in query_lower:
+                return f"""**Quick Help for {current_section}**
+
+• **Analysis**: Review against Hawkeye checkpoints
+• **Feedback**: Accept specific, actionable items
+• **Risk**: Assess High/Medium/Low impact
+• **Questions**: Ask about specific gaps or improvements
+
+**What specific aspect needs clarification?**"""
+
+            elif 'hawkeye' in query_lower or 'framework' in query_lower:
+                return f"""**Hawkeye for {current_section}**
+
+**Key Checkpoints:**
+• #2: Investigation methodology
+• #11: Root cause depth
+• #13: Documentation quality
+• #15: Evidence validation
+
+**Which checkpoint needs explanation?**"""
+
+            elif 'risk' in query_lower:
+                return """**Risk Assessment**
+
+• **High**: Customer safety, legal issues, major impact
+• **Medium**: Process gaps, operational issues
+• **Low**: Documentation improvements
+
+**Current section risk factors?**"""
+
+            else:
+                return f"""**AI-Prism for {current_section}**
+
+**I can help with:**
+• Gap analysis
+• Risk assessment
+• Hawkeye compliance
+• Evidence validation
+
+**What specific question do you have?**"""
+
         else:
-            return json.dumps({
-                "feedback_items": [
-                    {
-                        "id": f"mock_general_{int(time.time())}",
-                        "type": "important",
-                        "category": "Investigation",
-                        "description": "Lacks independent evidence verification sources",
-                        "suggestion": "Add cross-verification and validation methodology",
-                        "questions": ["How was evidence independently verified?"],
-                        "hawkeye_refs": [2, 15],
-                        "risk_level": "Medium",
-                        "confidence": 0.85
-                    }
-                ]
-            })
+            # Generate analysis response
+            prompt_lower = content.lower()
+
+            if "timeline" in prompt_lower:
+                feedback_data = {
+                    "id": f"mock_timeline_{int(time.time())}",
+                    "type": "important",
+                    "category": "Timeline",
+                    "description": "Missing timestamps and >24hr gaps unexplained",
+                    "suggestion": "Add DD-MMM-YYYY HH:MM format and gap explanations",
+                    "questions": ["Who owned each timeline entry?"],
+                    "hawkeye_refs": [2, 13],
+                    "risk_level": "Medium",
+                    "confidence": 0.88
+                }
+            elif "root cause" in prompt_lower:
+                feedback_data = {
+                    "id": f"mock_rootcause_{int(time.time())}",
+                    "type": "critical",
+                    "category": "Root Cause",
+                    "description": "Analysis lacks 5-whys depth, addresses symptoms not causes",
+                    "suggestion": "Apply 5-whys to identify systemic root causes",
+                    "questions": ["What process failures enabled this?"],
+                    "hawkeye_refs": [11, 12],
+                    "risk_level": "High",
+                    "confidence": 0.92
+                }
+            elif "executive summary" in prompt_lower or "summary" in prompt_lower:
+                feedback_data = {
+                    "id": f"mock_summary_{int(time.time())}",
+                    "type": "important",
+                    "category": "Documentation",
+                    "description": "Missing quantified customer/business impact metrics",
+                    "suggestion": "Add specific impact numbers and affected customer count",
+                    "questions": ["What was the measurable business impact?"],
+                    "hawkeye_refs": [1, 13],
+                    "risk_level": "Medium",
+                    "confidence": 0.85
+                }
+            else:
+                feedback_data = {
+                    "id": f"mock_general_{int(time.time())}",
+                    "type": "important",
+                    "category": "Investigation",
+                    "description": "Lacks independent evidence verification sources",
+                    "suggestion": "Add cross-verification and validation methodology",
+                    "questions": ["How was evidence independently verified?"],
+                    "hawkeye_refs": [2, 15],
+                    "risk_level": "Medium",
+                    "confidence": 0.85
+                }
+
+            return json.dumps({"feedback_items": [feedback_data]})
     
     def _format_chat_response(self, response):
         """Format chat response with proper HTML formatting - COMPLETE response, no truncation"""
@@ -862,89 +891,6 @@ The JSON must have a "feedback_items" array containing your analysis."""
         from difflib import SequenceMatcher
         return SequenceMatcher(None, text1.strip().lower(), text2.strip().lower()).ratio()
     
-    def _mock_chat_response(self, query, context):
-        """Generate concise, focused mock chat responses"""
-        # Simulate processing delay
-        time.sleep(0.5)
-        
-        query_lower = query.lower()
-        current_section = context.get('current_section', 'current section')
-        
-        if 'help' in query_lower or 'how' in query_lower:
-            return f"""**Quick Help for {current_section}**
-
-• **Analysis**: Review against Hawkeye checkpoints
-• **Feedback**: Accept specific, actionable items
-• **Risk**: Assess High/Medium/Low impact
-• **Questions**: Ask about specific gaps or improvements
-
-**What specific aspect needs clarification?**"""
-        
-        elif 'hawkeye' in query_lower or 'framework' in query_lower:
-            return f"""**Hawkeye for {current_section}**
-
-**Key Checkpoints:**
-• #2: Investigation methodology
-• #11: Root cause depth
-• #13: Documentation quality
-• #15: Evidence validation
-
-**Which checkpoint needs explanation?**"""
-        
-        elif 'risk' in query_lower:
-            return f"""**Risk Assessment**
-
-• **High**: Customer safety, legal issues, major impact
-• **Medium**: Process gaps, operational issues
-• **Low**: Documentation improvements
-
-**Current section risk factors?**"""
-        
-        elif 'feedback' in query_lower or 'comment' in query_lower:
-            return """**Feedback Guidelines**
-
-**Accept if:**
-• Specific and actionable
-• References Hawkeye checkpoints
-• Addresses real gaps
-
-**Reject if:**
-• Generic or vague
-• No clear action
-• Outside scope
-
-**Which feedback item needs evaluation?**"""
-        
-        elif 'improve' in query_lower or 'enhance' in query_lower:
-            return f"""**Improvement Areas for {current_section}**
-
-• **Evidence**: Add verification sources
-• **Impact**: Quantify business effects
-• **Actions**: Specify owners and dates
-• **Process**: Document methodology
-
-**Which area to focus on?**"""
-        
-        elif 'timeline' in query_lower:
-            return """**Timeline Standards**
-
-• **Format**: DD-MMM-YYYY HH:MM
-• **Gaps**: Explain >24hr delays
-• **Ownership**: Who did what
-• **Sequence**: Chronological order
-
-**Specific timeline issue?**"""
-        
-        else:
-            return f"""**AI-Prism for {current_section}**
-
-**I can help with:**
-• Gap analysis
-• Risk assessment
-• Hawkeye compliance
-• Evidence validation
-
-**What specific question do you have?**"""
 
 
     def process_chat_query(self, query, context):
@@ -954,7 +900,7 @@ The JSON must have a "feedback_items" array containing your analysis."""
         # Check if we should use real AI or mock responses
         if not model_config.has_credentials():
             print("⚠️ No AWS credentials - using mock chat response")
-            return self._mock_chat_response(query, context)
+            return self._generate_mock_response('chat', query, context)
 
         current_section = context.get('current_section', 'Current section')
         feedback_count = len(context.get('current_feedback', []))
@@ -1044,7 +990,7 @@ Document Type: Full Write-up"""
         except Exception as e:
             print(f"❌ Chat processing error: {str(e)}", flush=True)
             print("🎭 Falling back to mock chat response", flush=True)
-            return self._mock_chat_response(query, context)
+            return self._generate_mock_response('chat', query, context)
 
     def _process_chat_with_fallback(self, system_prompt, prompt, query, context):
         """Process chat with automatic model fallback"""
@@ -1134,7 +1080,7 @@ Document Type: Full Write-up"""
                 # If this is the last model, fall back to mock
                 if model == models_to_try[-1]:
                     print("❌ All models failed - falling back to mock response")
-                    return self._mock_chat_response(query, context)
+                    return self._generate_mock_response('chat', query, context)
 
                 # Otherwise, try the next model
                 continue
@@ -1145,14 +1091,14 @@ Document Type: Full Write-up"""
                 # If this is the last model, fall back to mock
                 if model == models_to_try[-1]:
                     print("❌ All models failed - falling back to mock response")
-                    return self._mock_chat_response(query, context)
+                    return self._generate_mock_response('chat', query, context)
 
                 # Otherwise, try the next model
                 continue
 
         # Fallback if somehow we get here
         print("❌ All models exhausted - falling back to mock response")
-        return self._mock_chat_response(query, context)
+        return self._generate_mock_response('chat', query, context)
 
     def test_connection(self, max_retries=3):
         """Test Claude AI connection with exponential backoff retry"""

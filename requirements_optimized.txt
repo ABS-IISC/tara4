@@ -1,0 +1,45 @@
+# AI-Prism Optimized Dependencies
+# Updated: November 21, 2025
+# All security updates applied, Celery dependencies removed
+
+# Core Web Framework (Updated)
+Flask==3.0.0                    # ✅ Updated from 2.3.3 - Better performance
+Werkzeug==3.0.1                 # ✅ Updated from 2.3.7 - Security fixes
+Jinja2==3.1.3                   # ✅ Updated from 3.1.2
+MarkupSafe==2.1.5               # ✅ Updated from 2.1.3 - Security fix
+click==8.1.7                    # ✅ Current
+itsdangerous==2.1.2             # ✅ Current
+blinker==1.7.0                  # ✅ Updated from 1.6.3
+
+# AWS Services (Updated)
+boto3==1.34.90                  # ✅ Updated from 1.28.85 - Latest features
+botocore==1.34.90               # ✅ Updated - Auto-updated with boto3
+s3transfer==0.10.1              # ✅ Updated from 0.7.0 - Faster transfers
+jmespath==1.0.1                 # ✅ Current
+urllib3==2.2.0                  # ✅ CRITICAL UPDATE from 1.26.18 - Security fix
+
+# Document Processing (Updated)
+python-docx==1.1.0              # ✅ Updated from 0.8.11 - Better performance
+lxml==5.1.0                     # ✅ Updated from 4.9.3 - Security & performance
+
+# Utilities (Updated)
+python-dateutil==2.9.0          # ✅ Updated from 2.8.2
+six==1.16.0                     # ✅ Current
+
+# ===================================================================
+# REMOVED: Celery and all related dependencies (7MB saved!)
+# ===================================================================
+# celery[sqs]==5.3.4            # ❌ REMOVED - Replaced with ThreadPoolExecutor
+# kombu==5.3.4                  # ❌ REMOVED - Celery dependency
+# vine==5.1.0                   # ❌ REMOVED - Celery dependency
+# amqp==5.2.0                   # ❌ REMOVED - Celery dependency
+# billiard==4.2.0               # ❌ REMOVED - Celery dependency
+# pycurl==7.45.2                # ❌ REMOVED - Celery dependency
+# ===================================================================
+
+# Optional: Add these for enhanced functionality
+# redis==5.0.1                  # For distributed caching (recommended for >100 users)
+# sentry-sdk[flask]==1.40.0     # For error tracking (recommended for production)
+# prometheus-client==0.19.0     # For metrics collection
+# flask-limiter==3.5.0          # For rate limiting per IP
+# flask-wtf==1.2.1              # For CSRF protection (recommended)

@@ -14,12 +14,14 @@ window.fetch = function(url, options = {}) {
     // Use longer timeout for AI endpoints (240 seconds / 4 minutes)
     let defaultTimeout = 30000; // 30 seconds default
 
-    // AI analysis endpoints need more time
+    // AI analysis endpoints and polling endpoints need more time
     if (url.includes('/analyze_section') ||
         url.includes('/chat') ||
         url.includes('/complete_review') ||
-        url.includes('/analyze_all_sections')) {
-        defaultTimeout = 240000; // 240 seconds (4 minutes) for AI operations - increased for reliable analysis
+        url.includes('/analyze_all_sections') ||
+        url.includes('/task_status/') ||
+        url.includes('/poll_task/')) {
+        defaultTimeout = 240000; // 240 seconds (4 minutes) for AI operations and polling - increased for reliable analysis
     }
 
     const timeout = options.timeout || defaultTimeout;

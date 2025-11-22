@@ -6,6 +6,108 @@ let totalSections = 0;
 let sectionAnalysisStatus = {};
 let isAnalyzing = false;
 
+
+// ✅ CORRECTED: Load section and AUTO-ANALYZE (matches Jupyter notebook _load_section() workflow)
+function loadSectionAndAnalyze(index) {
+    if (!sections || index < 0 || index >= sections.length) {
+        console.error('Invalid section index:', index);
+        return;
+    }
+
+    currentSectionIndex = index;
+    const sectionName = sections[index];
+
+    console.log('✅ Loading section WITH AUTO-ANALYSIS:', sectionName);
+
+    // Update section selector
+    const sectionSelect = document.getElementById('sectionSelect');
+    if (sectionSelect) {
+        sectionSelect.selectedIndex = index + 1;
+    }
+
+    // Fetch section content from backend
+    fetch('/get_section_content', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            session_id: currentSession,
+            section_name: sectionName
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success && data.content) {
+            // Display section content
+            const documentContent = document.getElementById('documentContent');
+            if (documentContent) {
+                documentContent.innerHTML = `
+                    <div style="padding: 20px;">
+                        <h3 style="color: #4f46e5; margin-bottom: 15px; border-bottom: 2px solid #4f46e5; padding-bottom: 10px;">
+                            Section: "${sectionName}"
+                        </h3>
+                        <div style="line-height: 1.8; white-space: pre-wrap; font-size: 1.05em;">
+                            ${data.content}
+                        </div>
+                    </div>
+                `;
+            }
+
+            // Show "Analyzing..." state with progress tracking
+            const feedbackContainer = document.getElementById('feedbackContainer');
+            if (feedbackContainer) {
+                // Calculate progress percentage based on analyzed sections
+                const totalSections = sections ? sections.length : 0;
+                const analyzedSections = Object.keys(sectionAnalysisStatus).filter(s => sectionAnalysisStatus[s] === 'analyzed').length;
+                const progressPercent = totalSections > 0 ? Math.round((analyzedSections / totalSections) * 100) : 0;
+
+                feedbackContainer.innerHTML = `
+                    <div style="text-align: center; padding: 40px 30px; background: linear-gradient(135deg, #f8f9ff 0%, #e3f2fd 100%); border-radius: 15px; border: 3px solid #4f46e5; margin: 20px 0;">
+                        <div style="font-size: 4em; margin-bottom: 20px;">🔍</div>
+                        <h3 style="color: #4f46e5; margin-bottom: 15px; font-size: 1.6em;">Section: "${sectionName}"</h3>
+
+                        <!-- Progress Bar -->
+                        <div style="margin: 20px 0;">
+                            <div style="background: #e0e0e0; height: 30px; border-radius: 15px; overflow: hidden; box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);">
+                                <div style="background: linear-gradient(90deg, #4f46e5 0%, #667eea 100%); height: 100%; width: ${progressPercent}%; transition: width 0.3s ease; display: flex; align-items: center; justify-content: center; color: white; font-weight: 600; font-size: 14px;">
+                                    ${progressPercent > 10 ? progressPercent + '% Complete' : ''}
+                                </div>
+                            </div>
+                            <p style="color: #666; margin-top: 10px; font-size: 0.95em;">
+                                ${analyzedSections} of ${totalSections} sections analyzed
+                            </p>
+                        </div>
+
+                        <p style="color: #4f46e5; margin-bottom: 20px; font-size: 1.2em; font-weight: 600;">
+                            🔍 Analyzing with Hawkeye Framework...
+                        </p>
+                        <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;">
+                            <span class="sr-only">Loading...</span>
+                        </div>
+                        <p style="color: #999; margin-top: 15px; font-size: 0.9em;">
+                            ⏱️ Analysis takes 10-30 seconds
+                        </p>
+                    </div>
+                `;
+            }
+
+            updateNavigationButtons();
+
+            // ✅ AUTO-ANALYZE: Trigger analysis automatically (like Jupyter notebook _load_section() -> _analyze_section())
+            console.log('🤖 AUTO-TRIGGERING ANALYSIS for section:', sectionName);
+            analyzeCurrentSection();
+
+        } else {
+            showNotification('Failed to load section content', 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Error loading section:', error);
+        showNotification('Error loading section: ' + error.message, 'error');
+    });
+}
+
 // Simple progress popup functions
 function showSimpleProgressPopup() {
     // Remove any existing progress popup and backdrop
@@ -196,19 +298,17 @@ function startAnalysis() {
                         // Show main content
                         showMainContent();
 
-                        // ✅ NEW WORKFLOW: On-demand analysis (analyze only when user navigates to section)
-                        // NO proactive analysis of all sections
-                        // Load first section WITHOUT analyzing - show "Ready to analyze" state
+                        // ✅ CORRECTED WORKFLOW: Auto-analyze section when loaded (matches Jupyter notebook)
+                        // Analyze ONE section at a time when user navigates to it
                         if (sections.length > 0) {
-                            // Load first section content without analysis
-                            loadSectionWithoutAnalysis(0);
+                            // Load first section and AUTO-ANALYZE (like Jupyter notebook _load_section())
+                            loadSectionAndAnalyze(0);
 
                             // Enable Submit All Feedbacks button immediately after upload
-                            // User can navigate and analyze sections on-demand
                             setTimeout(() => {
                                 const submitBtn = document.getElementById('submitAllFeedbacksBtn');
                                 if (submitBtn) submitBtn.disabled = false;
-                                showNotification('✅ Document uploaded! Click "Analyze This Section" to start AI analysis.', 'success');
+                                showNotification('✅ Document uploaded! Analyzing first section...', 'success');
                             }, 500);
                         }
                     }, 500);
@@ -228,10 +328,25 @@ function startAnalysis() {
 
 // Section-by-section analysis function
 function analyzeCurrentSection() {
+    console.log('🔍 analyzeCurrentSection() CALLED - Function entry');
+    console.log('📊 Variable Check:', {
+        currentSession: currentSession,
+        sections: sections,
+        currentSectionIndex: currentSectionIndex,
+        sectionsLength: sections ? sections.length : 'null/undefined'
+    });
+
     if (!currentSession || !sections || currentSectionIndex < 0) {
+        console.error('❌ Early return triggered:', {
+            noSession: !currentSession,
+            noSections: !sections,
+            invalidIndex: currentSectionIndex < 0
+        });
         showNotification('No section available for analysis', 'error');
         return;
     }
+
+    console.log('✅ Passed validation checks, proceeding with analysis...');
     
     const sectionName = sections[currentSectionIndex];
     
@@ -293,17 +408,20 @@ function analyzeCurrentSection() {
     })
     .then(response => response.json())
     .then(data => {
-        isAnalyzing = false;
-        
-        if (data.success) {
-            // Mark section as analyzed
+        if (data.success && data.task_id) {
+            // Async processing - poll for result
+            console.log('Task submitted:', data.task_id);
+            pollTaskResult(data.task_id, sectionName);
+        } else if (data.success && data.feedback_items) {
+            // Synchronous result
+            isAnalyzing = false;
             sectionAnalysisStatus[sectionName] = 'analyzed';
-            
+
             console.log('Analysis completed for section:', sectionName);
-            
+
             // Display the feedback
             displaySectionFeedback(data.feedback_items, sectionName);
-            
+
             showNotification(`Analysis completed for "${sectionName}"!`, 'success');
         } else {
             // Mark section as failed
@@ -351,73 +469,6 @@ function analyzeCurrentSection() {
 }
 
 // ✅ NEW: Load section WITHOUT analysis - show "Ready to analyze" state
-function loadSectionWithoutAnalysis(index) {
-    if (!sections || index < 0 || index >= sections.length) {
-        console.error('Invalid section index:', index);
-        return;
-    }
-
-    currentSectionIndex = index;
-    const sectionName = sections[index];
-
-    console.log('Loading section WITHOUT analysis:', sectionName);
-
-    // Update section selector
-    const sectionSelect = document.getElementById('sectionSelect');
-    if (sectionSelect) {
-        sectionSelect.selectedIndex = index + 1;
-    }
-
-    // Fetch section content from backend WITHOUT analysis
-    fetch(`/get_section_content?session_id=${currentSession}&section_name=${encodeURIComponent(sectionName)}`)
-    .then(response => response.json())
-    .then(data => {
-        if (data.success && data.content) {
-            // Display section content
-            const documentContent = document.getElementById('documentContent');
-            if (documentContent) {
-                documentContent.innerHTML = `
-                    <div style="padding: 20px;">
-                        <h3 style="color: #4f46e5; margin-bottom: 15px; border-bottom: 2px solid #4f46e5; padding-bottom: 10px;">
-                            Section: "${sectionName}"
-                        </h3>
-                        <div style="line-height: 1.8; white-space: pre-wrap; font-size: 1.05em;">
-                            ${data.content}
-                        </div>
-                    </div>
-                `;
-            }
-
-            // Show "Ready to analyze" in feedback area with Analyze button
-            const feedbackContainer = document.getElementById('feedbackContainer');
-            if (feedbackContainer) {
-                feedbackContainer.innerHTML = `
-                    <div style="text-align: center; padding: 60px 40px; background: linear-gradient(135deg, #f8f9ff 0%, #e3f2fd 100%); border-radius: 15px; border: 3px solid #4f46e5; margin: 20px 0;">
-                        <div style="font-size: 4em; margin-bottom: 20px;">📋</div>
-                        <h3 style="color: #4f46e5; margin-bottom: 15px; font-size: 1.6em;">Ready to Analyze</h3>
-                        <p style="color: #666; margin-bottom: 30px; font-size: 1.1em;">
-                            Select a section and click the button below to start AI-powered analysis with the Hawkeye framework
-                        </p>
-                        <button class="btn btn-primary" onclick="analyzeCurrentSection()" style="padding: 15px 40px; font-size: 18px; font-weight: 600; border-radius: 25px; box-shadow: 0 8px 20px rgba(79, 70, 229, 0.3);">
-                            🤖 Analyze This Section
-                        </button>
-                        <p style="color: #999; margin-top: 20px; font-size: 0.9em;">
-                            Analysis typically takes 10-30 seconds
-                        </p>
-                    </div>
-                `;
-            }
-
-            updateNavigationButtons();
-        } else {
-            showNotification('Failed to load section content', 'error');
-        }
-    })
-    .catch(error => {
-        console.error('Error loading section:', error);
-        showNotification('Error loading section: ' + error.message, 'error');
-    });
-}
 
 // Retry analysis function
 function retryAnalysis() {
@@ -437,8 +488,19 @@ function retryAnalysis() {
 
 // Display section feedback
 function displaySectionFeedback(feedbackItems, sectionName) {
+    console.log('🎨 displaySectionFeedback CALLED:', {
+        feedbackItems: feedbackItems,
+        feedbackCount: feedbackItems ? feedbackItems.length : 0,
+        sectionName: sectionName,
+        sectionType: typeof sectionName
+    });
+
     const feedbackContainer = document.getElementById('feedbackContainer');
-    if (!feedbackContainer) return;
+    console.log('📦 feedbackContainer element:', feedbackContainer ? 'FOUND' : 'NOT FOUND');
+    if (!feedbackContainer) {
+        console.error('❌ feedbackContainer element is missing from DOM!');
+        return;
+    }
 
     // ✅ CRITICAL: Validate sectionName is a string to prevent dict errors
     if (typeof sectionName !== 'string') {
@@ -524,11 +586,11 @@ function displaySectionFeedback(feedbackItems, sectionName) {
                 ` : ''}
                 
                 <div class="feedback-actions" style="display: flex; gap: 8px; margin-top: 15px; flex-wrap: wrap; align-items: center;">
-                    <button class="btn btn-success" onclick="event.stopPropagation(); window.acceptFeedback('${item.id}', '${sectionName}')" style="font-size: 12px; padding: 6px 12px; border-radius: 6px;">✅ Accept</button>
-                    <button class="btn btn-danger" onclick="event.stopPropagation(); window.rejectFeedback('${item.id}', '${sectionName}')" style="font-size: 12px; padding: 6px 12px; border-radius: 6px;">❌ Reject</button>
-                    <button class="btn btn-warning" onclick="event.stopPropagation(); window.revertFeedbackDecision('${item.id}', '${sectionName}')" style="font-size: 12px; padding: 6px 12px; border-radius: 6px;">🔄 Revert</button>
-                    <button class="btn btn-info" onclick="event.stopPropagation(); window.updateFeedbackItem('${item.id}', '${sectionName}')" style="font-size: 12px; padding: 6px 12px; border-radius: 6px;">✏️ Update</button>
-                    <button class="btn btn-primary" onclick="event.stopPropagation(); window.showInlineFeedbackForm('${item.id}', '${sectionName}')" style="font-size: 12px; padding: 6px 12px; border-radius: 6px;">✨ Add Custom Feedback</button>
+                    <button class="btn btn-success" onclick="window.acceptFeedback('${item.id}', '${sectionName}')" style="font-size: 12px; padding: 6px 12px; border-radius: 6px;">✅ Accept</button>
+                    <button class="btn btn-danger" onclick="window.rejectFeedback('${item.id}', '${sectionName}')" style="font-size: 12px; padding: 6px 12px; border-radius: 6px;">❌ Reject</button>
+                    <button class="btn btn-warning" onclick="window.revertFeedbackDecision('${item.id}', '${sectionName}')" style="font-size: 12px; padding: 6px 12px; border-radius: 6px;">🔄 Revert</button>
+                    <button class="btn btn-info" onclick="window.updateFeedback()" style="font-size: 12px; padding: 6px 12px; border-radius: 6px;">✏️ Update</button>
+                    <button class="btn btn-primary" onclick="window.showInlineFeedbackForm('${item.id}', '${sectionName}')" style="font-size: 12px; padding: 6px 12px; border-radius: 6px;">✨ Add Custom Feedback</button>
                     <span style="font-size: 0.8em; color: #6b7280; margin-left: 10px;">Confidence: ${Math.round((item.confidence || 0.8) * 100)}%</span>
                 </div>
             </div>
@@ -717,7 +779,7 @@ function updateNavigationButtons() {
 // Navigation functions - UPDATED for on-demand analysis
 function nextSection() {
     if (currentSectionIndex < sections.length - 1) {
-        loadSectionWithoutAnalysis(currentSectionIndex + 1);
+        loadSectionAndAnalyze(currentSectionIndex + 1);  // ✅ AUTO-ANALYZE on navigation
     } else {
         showNotification('Already at the last section', 'info');
     }
@@ -725,7 +787,7 @@ function nextSection() {
 
 function previousSection() {
     if (currentSectionIndex > 0) {
-        loadSectionWithoutAnalysis(currentSectionIndex - 1);
+        loadSectionAndAnalyze(currentSectionIndex - 1);  // ✅ AUTO-ANALYZE on navigation
     } else {
         showNotification('Already at the first section', 'info');
     }
@@ -759,31 +821,63 @@ window.showInlineFeedbackForm = function(feedbackId, sectionName) {
             console.log('🔧 Extracting section name from object');
             sectionName = sectionName.name;
         } else {
+            console.error('❌ Cannot extract section name, returning early');
             showNotification('Error: Invalid section name format. Cannot show feedback form.', 'error');
             return;
         }
     }
 
-    const sessionId = window.currentSession || sessionStorage.getItem('currentSession');
+    console.log('✅ Step 1 passed: sectionName validated as string:', sectionName);
+
+    // Enhanced session lookup - check multiple sources
+    console.log('🔍 Session ID check from multiple sources:');
+    console.log('   - window.currentSession:', window.currentSession);
+    console.log('   - global currentSession:', typeof currentSession !== 'undefined' ? currentSession : 'undefined');
+    console.log('   - sessionStorage:', sessionStorage.getItem('currentSession'));
+
+    const sessionId = window.currentSession ||
+                     (typeof currentSession !== 'undefined' ? currentSession : null) ||
+                     sessionStorage.getItem('currentSession');
+
+    console.log('   - Final sessionId resolved to:', sessionId);
+
     if (!sessionId) {
+        console.error('❌ No session ID found from any source, returning early');
         showNotification('No active session. Please upload a document first.', 'error');
         return;
     }
 
+    console.log('✅ Step 2 passed: sessionId found:', sessionId);
+
     // Find the feedback item
+    console.log('🔍 Looking for feedback item with selector:', `[data-feedback-id="${feedbackId}"]`);
     const feedbackItem = document.querySelector(`[data-feedback-id="${feedbackId}"]`);
+    console.log('🔍 Query result:', feedbackItem);
+
     if (!feedbackItem) {
-        console.error('❌ Feedback item not found:', feedbackId);
-        showNotification('Could not find feedback item', 'error');
+        console.error('❌ Feedback item not found for ID:', feedbackId);
+        console.error('❌ Tried selector:', `[data-feedback-id="${feedbackId}"]`);
+        console.error('❌ Listing all feedback items with data-feedback-id attribute:');
+        const allFeedbackItems = document.querySelectorAll('[data-feedback-id]');
+        console.error(`Found ${allFeedbackItems.length} feedback items in DOM:`);
+        allFeedbackItems.forEach(item => {
+            console.error(`  - ID: ${item.getAttribute('data-feedback-id')}`);
+        });
+        showNotification('Could not find feedback item in page. The feedback may not have loaded yet.', 'error');
         return;
     }
+
+    console.log('✅ Step 3 passed: feedbackItem found:', feedbackItem);
 
     // Toggle: Remove if already exists
     const existingForm = document.getElementById(`inline-feedback-form-${feedbackId}`);
     if (existingForm) {
+        console.log('🔄 Form already exists, toggling (removing)');
         existingForm.remove();
         return;
     }
+
+    console.log('✅ Step 4 passed: No existing form, proceeding to create new form');
 
     // Create inline dropdown form
     const formHtml = `
@@ -849,15 +943,32 @@ window.showInlineFeedbackForm = function(feedbackId, sectionName) {
     `;
 
     // Insert form after the feedback item
+    console.log('🔍 Inserting form HTML after feedback item...');
     feedbackItem.insertAdjacentHTML('afterend', formHtml);
+
+    // Verify form was inserted
+    const insertedForm = document.getElementById(`inline-feedback-form-${feedbackId}`);
+    if (insertedForm) {
+        console.log('✅ Step 5 passed: Form successfully inserted into DOM');
+        console.log('📋 Form element:', insertedForm);
+    } else {
+        console.error('❌ Form was NOT inserted into DOM!');
+        showNotification('Form could not be created. Please try again.', 'error');
+        return;
+    }
 
     // Auto-focus on textarea
     setTimeout(() => {
         const textarea = document.getElementById(`inlineFeedbackText-${feedbackId}`);
-        if (textarea) textarea.focus();
+        if (textarea) {
+            textarea.focus();
+            console.log('✅ Textarea focused successfully');
+        } else {
+            console.warn('⚠️ Could not find textarea to focus');
+        }
     }, 100);
 
-    console.log('✅ Inline feedback form displayed');
+    console.log('✅ ✨ COMPLETE: Inline feedback form displayed successfully!');
 };
 
 // ✅ NEW: Save inline feedback function
@@ -969,7 +1080,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // ✅ FIX: Attach analysis and navigation functions to window for onclick handlers
     window.analyzeCurrentSection = analyzeCurrentSection;
-    window.loadSectionWithoutAnalysis = loadSectionWithoutAnalysis;
+    window.loadSectionAndAnalyze = loadSectionAndAnalyze;
     window.nextSection = nextSection;
     window.previousSection = previousSection;
     window.retryAnalysis = retryAnalysis;
@@ -981,3 +1092,118 @@ document.addEventListener('DOMContentLoaded', function() {
     console.log('   - showInlineFeedbackForm:', typeof window.showInlineFeedbackForm);
     console.log('   - saveInlineFeedback:', typeof window.saveInlineFeedback);
 });
+
+// Task polling function for async analysis
+function pollTaskResult(taskId, sectionName) {
+    console.log(`Polling task ${taskId} for section: ${sectionName}`);
+
+    const maxAttempts = 120; // 2 minutes max (120 * 1 second)
+    let attempts = 0;
+
+    const pollInterval = setInterval(() => {
+        attempts++;
+
+        // ✅ CRITICAL FIX: Pass session_id so backend can store feedback_data
+        fetch(`/task_status/${taskId}?session_id=${currentSession}`)
+            .then(response => response.json())
+            .then(data => {
+                console.log(`Task ${taskId} status:`, data.status, 'state:', data.state);
+
+                // Check both data.state and data.status for SUCCESS
+                if (data.state === 'SUCCESS' || data.status === 'SUCCESS' || data.status === 'Task completed successfully') {
+                    clearInterval(pollInterval);
+
+                    // ✅ CRITICAL FIX: Check if task completed but analysis actually failed
+                    if (data.result && data.result.success === false) {
+                        isAnalyzing = false;
+                        sectionAnalysisStatus[sectionName] = 'failed';
+
+                        const error = data.result.error || 'Analysis failed';
+                        console.error('❌ Task completed but analysis failed for section:', sectionName, error);
+
+                        // Show error message in feedback container
+                        const feedbackContainer = document.getElementById('feedbackContainer');
+                        if (feedbackContainer) {
+                            feedbackContainer.innerHTML = `
+                                <div style="text-align: center; padding: 40px; background: #fff5f5; border: 2px solid #ef4444; border-radius: 15px; margin: 20px 0;">
+                                    <div style="font-size: 3em; margin-bottom: 20px;">⏱️</div>
+                                    <h3 style="color: #ef4444; margin-bottom: 15px;">Analysis Failed</h3>
+                                    <p style="color: #666; margin-bottom: 20px;">Section: "${sectionName}"</p>
+                                    <p style="color: #ef4444; font-size: 0.9em; margin-bottom: 10px;"><strong>Error:</strong> ${error}</p>
+                                    <p style="color: #999; font-size: 0.85em; margin-bottom: 20px;">This is usually due to AWS Bedrock API timeout. Please try again.</p>
+                                    <button class="btn btn-primary" onclick="retryAnalysis()" style="margin-top: 15px;">🔄 Retry Analysis</button>
+                                </div>
+                            `;
+                        }
+
+                        showNotification('Analysis failed: ' + error, 'error');
+                        return; // Stop here, don't proceed to success path
+                    }
+
+                    // Normal success path - analysis actually succeeded
+                    isAnalyzing = false;
+                    sectionAnalysisStatus[sectionName] = 'analyzed';
+
+                    // Extract feedback items from result
+                    const feedbackItems = data.result?.feedback_items || [];
+                    console.log('📊 Extracted feedback items:', {
+                        count: feedbackItems.length,
+                        items: feedbackItems,
+                        sectionName: sectionName
+                    });
+
+                    console.log('✅ Analysis completed for section:', sectionName, 'Feedback items:', feedbackItems.length);
+                    displaySectionFeedback(feedbackItems, sectionName);
+                    showNotification(`Analysis completed for "${sectionName}"!`, 'success');
+
+                } else if (data.state === 'FAILURE' || data.status === 'FAILURE') {
+                    clearInterval(pollInterval);
+                    isAnalyzing = false;
+                    sectionAnalysisStatus[sectionName] = 'failed';
+
+                    const error = data.result?.error || data.error || 'Task failed';
+                    console.error('Analysis failed for section:', sectionName, error);
+
+                    const feedbackContainer = document.getElementById('feedbackContainer');
+                    if (feedbackContainer) {
+                        feedbackContainer.innerHTML = `
+                            <div style="text-align: center; padding: 40px; background: #fff5f5; border: 2px solid #ef4444; border-radius: 15px; margin: 20px 0;">
+                                <div style="font-size: 3em; margin-bottom: 20px;">❌</div>
+                                <h3 style="color: #ef4444; margin-bottom: 15px;">Analysis Failed</h3>
+                                <p style="color: #666; margin-bottom: 20px;">Section: "${sectionName}"</p>
+                                <p style="color: #ef4444; font-size: 0.9em;">${error}</p>
+                                <button class="btn btn-primary" onclick="retryAnalysis()" style="margin-top: 15px;">🔄 Retry Analysis</button>
+                            </div>
+                        `;
+                    }
+
+                    showNotification('Analysis failed: ' + error, 'error');
+
+                } else if (attempts >= maxAttempts) {
+                    clearInterval(pollInterval);
+                    isAnalyzing = false;
+                    sectionAnalysisStatus[sectionName] = 'failed';
+
+                    console.error('Analysis timeout for section:', sectionName);
+                    showNotification('Analysis timeout - please try again', 'error');
+
+                    const feedbackContainer = document.getElementById('feedbackContainer');
+                    if (feedbackContainer) {
+                        feedbackContainer.innerHTML = `
+                            <div style="text-align: center; padding: 40px; background: #fff5f5; border: 2px solid #f59e0b; border-radius: 15px; margin: 20px 0;">
+                                <div style="font-size: 3em; margin-bottom: 20px;">⏱️</div>
+                                <h3 style="color: #f59e0b; margin-bottom: 15px;">Analysis Timeout</h3>
+                                <p style="color: #666; margin-bottom: 20px;">Section: "${sectionName}"</p>
+                                <p style="color: #f59e0b; font-size: 0.9em;">The analysis is taking longer than expected</p>
+                                <button class="btn btn-primary" onclick="retryAnalysis()" style="margin-top: 15px;">🔄 Retry Analysis</button>
+                            </div>
+                        `;
+                    }
+                }
+            })
+            .catch(error => {
+                console.error('Error polling task:', error);
+                // Don't stop polling on network errors, just log and continue
+            });
+    }, 1000); // Poll every 1 second
+}

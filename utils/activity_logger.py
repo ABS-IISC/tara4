@@ -76,15 +76,19 @@ class ActivityLogger:
             error=error
         )
     
-    def log_ai_analysis(self, section: str, feedback_count: int, duration: float = None, success: bool = True, error: str = None):
-        """Log AI analysis activity"""
+    def log_ai_analysis(self, section: str, feedback_count: int, duration: float = None, success: bool = True, error: str = None, model_info: Dict[str, Any] = None):
+        """Log AI analysis activity with enhanced details"""
         details = {
             'section': section,
-            'feedback_generated': feedback_count
+            'feedback_generated': feedback_count,
+            'timestamp': datetime.now().isoformat()
         }
         if duration:
             details['analysis_duration_seconds'] = round(duration, 2)
-            
+            details['analysis_speed'] = 'fast' if duration < 15 else 'normal' if duration < 30 else 'slow'
+        if model_info:
+            details['model_info'] = model_info
+
         return self.log_activity(
             action="ai_analysis",
             status="success" if success else "failed",
@@ -92,16 +96,27 @@ class ActivityLogger:
             error=error
         )
     
-    def log_feedback_action(self, action_type: str, feedback_id: str, section: str, feedback_text: str = None):
-        """Log feedback accept/reject actions"""
+    def log_feedback_action(self, action_type: str, feedback_id: str, section: str, feedback_text: str = None, feedback_type: str = None, risk_level: str = None, confidence: float = None):
+        """Log feedback accept/reject actions with enhanced details"""
+        details = {
+            'feedback_id': feedback_id,
+            'section': section,
+            'action_type': action_type,
+            'timestamp': datetime.now().isoformat()
+        }
+        if feedback_text:
+            details['feedback_preview'] = feedback_text[:100] + "..." if len(feedback_text) > 100 else feedback_text
+        if feedback_type:
+            details['feedback_type'] = feedback_type
+        if risk_level:
+            details['risk_level'] = risk_level
+        if confidence:
+            details['confidence'] = round(confidence * 100, 1)
+
         return self.log_activity(
             action=f"feedback_{action_type}",
             status="success",
-            details={
-                'feedback_id': feedback_id,
-                'section': section,
-                'feedback_preview': feedback_text[:100] + "..." if feedback_text and len(feedback_text) > 100 else feedback_text
-            }
+            details=details
         )
     
     def log_user_feedback(self, section: str, feedback_type: str, category: str, text: str):
@@ -167,6 +182,72 @@ class ActivityLogger:
             action=f"session_{event}",
             status="success",
             details=details or {}
+        )
+
+    def log_section_navigation(self, from_section: str = None, to_section: str = None, navigation_method: str = None):
+        """Log section navigation with details"""
+        details = {
+            'timestamp': datetime.now().isoformat(),
+            'navigation_method': navigation_method or 'unknown'
+        }
+        if from_section:
+            details['from_section'] = from_section
+        if to_section:
+            details['to_section'] = to_section
+
+        return self.log_activity(
+            action="section_navigation",
+            status="success",
+            details=details
+        )
+
+    def log_button_click(self, button_name: str, section: str = None, additional_context: Dict[str, Any] = None):
+        """Log button clicks for UI interaction tracking"""
+        details = {
+            'button_name': button_name,
+            'timestamp': datetime.now().isoformat()
+        }
+        if section:
+            details['section'] = section
+        if additional_context:
+            details.update(additional_context)
+
+        return self.log_activity(
+            action="button_click",
+            status="success",
+            details=details
+        )
+
+    def log_modal_interaction(self, modal_name: str, action: str, details_dict: Dict[str, Any] = None):
+        """Log modal open/close/submit interactions"""
+        details = {
+            'modal_name': modal_name,
+            'modal_action': action,
+            'timestamp': datetime.now().isoformat()
+        }
+        if details_dict:
+            details.update(details_dict)
+
+        return self.log_activity(
+            action=f"modal_{action}",
+            status="success",
+            details=details
+        )
+
+    def log_dropdown_selection(self, dropdown_name: str, selected_value: str, previous_value: str = None):
+        """Log dropdown/select changes"""
+        details = {
+            'dropdown_name': dropdown_name,
+            'selected_value': selected_value,
+            'timestamp': datetime.now().isoformat()
+        }
+        if previous_value:
+            details['previous_value'] = previous_value
+
+        return self.log_activity(
+            action="dropdown_selection",
+            status="success",
+            details=details
         )
     
     def get_activities_by_status(self, status: str) -> List[Dict]:

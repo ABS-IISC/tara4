@@ -1,145 +1,144 @@
 #!/usr/bin/env python3
 """
-Enhanced Document Analysis Tool - Main Entry Point
-
-A comprehensive AI-powered document analysis tool with deep investigation capabilities,
-modular architecture, and responsive UI.
-
-Features:
-- Deep Document Analysis with AI-powered feedback
-- Interactive UI with dark mode support
-- Clickable statistics with detailed breakdowns
-- Working AI chat assistant
-- Pattern recognition across documents
-- Activity logging and audit trails
-- AI learning from user feedback
-- Keyboard shortcuts for efficiency
-- Responsive design for different screen sizes
-- Document upload with drag-and-drop
-- Real-time notifications
-- Comprehensive FAQ and tutorial system
-
-Usage:
-    python main.py
-
-The application will start on http://localhost:5000
+AI-Prism Main Entry Point
+Single file to start everything - Flask + Celery Worker
+Works on both local development and App Runner
 """
 
 import os
 import sys
-import random
-from app import app
+import subprocess
+import signal
 
-def main():
-    """Main entry point for the application"""
+# Set default environment variables BEFORE any imports
+os.environ.setdefault('S3_BUCKET_NAME', 'felix-s3-bucket')
+os.environ.setdefault('S3_BASE_PATH', 'tara/')
+os.environ.setdefault('AWS_REGION', 'us-east-1')
+os.environ.setdefault('CELERY_RESULT_BACKEND', 's3://felix-s3-bucket/tara/celery-results/')
+os.environ.setdefault('FLASK_ENV', 'development')
+os.environ.setdefault('PORT', '8080')
+os.environ.setdefault('CELERY_BROKER_URL', 'sqs://')
+os.environ.setdefault('SQS_QUEUE_PREFIX', 'aiprism-')
+
+def start_celery_worker():
+    """Start Celery worker as subprocess"""
+    print("🔧 Starting Celery worker in background...")
+    sys.stdout.flush()
+
     try:
-        # Load environment variables from .env file if it exists
-        env_file = os.path.join(os.path.dirname(__file__), '.env')
-        if os.path.exists(env_file):
-            with open(env_file, 'r') as f:
-                for line in f:
-                    if line.strip() and not line.startswith('#'):
-                        key, value = line.strip().split('=', 1)
-                        os.environ[key] = value
-        
-        # Get port from environment or generate random port
-        if 'PORT' in os.environ:
-            port = int(os.environ.get('PORT'))
-        else:
-            port = random.randint(5000, 9999)
-        
-        # Always use 0.0.0.0 for deployment compatibility
-        host = '0.0.0.0'
-        
-        # Log environment info
-        flask_env = os.environ.get('FLASK_ENV', 'development')
-        aws_region = os.environ.get('AWS_REGION', os.environ.get('AWS_DEFAULT_REGION', 'not set'))
-        model_id = os.environ.get('BEDROCK_MODEL_ID', 'not set')
-        max_tokens = os.environ.get('BEDROCK_MAX_TOKENS', '8192')
-        temperature = os.environ.get('BEDROCK_TEMPERATURE', '0.7')
-        reasoning_enabled = os.environ.get('REASONING_ENABLED', 'false')
-        reasoning_budget = os.environ.get('REASONING_BUDGET_TOKENS', '2000')
-        
-        print("=" * 60)
-        print("AI-PRISM DOCUMENT ANALYSIS TOOL")
-        print("=" * 60)
-        print(f"Server: http://{host}:{port}")
-        print(f"Environment: {flask_env}")
-        print(f"AWS Region: {aws_region}")
-        print(f"Bedrock Model: {model_id}")
-        print(f"Max Tokens: {max_tokens}")
-        print(f"Temperature: {temperature}")
-        print(f"Reasoning: {reasoning_enabled} (Budget: {reasoning_budget})")
-        
-        # Check AWS credentials (environment variables OR IAM role)
-        try:
-            import boto3
-            from botocore.exceptions import NoCredentialsError
+        import subprocess
 
-            # Try to get credentials from boto3 (works with IAM roles too!)
-            session = boto3.Session()
-            credentials = session.get_credentials()
+        # Build celery command
+        celery_cmd = [
+            'celery',
+            '-A', 'celery_config.celery_app',
+            'worker',
+            '--loglevel=INFO',
+            '--concurrency=4',
+            '--queues=analysis,chat,monitoring,celery',
+            '--pool=solo',
+            '--without-gossip',
+            '--without-mingle',
+            '--without-heartbeat',
+        ]
 
-            # Credentials object may exist but be frozen/expired, so we also try to access them
-            if credentials and credentials.access_key:
-                # Check if from environment variables or IAM role
-                aws_access_key = os.environ.get('AWS_ACCESS_KEY_ID')
-                if aws_access_key:
-                    print(f"AWS Credentials: [OK] From environment variables")
-                else:
-                    print(f"AWS Credentials: [OK] From IAM role (App Runner)")
-                print(f"Real AI analysis enabled with Claude Sonnet!")
-            else:
-                # If standard check failed, try actual Bedrock call to verify
-                try:
-                    bedrock = boto3.client('bedrock-runtime', region_name=os.environ.get('AWS_REGION', 'us-east-1'))
-                    # If we can create the client, credentials work
-                    print(f"AWS Credentials: [OK] From IAM role (App Runner) - verified via Bedrock client")
-                    print(f"Real AI analysis enabled with Claude Sonnet!")
-                except Exception as bedrock_err:
-                    print(f"AWS Credentials: [NOT SET] Not configured")
-                    print(f"Mock AI responses will be used for testing")
-                    print(f"Run 'python test_bedrock_connection.py' to test AWS setup")
-                    print(f"Debug info: {str(bedrock_err)}")
-        except Exception as e:
-            print(f"AWS Credentials: [ERROR] Failed to check credentials: {e}")
-            print(f"Mock AI responses will be used for testing")
-        
-        # Ensure required directories exist
-        os.makedirs('uploads', exist_ok=True)
-        os.makedirs('data', exist_ok=True)
-        
-        # Start the Flask application
-        # Use debug=False for production (App Runner)
-        debug_mode = flask_env != 'production'
-        
-        print(f"Debug mode: {debug_mode}")
-        print("AI-Prism configured for AWS App Runner deployment")
-        print("=" * 60)
-        print("Ready for document analysis with Hawkeye framework!")
-        print("=" * 60)
-        
-        app.run(
-            debug=debug_mode,
-            host=host,
-            port=port,
-            threaded=True,
-            use_reloader=False
+        # Start Celery worker as subprocess
+        # Pass current environment to subprocess
+        env = os.environ.copy()
+
+        celery_process = subprocess.Popen(
+            celery_cmd,
+            env=env,
+            # Don't capture output - let it print to console for debugging
+            stdout=None,
+            stderr=None
         )
-        
+
+        print(f"✅ Celery worker started (PID: {celery_process.pid})")
+        sys.stdout.flush()
+
+        return celery_process
+
     except Exception as e:
-        print("=" * 60)
-        print("[ERROR] AI-PRISM STARTUP ERROR")
-        print("=" * 60)
-        print(f"Error: {e}")
-        print("\nFull traceback:")
+        print(f"⚠️  Celery worker error: {e}")
         import traceback
         traceback.print_exc()
-        print("=" * 60)
-        print("Check configuration and dependencies")
-        print("See AWS_SETUP_GUIDE.md for help")
-        print("=" * 60)
-        sys.exit(1)
+        return None
+
+def start_flask_app():
+    """Start Flask app"""
+    print("🚀 Starting Flask application...")
+    sys.stdout.flush()
+
+    # Import Flask app
+    from app import app as flask_app
+
+    port = int(os.environ.get('PORT', 8080))
+    debug = os.environ.get('FLASK_ENV', 'development') != 'production'
+
+    print(f"   Listening on http://0.0.0.0:{port}")
+    print()
+    sys.stdout.flush()
+
+    # Start Flask (this blocks)
+    flask_app.run(
+        host='0.0.0.0',
+        port=port,
+        debug=debug,
+        use_reloader=False,  # Important: disable reloader
+        threaded=True
+    )
+
+def main():
+    """Main entry point"""
+    print("=" * 60)
+    print("AI-Prism Document Analysis Platform")
+    print("=" * 60)
+    print(f"Environment: {os.environ.get('FLASK_ENV', 'development')}")
+    print(f"Port: {os.environ.get('PORT', 8080)}")
+    print(f"AWS Region: {os.environ.get('AWS_REGION', 'us-east-1')}")
+    print(f"S3 Bucket: {os.environ.get('S3_BUCKET_NAME', 'felix-s3-bucket')}")
+    print(f"Celery Backend: {os.environ.get('CELERY_RESULT_BACKEND', 's3://...')}")
+    print("=" * 60)
+    print()
+
+    celery_process = None
+
+    try:
+        # Check if we're on App Runner or similar managed environment
+        is_managed_env = os.environ.get('AWS_EXECUTION_ENV', '').startswith('AWS_ECS_')
+
+        if not is_managed_env:
+            # Local development - start Celery worker as subprocess
+            celery_process = start_celery_worker()
+
+            # Give Celery a moment to start
+            import time
+            time.sleep(3)
+        else:
+            print("ℹ️  Running in managed environment (App Runner)")
+            print("   Celery worker should be running separately")
+            print()
+
+        # Start Flask app (blocks until shutdown)
+        start_flask_app()
+
+    except KeyboardInterrupt:
+        print("\n🛑 Shutting down...")
+        if celery_process:
+            print(f"   Stopping Celery worker (PID: {celery_process.pid})")
+            celery_process.terminate()
+            celery_process.wait(timeout=5)
+        print("✅ Cleanup complete")
+    except Exception as e:
+        print(f"\n❌ Fatal error: {e}")
+        import traceback
+        traceback.print_exc()
+        if celery_process:
+            celery_process.terminate()
+        return 1
+
+    return 0
 
 if __name__ == '__main__':
-    main()
+    sys.exit(main())

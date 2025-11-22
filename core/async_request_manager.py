@@ -18,8 +18,10 @@ from datetime import datetime, timedelta
 from collections import defaultdict, deque
 from typing import Dict, List, Optional, Tuple, Any
 import threading
-import redis
 import json
+
+# Note: Redis removed - using in-memory rate limiting instead
+# Rate limiting state is per-process, which works fine for our use case
 
 # Rate Limiting Configuration
 class RateLimitConfig:
@@ -134,21 +136,12 @@ class AsyncRequestManager:
         """
         Initialize the async request manager
 
-        Args:
-            redis_url: Redis connection URL (default: from environment)
+        Note: Redis has been removed - using in-memory rate limiting
         """
-        self.redis_url = redis_url or os.environ.get('REDIS_URL', 'redis://localhost:6379/0')
-
-        # Initialize Redis for distributed coordination
-        try:
-            self.redis_client = redis.from_url(self.redis_url, decode_responses=True)
-            self.redis_client.ping()  # Test connection
-            self.redis_available = True
-            print("✅ Redis connected for distributed rate limiting")
-        except Exception as e:
-            print(f"⚠️ Redis not available, using local rate limiting: {e}")
-            self.redis_available = False
-            self.redis_client = None
+        # Redis removed - using in-memory rate limiting (works fine for single-region deployment)
+        self.redis_available = False
+        self.redis_client = None
+        print("✅ Using in-memory rate limiting (SQS-based deployment)")
 
         # Rate limiting state
         self.request_timestamps = deque()

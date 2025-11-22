@@ -136,14 +136,23 @@ function uploadAndAnalyze(analysisFile, guidelinesFile, guidelinesPreference) {
             
             populateSectionSelect(data.sections);
             showMainContent();
-            
-            startComprehensiveAnalysis();
-            
-            let message = 'Documents uploaded successfully!';
+
+            // ❌ DISABLED: Old auto-analysis workflow (causes unwanted popup with GIFs)
+            // startComprehensiveAnalysis();
+            // ✅ NEW WORKFLOW: Manual on-demand analysis per section
+            // User clicks "Analyze This Section" button when ready
+
+            // Show instruction message in feedback panel
+            if (typeof showAnalysisInstruction === 'function') {
+                showAnalysisInstruction();
+            }
+
+            let message = `Document uploaded successfully! ${sections.length} sections found. Select a section to analyze.`;
             if (data.guidelines_uploaded) {
                 message += ` Using ${guidelinesPreference.replace('_', ' ')} guidelines.`;
             }
             showNotification(message, 'success');
+            hideProgress();
         } else {
             showNotification(data.error || 'Upload failed', 'error');
             hideProgress();
@@ -192,30 +201,34 @@ function showMainContent() {
 }
 
 function startComprehensiveAnalysis() {
-    showProgress('Starting comprehensive analysis...');
-    
-    window.currentAnalysisStep = 0;
-    analyzeNextSection();
+    // ❌ DISABLED: Old auto-analysis workflow with GIF popups
+    // This function is no longer used - sections are analyzed on-demand
+    console.warn('startComprehensiveAnalysis() is disabled. Use on-demand analysis instead.');
+    return;
+
+    // OLD CODE DISABLED BELOW:
+    // showProgress('Starting comprehensive analysis...');
+    // window.currentAnalysisStep = 0;
+    // analyzeNextSection();
 }
 
 function analyzeNextSection() {
-    if (window.currentAnalysisStep >= window.sections.length) {
-        completeAnalysis();
-        return;
-    }
-    
-    const sectionName = window.sections[window.currentAnalysisStep];
-    const progressPercent = ((window.currentAnalysisStep + 1) / window.sections.length) * 100;
-    
-    // Update progress bar
-    const progressFill = document.getElementById('progressFill');
-    const progressText = document.getElementById('progressText');
-    
-    if (progressFill) progressFill.style.width = progressPercent + '%';
-    if (progressText) progressText.textContent = `🔍 Analyzing: ${sectionName} (${window.currentAnalysisStep + 1}/${window.sections.length}) - ${Math.round(progressPercent)}%`;
-    
-    // Show detailed progress in document progress panel
-    showSectionLoadingProgress(sectionName);
+    // ❌ DISABLED: Old sequential auto-analysis workflow
+    console.warn('analyzeNextSection() is disabled. Use on-demand analysis instead.');
+    return;
+
+    // OLD CODE DISABLED BELOW:
+    // if (window.currentAnalysisStep >= window.sections.length) {
+    //     completeAnalysis();
+    //     return;
+    // }
+    // const sectionName = window.sections[window.currentAnalysisStep];
+    // const progressPercent = ((window.currentAnalysisStep + 1) / window.sections.length) * 100;
+    // const progressFill = document.getElementById('progressFill');
+    // const progressText = document.getElementById('progressText');
+    // if (progressFill) progressFill.style.width = progressPercent + '%';
+    // if (progressText) progressText.textContent = `🔍 Analyzing: ${sectionName} (${window.currentAnalysisStep + 1}/${window.sections.length}) - ${Math.round(progressPercent)}%`;
+    // showSectionLoadingProgress(sectionName);
     
     // Update detailed progress
     const progressTitle = document.getElementById('progressTitle');
@@ -305,35 +318,18 @@ function analyzeNextSection() {
 }
 
 function completeAnalysis() {
-    const progressText = document.getElementById('progressText');
-    const progressTitle = document.getElementById('progressTitle');
-    const progressDesc = document.getElementById('progressDesc');
-    
-    if (progressText) progressText.textContent = '🎉 Comprehensive Analysis Complete!';
-    if (progressTitle) progressTitle.textContent = '🎉 All sections analyzed successfully!';
-    if (progressDesc) progressDesc.textContent = '📋 Ready to review feedback and complete your document analysis';
-    
-    // Show completion for a moment
-    setTimeout(() => {
-        hideProgress();
-        hideSectionLoadingProgress();
-        
-        // Load first section
-        loadSection(0);
-        updateStatistics();
-        
-        // Enable complete review button
-        const completeBtn = document.getElementById('completeReviewBtn');
-        if (completeBtn) completeBtn.disabled = false;
-        
-        // Show success notification
-        showNotification('🎉 Comprehensive analysis completed! Navigate through sections to review AI-generated feedback.', 'success');
-        
-        // Show helpful tip
-        setTimeout(() => {
-            showNotification('💡 Tip: Use the section dropdown or Previous/Next buttons to navigate between sections', 'info');
-        }, 3000);
-    }, 3000);
+    // ❌ DISABLED: Old auto-analysis completion workflow
+    console.warn('completeAnalysis() is disabled. Use on-demand analysis instead.');
+    return;
+
+    // OLD CODE DISABLED BELOW:
+    // const progressText = document.getElementById('progressText');
+    // const progressTitle = document.getElementById('progressTitle');
+    // const progressDesc = document.getElementById('progressDesc');
+    // if (progressText) progressText.textContent = '🎉 Comprehensive Analysis Complete!';
+    // if (progressTitle) progressTitle.textContent = '🎉 All sections analyzed successfully!';
+    // if (progressDesc) progressDesc.textContent = '📋 Ready to review feedback and complete your document analysis';
+    // ... rest of old code
 }
 
 function loadSection(index) {
@@ -1048,26 +1044,31 @@ function showSectionLoadingProgress(sectionName) {
     const progressPanel = document.getElementById('documentProgress');
     if (progressPanel) {
         progressPanel.style.display = 'block';
-        
+
         // Update progress content
         const progressTitle = document.getElementById('progressTitle');
         const progressDesc = document.getElementById('progressDesc');
         const progressGif = document.getElementById('progressGif');
-        
+
         if (progressTitle) {
             progressTitle.textContent = `🔍 AI-Prism is analyzing "${sectionName}"...`;
         }
-        
+
         if (progressDesc) {
             progressDesc.textContent = 'Applying Hawkeye framework and generating intelligent feedback...';
         }
-        
+
+        // ❌ REMOVED: GIF display that was causing unwanted popup
+        // if (progressGif) {
+        //     progressGif.src = 'https://media.giphy.com/media/3o7btPCcdNniyf0ArS/giphy.gif';
+        //     progressGif.alt = 'AI-Prism is analyzing...';
+        // }
+
+        // Hide GIF element completely
         if (progressGif) {
-            // Use a default loading GIF
-            progressGif.src = 'https://media.giphy.com/media/3o7btPCcdNniyf0ArS/giphy.gif';
-            progressGif.alt = 'AI-Prism is analyzing...';
+            progressGif.style.display = 'none';
         }
-        
+
         // Start a simple animation cycle
         startLoadingAnimation();
     }

@@ -1,0 +1,83 @@
+================================================================================
+COMPREHENSIVE END-TO-END TEST REPORT
+================================================================================
+Date: 2025-11-20 17:28:28
+Base URL: http://localhost:8080
+
+
+Infrastructure
+--------------------------------------------------------------------------------
+
+PASS: Server Status and Connectivity (0.04s)
+  Details:
+    - Server response: 200
+    - Server is running and accessible
+    - Response size: 411276 bytes
+
+PASS: Claude API Connection Test (1.30s)
+  Details:
+    - Response status: 200
+    - Connected: True
+    - Model: Claude 3.5 Sonnet
+    - Response time: 1.30s
+
+Core Functionality
+--------------------------------------------------------------------------------
+
+PASS: Document Upload and Section Extraction (0.11s)
+  Details:
+    - Test document created successfully
+    - Upload response: 200
+    - Session ID: 2e88f382-3c76-4a3a-ac17-aca26be24842
+    - Sections extracted: 4
+    - Section names: Executive Summary, Timeline of Events, Root Cause Analysis, Preventative Actions
+
+PASS: On-Demand Section Analysis (44.72s)
+  Details:
+    - Analysis response: 200
+    - Async mode: True
+    - Task ID: b7a38c2d-94e9-40a2-a934-f8e2337e2f08
+    - Section content included: True
+    - Polling for task completion...
+    - Poll attempt 1: PENDING
+    - Poll attempt 2: PROGRESS
+    - Poll attempt 3: PROGRESS
+    - Poll attempt 4: PROGRESS
+    - Poll attempt 5: PROGRESS
+    - Poll attempt 6: PROGRESS
+    - Poll attempt 7: SUCCESS
+    - Raw result keys: ['duration', 'feedback_count', 'feedback_items', 'model_used', 'section', 'success', 'tokens']
+    - Result success: True
+    - Analysis complete!
+    - Feedback items type: <class 'list'>
+    - Feedback items generated: 10
+    - Duration: 31.99s
+    - Model used: Claude Sonnet 4.5 (Extended Thinking)
+    - First feedback item keys: ['category', 'confidence', 'description', 'example', 'hawkeye_refs']
+
+User Interaction
+--------------------------------------------------------------------------------
+
+PASS: Chat Assistant Functionality (14.89s)
+  Details:
+    - Chat response: 200
+    - Async mode: True
+    - Task ID: 5b3cb267-af28-4257-a7e6-6442f27fcbd2
+    - Polling for chat response...
+    - Chat response received!
+    - Response length: 1402 characters
+    - Model used: Claude Sonnet 4.5 (Extended Thinking)
+    - Preview: For an Executive Summary section, the most critical Hawkeye checkpoints are:
+
+**Primary Checkpoints:...
+
+Data Management
+--------------------------------------------------------------------------------
+
+PASS: Statistics and Session Management (0.00s)
+  Details:
+    - Statistics response: 200
+    - Sections analyzed: 0
+    - Total feedback: 0
+    - High risk items: 0
+    - Medium risk items: 0

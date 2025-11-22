@@ -276,7 +276,7 @@
             max-height: 900px;
             display: flex;
             flex-direction: column;
-            overflow: hidden;
+            overflow: visible;  /* Changed from hidden to visible to enable scroll in children */
         }
 
         .document-header {
@@ -492,10 +492,10 @@
             animation: bounce 1.4s infinite ease-in-out;
         }
         
-        .thinking-dot:nth-child(1) { animation-delay: -0.32s; }
+        /* .thinking-dot:nth-child(1) { animation-delay: -0.32s; }
         .thinking-dot:nth-child(2) { animation-delay: -0.16s; }
         .thinking-dot:nth-child(3) { animation-delay: 0s; }
-        
+         */
         @keyframes bounce {
             0%, 80%, 100% { transform: scale(0); }
             40% { transform: scale(1); }
@@ -1750,6 +1750,23 @@
             display: block;
         }
 
+        /* ✅ FIXED: Modal overlay to freeze background */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(5px);
+            z-index: 9999;
+            display: none;
+        }
+
+        .modal-overlay.active {
+            display: block;
+        }
+
         .document-progress {
             position: fixed;
             top: 50%;
@@ -1764,6 +1781,35 @@
             width: 90%;
             text-align: center;
             display: none;
+        }
+
+        /* ✅ FIXED: CSS Spinner (replaces GIF) */
+        .loading-spinner {
+            width: 80px;
+            height: 80px;
+            margin: 0 auto 25px;
+            position: relative;
+        }
+
+        .loading-spinner::after {
+            content: '';
+            display: block;
+            width: 64px;
+            height: 64px;
+            margin: 8px;
+            border-radius: 50%;
+            border: 6px solid #4f46e5;
+            border-color: #4f46e5 transparent #4f46e5 transparent;
+            animation: spinner-rotate 1.2s linear infinite;
+        }
+
+        @keyframes spinner-rotate {
+            0% {
+                transform: rotate(0deg);
+            }
+            100% {
+                transform: rotate(360deg);
+            }
         }
 
         .progress-gif {
@@ -2421,6 +2467,159 @@
             margin-bottom: 8px;
             line-height: 1.5;
         }
+
+        /* Enhanced Guidelines Modal Styles - Performance Optimized */
+        .guidelines-modal-container {
+            transition: all 0.3s ease;
+            animation: modalFadeIn 0.4s ease-out;
+        }
+        
+        .guidelines-description {
+            border: 2px solid #667eea;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.1);
+        }
+        
+        .guidelines-description:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 16px rgba(102, 126, 234, 0.15);
+        }
+        
+        .guidelines-actions {
+            margin: 25px 0;
+        }
+        
+        .guidelines-btn {
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .guidelines-btn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+            transition: left 0.5s;
+        }
+        
+        .guidelines-btn:hover::before {
+            left: 100%;
+        }
+        
+        .guidelines-btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.2);
+        }
+        
+        .guidelines-btn:active {
+            transform: translateY(-1px);
+        }
+        
+        .guidelines-info {
+            animation: infoSlideIn 0.6s ease-out 0.2s both;
+        }
+        
+        @keyframes modalFadeIn {
+            from {
+                opacity: 0;
+                transform: scale(0.9) translateY(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: scale(1) translateY(0);
+            }
+        }
+        
+        @keyframes infoSlideIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        /* Error state styles for robust error handling */
+        .guidelines-modal-error {
+            background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%);
+            border: 2px solid #f87171;
+            border-radius: 12px;
+            padding: 20px;
+            text-align: center;
+            color: #dc2626;
+        }
+        
+        .guidelines-modal-error h3 {
+            color: #dc2626;
+            margin-bottom: 15px;
+        }
+        
+        /* Loading state for better UX */
+        .guidelines-loading {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            padding: 12px 24px;
+            background: #f3f4f6;
+            border-radius: 8px;
+            color: #6b7280;
+        }
+        
+        .guidelines-spinner {
+            width: 16px;
+            height: 16px;
+            border: 2px solid #e5e7eb;
+            border-top: 2px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        /* Responsive design for mobile devices */
+        @media (max-width: 768px) {
+            .guidelines-actions {
+                flex-direction: column;
+                align-items: center;
+            }
+            
+            .guidelines-btn {
+                width: 100%;
+                max-width: 280px;
+                margin: 5px 0;
+            }
+            
+            .guidelines-modal-container {
+                padding: 15px;
+            }
+        }
+        
+        /* Dark mode support with enhanced contrast */
+        .dark-mode .guidelines-modal-container {
+            background: linear-gradient(135deg, #1f2937 0%, #374151 100%);
+            border: 2px solid #4b5563;
+            border-radius: 15px;
+            color: #f9fafb;
+        }
+        
+        .dark-mode .guidelines-description {
+            background: linear-gradient(135deg, #374151 0%, #4b5563 100%);
+            border-color: #6366f1;
+        }
+        
+        .dark-mode .guidelines-info {
+            background: rgba(99, 102, 241, 0.2);
+            color: #a5b4fc;
+        }
+        
+        .dark-mode .guidelines-modal-error {
+            background: linear-gradient(135deg, #450a0a 0%, #7f1d1d 100%);
+            border-color: #ef4444;
+            color: #fca5a5;
+        }
     </style>
 </head>
 <body>
@@ -2450,7 +2649,7 @@
             <button class="btn btn-warning" onclick="resetSession()">🔄 Reset</button>
 
             <button class="btn btn-info" onclick="testS3Connection()" title="Test S3 connectivity">☁️ Test S3</button>
-            <button class="btn btn-info" onclick="testClaudeConnection()" title="Test Claude AI connectivity">🤖 Test Claude</button>
+            <!-- <button class="btn btn-info" onclick="testClaudeConnection()" title="Test Claude AI connectivity">🤖 Test AI connectivity</button> -->
         </div>
 
         <!-- Upload Area - Always Visible -->
@@ -2589,6 +2788,7 @@
                             <button class="btn btn-info color-btn" onclick="setHighlightColor('lightblue')" style="padding: 4px 8px; font-size: 11px; background: #add8e6; color: #333; border: 2px solid #9ac5d3;">🔵 Blue</button>
                             <button class="btn btn-danger color-btn" onclick="setHighlightColor('lightcoral')" style="padding: 4px 8px; font-size: 11px; background: #f08080; color: #333; border: 2px solid #dd6d6d;">🔴 Red</button>
                             <button class="btn btn-secondary color-btn" onclick="setHighlightColor('lightgray')" style="padding: 4px 8px; font-size: 11px; background: #d3d3d3; color: #333; border: 2px solid #c0c0c0;">⚪ Gray</button>
+                            <button id="saveHighlightBtn" class="btn btn-success" onclick="applyHighlight()" style="padding: 4px 8px; font-size: 11px; display: none; background: #2ecc71; color: white; border: 2px solid #27ae60; font-weight: 600; animation: pulse 1s infinite;">💾 Save & Comment</button>
                             <button class="btn btn-primary" onclick="showAddCommentDialog()" style="padding: 4px 8px; font-size: 11px;">💬 Add Comment</button>
                             <button class="btn btn-info" onclick="showUpdateCommentsDialog()" style="padding: 4px 8px; font-size: 11px;">✏️ Update Comments</button>
                             <button class="btn btn-secondary" onclick="clearAllHighlights()" style="padding: 4px 8px; font-size: 11px;">🧹 Clear All</button>
@@ -2619,20 +2819,16 @@
                             <!-- User feedback will be displayed in "All My Custom Feedback" section only -->
                         </div>
                         
+
                         <div id="feedbackContainer" style="order: 2;">
                             <div style="text-align: center; padding: 40px; background: linear-gradient(135deg, #f8f9ff 0%, #e3f2fd 100%); border-radius: 15px; border: 2px solid #4f46e5;">
-                                <div style="font-size: 3em; margin-bottom: 20px; animation: analyzing 2s infinite;">🔍</div>
-                                <h3 style="color: #4f46e5; margin-bottom: 10px;">Ready to Analyze</h3>
-                                <p style="color: #666;">Select a section to start AI-powered analysis</p>
+                                <div style="font-size: 3em; margin-bottom: 20px;">🤖</div>
+                                <h3 style="color: #4f46e5; margin-bottom: 10px;">AI-Powered Document Analysis</h3>
+                                <p style="color: #666;">Upload your .docx document above to start intelligent section-by-section analysis with the Hawkeye Framework</p>
+                                <p style="color: #999; font-size: 0.9em; margin-top: 15px;">Powered by Claude Sonnet 4.5 • Real-time AI Feedback • Automatic Database Saving</p>
                             </div>
-                            <style>
-                                @keyframes analyzing {
-                                    0%, 100% { transform: scale(1) rotate(0deg); opacity: 1; }
-                                    50% { transform: scale(1.2) rotate(15deg); opacity: 0.8; }
-                                }
-                            </style>
                         </div>
-                        
+                     
                         <!-- Custom feedback form moved below main content -->
                     </div>
                 </div>
@@ -2736,15 +2932,21 @@
             </div>
         </div>
 
-        <!-- Document Progress Panel -->
-        <div class="document-progress" id="documentProgress" style="display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(255, 255, 255, 0.98); padding: 40px; border-radius: 20px; box-shadow: 0 20px 60px rgba(0,0,0,0.3); z-index: 10000; max-width: 600px; width: 90%; text-align: center; backdrop-filter: blur(10px);">
+        <!-- ✅ FIXED: Modal overlay to freeze background -->
+        <div class="modal-overlay" id="modalOverlay"></div>
+
+
+
+
+<!--           
+        
+            <div class="document-progress" id="documentProgress" style="display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(255, 255, 255, 0.98); padding: 40px; border-radius: 20px; box-shadow: 0 20px 60px rgba(0,0,0,0.3); z-index: 10000; max-width: 600px; width: 90%; text-align: center; backdrop-filter: blur(10px);">
             <div class="loading-content">
-                <img id="progressGif" class="progress-gif" src="https://media.giphy.com/media/3o7btPCcdNniyf0ArS/giphy.gif" alt="AI-Prism is analyzing..." style="width: 180px; height: 180px; border-radius: 15px; margin-bottom: 25px; box-shadow: 0 10px 30px rgba(0,0,0,0.3); display: block; margin-left: auto; margin-right: auto;">
+                                 <div class="loading-spinner" id="loadingSpinner"></div>
                 <div id="progressTitle" class="loading-text" style="font-size: 1.6em; font-weight: bold; margin-bottom: 15px; color: #4f46e5; line-height: 1.3;">🤖 AI-Prism is analyzing...</div>
                 <div id="progressDesc" class="loading-subtext" style="font-size: 1.1em; opacity: 0.8; color: #6b7280; margin-bottom: 20px; line-height: 1.4;">Please wait while magic happens!</div>
                 
-                <!-- Progress Bar -->
-                <div style="background: #ecf0f1; height: 8px; border-radius: 4px; overflow: hidden; margin: 20px 0;">
+                                <div style="background: #ecf0f1; height: 8px; border-radius: 4px; overflow: hidden; margin: 20px 0;">
                     <div id="sectionProgress" style="background: linear-gradient(90deg, #4f46e5, #7c3aed); height: 100%; width: 0%; transition: width 0.3s ease; border-radius: 4px;"></div>
                 </div>
                 
@@ -2753,13 +2955,13 @@
                     <div id="progressSubtext" style="font-size: 0.9em; color: #6b7280;">Applying Hawkeye framework for comprehensive analysis</div>
                 </div>
                 
-                <!-- Cancel Button -->
+                
                 <div style="margin-top: 20px;">
                     <button onclick="cancelAnalysis()" style="background: #e74c3c; color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-size: 14px; transition: background 0.2s;" onmouseover="this.style.background='#c0392b'" onmouseout="this.style.background='#e74c3c'">❌ Cancel Analysis</button>
                 </div>
             </div>
         </div>
-        
+----- -->
         <!-- Action Buttons -->
         <div class="controls" id="actionButtons" style="display: none; justify-content: center;">
             <button class="btn btn-warning" onclick="revertAllFeedback()" id="revertAllBtn">
@@ -2924,7 +3126,7 @@
     </div>
 
     <!-- Generic Modal for dynamic content -->
-    <div class="modal" id="genericModal">
+    <div class="modal" id="genericModal" style="display: none;">
         <div class="modal-content">
             <div class="modal-header">
                 <h3 id="genericModalTitle">Information</h3>
@@ -3008,22 +3210,26 @@
 
     <script src="/static/js/clean_fixes.js"></script>
     <script src="/static/js/app.js"></script>
-    <script src="/static/js/button_fixes.js"></script>
+    <!-- DISABLED: Syntax error - redeclaration of let guidelinesFile -->
+    <!-- <script src="/static/js/button_fixes.js"></script> -->
     <script src="/static/js/missing_functions.js"></script>
-    <script src="/static/js/progress_functions.js"></script>
+    <script src="/static/js/progress_functions.js?v=1763821067"></script>
     <script src="/static/js/text_highlighting.js"></script>
     <script src="/static/js/custom_feedback_functions.js"></script>
     <script src="/static/js/user_feedback_management.js"></script>
     <script src="/static/js/custom_feedback_help.js"></script>
     <script src="/static/js/text_highlight_comments.js"></script>
     <script src="/static/js/enhanced_help_system.js"></script>
-    <script src="/static/js/custom_feedback_fix.js"></script>
+    <!-- DISABLED: Syntax error - invalid escape sequence at line 75 -->
+    <!-- <script src="/static/js/custom_feedback_fix.js"></script> -->
     <!-- Network error handler - MUST load FIRST to wrap fetch() -->
     <script src="/static/js/network_error_handler.js"></script>
     <!-- Core fixes MUST load last to override conflicts -->
     <script src="/static/js/core_fixes.js"></script>
     <!-- Complete review warning system - checks feedback status before generating document -->
     <script src="/static/js/complete_review_warning.js"></script>
+    <!-- Activity Logs - Display and track all system activities -->
+    <script src="/static/js/activity_logs.js"></script>
     <script>
         // Global variables - using window scope to avoid conflicts with other JS files
         window.currentSession = window.currentSession || null;
@@ -3038,6 +3244,7 @@
         window.finalDocumentData = window.finalDocumentData || null;
         window.isDarkMode = window.isDarkMode || false;
         window.documentZoom = window.documentZoom || 100;
+        window.currentAIModel = window.currentAIModel || 'ai-prism-model';  // Default AI model
         window.dashboardData = window.dashboardData || {
             totalFeedback: 0,
             acceptedFeedback: 0,
@@ -3045,106 +3252,25 @@
             userFeedback: 0
         };
         
-        // Text highlighting variables moved to text_highlighting.js
-        
-        // Loading media array
-        const loadingMediaWithContent = [
-            {
-                gif: 'https://media.giphy.com/media/26tn33aiTi1jkl6H6/giphy.gif',
-                joke: "What's Iron Man's favorite type of music? Heavy metal! 🎵",
-                math: "Physics: If light travels at 300,000 km/s, how far in 1 minute? Answer: 18 million km! ⚡"
-            },
-            {
-                gif: 'https://media.giphy.com/media/3o7btPCcdNniyf0ArS/giphy.gif',
-                joke: "Why is Sherlock Holmes so good at solving crimes? He always finds the clues elementary! 🔍",
-                math: "Deduction: If A > B and B > C, then A > C. This is called? Answer: Transitive property! 📊"
-            },
-            
-            // Cartoons & Animation
-            {
-                gif: 'https://media.giphy.com/media/l3q2K5jinAlChoCLS/giphy.gif',
-                joke: "Why is SpongeBob so good at his job? He's always ready! 🧽",
-                math: "Underwater Math: If SpongeBob makes 100 Krabby Patties in 2 hours, what's his rate per hour? Answer: 50 patties/hour! 🍔"
-            },
-            {
-                gif: 'https://media.giphy.com/media/3o6Zt4HU9uwXmXSAuI/giphy.gif',
-                joke: "What do you call a Minion who works in IT? A tech-nion! 👨‍💻",
-                math: "Minion Math: If there are 3 Minions and each eats 4 bananas, how many bananas total? Answer: 12 bananas! 🍌"
-            },
-            
-            // Mathematical & Analytical
-            {
-                gif: 'https://media.giphy.com/media/26BRrSvJUa0crqw4E/giphy.gif',
-                joke: "Why was the equal sign so humble? Because it knew it wasn't less than or greater than anyone! =",
-                math: "Algebra Challenge: Solve for x: 2x + 5 = 15. Answer: x = 5! ✨"
-            },
-            {
-                gif: 'https://media.giphy.com/media/3o7btNa0RUYa5E7iiQ/giphy.gif',
-                joke: "What did the calculator say to the math student? You can count on me! 🧮",
-                math: "Percentage Puzzle: What's 25% of 80? Answer: 20! (Tip: 25% = 1/4) 📈"
-            },
-            
-            // Office & Work Humor
-            {
-                gif: 'https://media.giphy.com/media/l0MYGb8Q5QNhNBuDu/giphy.gif',
-                joke: "Why don't programmers like nature? It has too many bugs! 🐛",
-                math: "Coding Math: In binary, what comes after 1011? Answer: 1100! 💾"
-            },
-            {
-                gif: 'https://media.giphy.com/media/26u4cqiYI30juCOGY/giphy.gif',
-                joke: "What's a computer's favorite snack? Microchips! 🍟",
-                math: "Data Size: How many bytes in 1 kilobyte? Answer: 1,024 bytes! 💽"
-            },
-            
-            // Smart & Nerdy
-            {
-                gif: 'https://media.giphy.com/media/26BRBKqUiq586bRVm/giphy.gif',
-                joke: "Why do mathematicians love parks? Because of all the natural logs! 🌳",
-                math: "Logarithm: What's log₁₀(1000)? Answer: 3! (Because 10³ = 1000) 📐"
-            },
-            {
-                gif: 'https://media.giphy.com/media/3o7TKF1fSIs1R19B8k/giphy.gif',
-                joke: "What do you call a professor who doesn't fart in public? A private tutor! 🎓",
-                math: "Statistics: In a normal distribution, what percentage falls within 1 standard deviation? Answer: ~68%! 📊"
-            },
-            
-            // Bonus Fun Content
-            {
-                gif: 'https://media.giphy.com/media/l0HlBO7eyXzSZkJri/giphy.gif',
-                joke: "Why did the scarecrow win an award? He was outstanding in his field! 🌾",
-                math: "Geometry: Sum of angles in a triangle? Answer: Always 180°! 📐"
-            },
-            {
-                gif: 'https://media.giphy.com/media/3oriO0OEd9QIDdllqo/giphy.gif',
-                joke: "What do you call a fake noodle? An impasta! 🍝",
-                math: "Time Math: How many seconds in a day? Answer: 86,400 seconds! ⏰"
-            },
-            {
-                gif: 'https://media.giphy.com/media/3oEjHCWdU7F4hkcudy/giphy.gif',
-                joke: "Why don't scientists trust stairs? Because they're always up to something! 🪜",
-                math: "Fibonacci: What's the next number after 1,1,2,3,5,8? Answer: 13! 🔢"
-            }
-        ];
-        
         let currentMediaIndex = 0;
         let mediaRotationInterval = null;
         let isMediaRotating = false;
         let usedMediaIndices = [];
         let currentContentType = 'gif'; // 'gif', 'joke', 'math'
-        
+
         let showGraphics = true;
-        let currentAnalysisStep = 0;
-        let totalSections = 0;
-        let currentAIModel = 'ai-prism-model';
-        window.availableModels = window.availableModels || {
-            'ai-prism-model': 'AI-Prism Model (Primary)',
-            'ai-prism-backup': 'AI-Prism Backup Model',
-            'ai-prism-fast': 'AI-Prism Fast Model',
-            'ai-prism-precise': 'AI-Prism Precise Model',
-            'ai-prism-comprehensive': 'AI-Prism Comprehensive Model'
-        };
-        let modelFallbackOrder = ['ai-prism-model', 'ai-prism-backup', 'ai-prism-fast', 'ai-prism-precise', 'ai-prism-comprehensive'];
-        let currentModelIndex = 0;
+        // // currentAnalysisStep removed - causes redeclaration error
+        // // totalSections removed - already defined globally at line 3030
+        // let currentAIModel = 'ai-prism-model';
+        // window.availableModels = window.availableModels || {
+        //     'ai-prism-model': 'AI-Prism Model (Primary)',
+        //     'ai-prism-backup': 'AI-Prism Backup Model',
+        //     'ai-prism-fast': 'AI-Prism Fast Model',
+        //     'ai-prism-precise': 'AI-Prism Precise Model',
+        //     'ai-prism-comprehensive': 'AI-Prism Comprehensive Model'
+        // };
+        // let modelFallbackOrder = ['ai-prism-model', 'ai-prism-backup', 'ai-prism-fast', 'ai-prism-precise', 'ai-prism-comprehensive'];
+        // let currentModelIndex = 0;
         
         // Notification function
         function showNotification(message, type) {
@@ -3257,39 +3383,39 @@
             }
         });
         
-        function showHighlightingInstructions() {
-            const modalContent = `
-                <div style="text-align: center; padding: 20px;">
-                    <h3 style="color: #4f46e5; margin-bottom: 20px;">🎨 New Feature: Text Highlighting!</h3>
+        // function showHighlightingInstructions() {
+        //     const modalContent = `
+        //         <div style="text-align: center; padding: 20px;">
+        //             <h3 style="color: #4f46e5; margin-bottom: 20px;">🎨 New Feature: Text Highlighting!</h3>
                     
-                    <div style="background: linear-gradient(135deg, #f8f9ff 0%, #e3f2fd 100%); padding: 20px; border-radius: 15px; margin-bottom: 20px; border: 2px solid #4f46e5;">
-                        <h4 style="color: #4f46e5; margin-bottom: 15px;">📝 How to Use Text Highlighting:</h4>
+        //             <div style="background: linear-gradient(135deg, #f8f9ff 0%, #e3f2fd 100%); padding: 20px; border-radius: 15px; margin-bottom: 20px; border: 2px solid #4f46e5;">
+        //                 <h4 style="color: #4f46e5; margin-bottom: 15px;">📝 How to Use Text Highlighting:</h4>
                         
-                        <div style="text-align: left; margin-bottom: 15px;">
-                            <p><strong>1. 🎨 Choose Color:</strong> Click a color button in the highlight tools</p>
-                            <p><strong>2. 📖 Select Text:</strong> Highlight any text in the document</p>
-                            <p><strong>3. 💬 Add Comment:</strong> A dialog will appear to add your feedback</p>
-                            <p><strong>4. 🗑️ Erase Mode:</strong> Click "Erase Mode" then click highlights to remove them</p>
-                            <p><strong>5. 🧹 Clear All:</strong> Remove all highlights at once</p>
-                        </div>
+        //                 <div style="text-align: left; margin-bottom: 15px;">
+        //                     <p><strong>1. 🎨 Choose Color:</strong> Click a color button in the highlight tools</p>
+        //                     <p><strong>2. 📖 Select Text:</strong> Highlight any text in the document</p>
+        //                     <p><strong>3. 💬 Add Comment:</strong> A dialog will appear to add your feedback</p>
+        //                     <p><strong>4. 🗑️ Erase Mode:</strong> Click "Erase Mode" then click highlights to remove them</p>
+        //                     <p><strong>5. 🧹 Clear All:</strong> Remove all highlights at once</p>
+        //                 </div>
                         
-                        <div style="background: rgba(79, 70, 229, 0.1); padding: 10px; border-radius: 8px; margin-top: 15px;">
-                            <strong>💡 Pro Tip:</strong> Your highlighted text comments will automatically appear in the "Add Your Custom Feedback" section for easy review!
-                        </div>
-                    </div>
+        //                 <div style="background: rgba(79, 70, 229, 0.1); padding: 10px; border-radius: 8px; margin-top: 15px;">
+        //                     <strong>💡 Pro Tip:</strong> Your highlighted text comments will automatically appear in the "Add Your Custom Feedback" section for easy review!
+        //                 </div>
+        //             </div>
                     
-                    <div style="margin-bottom: 20px;">
-                        <p style="color: #666; font-size: 0.9em;">This feature helps you provide specific feedback on exact text portions in the document.</p>
-                    </div>
+        //             <div style="margin-bottom: 20px;">
+        //                 <p style="color: #666; font-size: 0.9em;">This feature helps you provide specific feedback on exact text portions in the document.</p>
+        //             </div>
                     
-                    <button class="btn btn-primary" onclick="closeModal('genericModal')" style="padding: 12px 25px; border-radius: 20px; font-weight: 600;">
-                        ✨ Got it! Let's Start
-                    </button>
-                </div>
-            `;
+        //             <button class="btn btn-primary" onclick="closeModal('genericModal')" style="padding: 12px 25px; border-radius: 20px; font-weight: 600;">
+        //                 ✨ Got it! Let's Start
+        //             </button>
+        //         </div>
+        //     `;
             
-            showModal('genericModal', 'Text Highlighting Feature', modalContent);
-        }
+        //     showModal('genericModal', 'Text Highlighting Feature', modalContent);
+        // }
         
         function setupEventListeners() {
             // File input changes
@@ -3485,69 +3611,19 @@
         
         function showDocumentProgress() {
             const progressPanel = document.getElementById('documentProgress');
+            const modalOverlay = document.getElementById('modalOverlay');
+
             if (progressPanel) {
                 progressPanel.style.display = 'block';
-                
-                // Rotate through loading GIFs
-                rotateLoadingMedia();
+            }
+
+            // ✅ FIXED: Show modal overlay to freeze background
+            if (modalOverlay) {
+                modalOverlay.classList.add('active');
             }
         }
-        
-        function hideDocumentProgress() {
-            const progressPanel = document.getElementById('documentProgress');
-            if (progressPanel) {
-                progressPanel.style.display = 'none';
-            }
-            
-            // Stop media rotation
-            if (mediaRotationInterval) {
-                clearInterval(mediaRotationInterval);
-                mediaRotationInterval = null;
-            }
-        }
-        
-        function updateDocumentProgress(sectionName, current, total, percent) {
-            const progressTitle = document.getElementById('progressTitle');
-            const progressDesc = document.getElementById('progressDesc');
-            const sectionProgress = document.getElementById('sectionProgress');
-            const progressText = document.getElementById('progressText');
-            const progressSubtext = document.getElementById('progressSubtext');
-            
-            if (progressTitle) {
-                const messages = [
-                    `🔍 AI-Prism is investigating "${sectionName}"...`,
-                    `📚 Deep analysis of "${sectionName}" in progress...`,
-                    `🎯 Applying Hawkeye framework to "${sectionName}"...`,
-                    `🧠 AI-Prism is thinking about "${sectionName}"...`,
-                    `⚡ Processing "${sectionName}" with advanced AI...`
-                ];
-                progressTitle.textContent = messages[Math.floor(Math.random() * messages.length)];
-            }
-            
-            if (progressDesc) {
-                progressDesc.textContent = `Section ${current} of ${total} - ${Math.round(percent)}% complete`;
-            }
-            
-            if (sectionProgress) {
-                sectionProgress.style.width = `${percent}%`;
-            }
-            
-            if (progressText) {
-                const tips = [
-                    `💡 Applying 20-point Hawkeye investigation checklist`,
-                    `🔍 Cross-referencing with quality standards and best practices`,
-                    `📊 Analyzing for compliance gaps and improvement opportunities`,
-                    `⚡ AI-Prism uses advanced reasoning to understand context`,
-                    `🎯 Generating targeted feedback based on document analysis`
-                ];
-                progressText.textContent = tips[Math.floor(Math.random() * tips.length)];
-            }
-            
-            if (progressSubtext) {
-                progressSubtext.textContent = `Processing with Claude 3.7 Sonnet - Advanced AI reasoning enabled`;
-            }
-        }
-        
+
+      
         function updateDocumentProgressMessage(title, description) {
             const progressTitle = document.getElementById('progressTitle');
             const progressDesc = document.getElementById('progressDesc');
@@ -3559,76 +3635,12 @@
             
             // Also update the info section
             if (progressText && title.includes('complete')) {
-                progressText.textContent = '🎉 Analysis completed successfully!';
+                progressText.textContent = 'Analysis completed successfully!';
             }
             if (progressSubtext && description.includes('Ready')) {
                 progressSubtext.textContent = 'Navigate through sections to review AI-generated feedback';
             }
         }
-        
-        function rotateLoadingMedia() {
-            if (isMediaRotating) return;
-            
-            isMediaRotating = true;
-            currentMediaIndex = 0;
-            usedMediaIndices = [];
-            
-            // Show first media immediately
-            showNextLoadingMedia();
-            
-            // Set up rotation interval
-            mediaRotationInterval = setInterval(() => {
-                showNextLoadingMedia();
-            }, 4000); // Change every 4 seconds
-        }
-        
-        function showNextLoadingMedia() {
-            if (loadingMediaWithContent.length === 0) return;
-            
-            // Reset if we've used all media
-            if (usedMediaIndices.length >= loadingMediaWithContent.length) {
-                usedMediaIndices = [];
-            }
-            
-            // Find next unused media
-            let nextIndex;
-            do {
-                nextIndex = Math.floor(Math.random() * loadingMediaWithContent.length);
-            } while (usedMediaIndices.includes(nextIndex) && usedMediaIndices.length < loadingMediaWithContent.length);
-            
-            usedMediaIndices.push(nextIndex);
-            const media = loadingMediaWithContent[nextIndex];
-            
-            // Update the progress GIF and content
-            const progressGif = document.getElementById('progressGif');
-            if (progressGif && media.gif) {
-                progressGif.src = media.gif;
-                progressGif.alt = 'AI-Prism is working...';
-            }
-            
-            // Optionally show joke or math fact in description
-            const progressDesc = document.getElementById('progressDesc');
-            if (progressDesc && Math.random() > 0.5) {
-                if (Math.random() > 0.5 && media.joke) {
-                    progressDesc.textContent = `😄 ${media.joke}`;
-                } else if (media.math) {
-                    progressDesc.textContent = `🧮 ${media.math}`;
-                }
-            }
-        }
-        
-        function hideProgress() {
-            const progressContainer = document.getElementById('progressContainer');
-            if (progressContainer) {
-                progressContainer.style.display = 'none';
-            }
-        }
-        
-        function closeStartupModal() {
-            document.getElementById('startupModal').style.display = 'none';
-        }
-        
-        // Function removed - now handled by clean_fixes.js
         
         function resetHighlightingTutorial() {
             localStorage.removeItem('hasSeenTextHighlightingPopup');
@@ -3690,17 +3702,7 @@
                 `;
             }
             
-            // Show feedback container with loading animation
-            const feedbackContainer = document.getElementById('feedbackContainer');
-            if (feedbackContainer) {
-                feedbackContainer.innerHTML = `
-                    <div style="text-align: center; padding: 40px; background: linear-gradient(135deg, #f8f9ff 0%, #e3f2fd 100%); border-radius: 15px; border: 2px solid #4f46e5;">
-                        <div style="font-size: 3em; margin-bottom: 20px; animation: analyzing 2s infinite;">🔍</div>
-                        <h3 style="color: #4f46e5; margin-bottom: 10px;">Ready to Analyze</h3>
-                        <p style="color: #666;">Select a section to start AI-powered analysis</p>
-                    </div>
-                `;
-            }
+           
         }
         // Ensure updateStatistics function exists
         function updateStatistics() {
@@ -4412,34 +4414,40 @@
         }
         
         function formatAIResponse(message) {
-            // Enhanced formatting for professional AI responses
+            // SIMPLIFIED & SAFE FORMATTING - No more aggressive regex that mangles HTML
+            // This version applies transformations in careful order to avoid conflicts
+
             let formatted = message;
-            
-            // Handle line breaks and paragraph structure
-            formatted = formatted.replace(/\n\n/g, '<br><br>');
+
+            // STEP 1: Escape any existing HTML to prevent injection (safety first)
+            const escapeHtml = (text) => {
+                const div = document.createElement('div');
+                div.textContent = text;
+                return div.innerHTML;
+            };
+            formatted = escapeHtml(formatted);
+
+            // STEP 2: Convert markdown bold **text** to <strong> (before line breaks)
+            formatted = formatted.replace(/\*\*(.*?)\*\*/g, '<strong style="color: #fff; font-weight: 600;">$1</strong>');
+
+            // STEP 3: Convert line breaks (do this AFTER bold, BEFORE lists)
+            formatted = formatted.replace(/\n\n/g, '</p><p>');
             formatted = formatted.replace(/\n/g, '<br>');
-            
-            // Enhanced bold text formatting with better styling
-            formatted = formatted.replace(/\*\*(.*?)\*\*/g, '<strong style="color: #ffffff; font-weight: 700; font-size: 1.05em;">$1</strong>');
-            
-            // Enhanced bullet point formatting with better spacing and styling
-            formatted = formatted.replace(/•\s*(.*?)(<br>|$)/g, '<div style="margin: 10px 0; padding-left: 20px; position: relative; line-height: 1.6;"><span style="position: absolute; left: 0; color: #ffffff; font-weight: bold;">•</span>$1</div>');
-            
-            // Enhanced numbered list formatting
-            formatted = formatted.replace(/(\d+\.)\s*(.*?)(<br>|$)/g, '<div style="margin: 10px 0; padding-left: 25px; position: relative; line-height: 1.6;"><span style="position: absolute; left: 0; color: #ffffff; font-weight: 700;">$1</span>$2</div>');
-            
-            // Enhanced section header formatting
-            formatted = formatted.replace(/(<strong[^>]*>.*?:<\/strong>)/g, '<div style="margin: 15px 0 10px 0; padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.3);">$1</div>');
-            
-            // Format follow-up questions with special styling
-            formatted = formatted.replace(/(<strong[^>]*>.*?Follow-up.*?:<\/strong>)/g, '<div style="margin: 20px 0 10px 0; padding: 10px; background: rgba(255,255,255,0.1); border-radius: 8px; border-left: 4px solid #ffffff;">$1</div>');
-            
-            // Clean up excessive line breaks
+
+            // STEP 4: Wrap in paragraph tags for proper structure
+            formatted = '<p>' + formatted + '</p>';
+
+            // STEP 5: Simple bullet point styling (only for lines starting with bullet)
+            formatted = formatted.replace(/<p>•\s*(.*?)<\/p>/g, '<p style="padding-left: 20px; margin: 8px 0;">• $1</p>');
+            formatted = formatted.replace(/<br>•\s*(.*?)<br>/g, '<br><span style="padding-left: 20px; display: inline-block; margin: 4px 0;">• $1</span><br>');
+
+            // STEP 6: Simple numbered list styling (only for lines starting with number)
+            formatted = formatted.replace(/<p>(\d+)\.\s*(.*?)<\/p>/g, '<p style="padding-left: 20px; margin: 8px 0;">$1. $2</p>');
+
+            // STEP 7: Clean up excessive spacing
+            formatted = formatted.replace(/<p><\/p>/g, '');
             formatted = formatted.replace(/(<br>){3,}/g, '<br><br>');
-            
-            // Add proper spacing around major sections
-            formatted = formatted.replace(/<br><strong style="color: #ffffff/g, '<br><br><strong style="color: #ffffff');
-            
+
             return formatted;
         }
         
@@ -4511,25 +4519,32 @@
                 body: JSON.stringify({
                     session_id: sessionId,
                     message: message,
-                    current_section: sections[currentSectionIndex] || '',
-                    ai_model: currentAIModel
+                    current_section: window.sections[window.currentSectionIndex] || '',
+                    ai_model: window.currentAIModel || 'ai-prism-model'
                 })
             })
             .then(response => response.json())
             .then(data => {
-                hideThinkingIndicator();
-                
-                if (data.success) {
-                    addChatMessage(data.response, 'assistant');
-                    chatHistory.push({
-                        user: message,
-                        assistant: data.response,
-                        timestamp: new Date().toISOString(),
-                        model: data.model_used || currentAIModel
-                    });
+                // Check if response is async (task-based)
+                if (data.async && data.task_id) {
+                    console.log('Async task submitted:', data.task_id);
+                    // Start polling for result
+                    pollTaskStatus(data.task_id, message);
                 } else {
-                    // Provide helpful error response with guidance
-                    const errorResponse = `I apologize for the technical difficulty. Let me help you with some guidance:
+                    // Synchronous response (mock or immediate)
+                    hideThinkingIndicator();
+
+                    if (data.success) {
+                        addChatMessage(data.response, 'assistant');
+                        window.chatHistory.push({
+                            user: message,
+                            assistant: data.response,
+                            timestamp: new Date().toISOString(),
+                            model: data.model_used || window.currentAIModel
+                        });
+                    } else {
+                        // Provide helpful error response with guidance
+                        const errorResponse = `I apologize for the technical difficulty. Let me help you with some guidance:
 
 **For Document Analysis Questions:**
 • **Content Gaps**: "What information is missing from this section?"
@@ -4537,15 +4552,16 @@
 • **Hawkeye Framework**: "Which Hawkeye checkpoints apply to this content?"
 • **Risk Assessment**: "How should I classify the risk level here?"
 
-**For Current Section (${sections[currentSectionIndex] || 'current section'}):**
+**For Current Section (${window.sections[window.currentSectionIndex] || 'current section'}):**
 • Ask about specific aspects that need improvement
 • Request guidance on evidence validation
 • Inquire about compliance with investigation standards
 • Seek advice on stakeholder communication
 
 **Follow-up:** Please try asking a specific question about the document analysis, and I'll provide detailed guidance based on professional investigation standards.`;
-                    
-                    addChatMessage(errorResponse, 'assistant');
+
+                        addChatMessage(errorResponse, 'assistant');
+                    }
                 }
             })
             .catch(error => {
@@ -4571,6 +4587,168 @@
                 event.preventDefault();
                 sendChatMessage();
             }
+        }
+
+        // Poll for async task completion
+        function pollTaskStatus(taskId, originalMessage) {
+            console.log('Starting to poll task:', taskId);
+
+            const maxAttempts = 30; // 30 attempts x 2 seconds = 60 seconds max
+            let attempts = 0;
+
+            const pollInterval = setInterval(() => {
+                attempts++;
+                console.log(`Polling attempt ${attempts}/${maxAttempts} for task ${taskId}`);
+
+                fetch(`/task_status/${taskId}`)
+                    .then(response => response.json())
+                    .then(statusData => {
+                        console.log('Task status:', statusData.state, 'Progress:', statusData.progress);
+
+                        if (statusData.state === 'SUCCESS') {
+                            clearInterval(pollInterval);
+                            hideThinkingIndicator();
+
+                            const result = statusData.result || {};
+                            console.log('=== FULL TASK RESULT ===');
+                            console.log('result.success:', result.success);
+                            console.log('result.response type:', typeof result.response);
+                            console.log('result.response length:', result.response ? result.response.length : 0);
+                            console.log('First 200 chars:', result.response ? result.response.substring(0, 200) : 'N/A');
+                            console.log('========================');
+
+                            if (result.success && result.response) {
+                                console.log('Task completed successfully, response length:', result.response.length);
+                                addChatMessage(result.response, 'assistant');
+                                window.chatHistory.push({
+                                    user: originalMessage,
+                                    assistant: result.response,
+                                    timestamp: new Date().toISOString(),
+                                    model: result.model_used || window.currentAIModel
+                                });
+                            } else {
+                                console.error('Task succeeded but no response:', result);
+                                addChatMessage('I apologize, but I received an empty response. Please try again.', 'assistant');
+                            }
+                        } else if (statusData.state === 'FAILURE') {
+                            clearInterval(pollInterval);
+                            hideThinkingIndicator();
+
+                            const errorMsg = statusData.error || 'Unknown error occurred';
+                            console.error('Task failed:', errorMsg);
+                            addChatMessage(`I apologize, but an error occurred: ${errorMsg}`, 'assistant');
+                        } else if (attempts >= maxAttempts) {
+                            clearInterval(pollInterval);
+                            hideThinkingIndicator();
+
+                            console.error('Task polling timeout after', attempts, 'attempts');
+                            addChatMessage('I apologize, but the request is taking longer than expected. Please try again.', 'assistant');
+                        }
+                        // Otherwise keep polling (PENDING or STARTED state)
+                    })
+                    .catch(error => {
+                        console.error('Error polling task status:', error);
+                        // Don't stop polling on network errors, might be temporary
+                        if (attempts >= maxAttempts) {
+                            clearInterval(pollInterval);
+                            hideThinkingIndicator();
+                            addChatMessage('I apologize, but I encountered a network error. Please try again.', 'assistant');
+                        }
+                    });
+            }, 2000); // Poll every 2 seconds
+        }
+
+        // NEW: Poll for document analysis task completion
+        function pollAnalysisTask(taskId, sectionName) {
+            console.log(`📊 Starting to poll analysis task for "${sectionName}":`, taskId);
+
+            const maxAttempts = 60; // 60 attempts x 2 seconds = 120 seconds max (analysis takes longer)
+            let attempts = 0;
+
+            const pollInterval = setInterval(() => {
+                attempts++;
+                console.log(`📊 Analysis polling attempt ${attempts}/${maxAttempts} for "${sectionName}"`);
+
+                fetch(`/task_status/${taskId}`)
+                    .then(response => response.json())
+                    .then(statusData => {
+                        console.log(`📊 Analysis task status: ${statusData.state}, Progress: ${statusData.progress}`);
+
+                        if (statusData.state === 'SUCCESS') {
+                            clearInterval(pollInterval);
+
+                            const result = statusData.result || {};
+                            console.log('=== ANALYSIS TASK RESULT ===');
+                            console.log('result.success:', result.success);
+                            console.log('result.feedback_items:', result.feedback_items ? result.feedback_items.length : 0, 'items');
+                            console.log('result.section:', result.section);
+                            console.log('============================');
+
+                            if (result.success && result.feedback_items) {
+                                // ✅ Use already-stored content or fetch from window.sectionData
+                                const existingData = window.sectionData && window.sectionData[sectionName];
+                                const sectionContent = existingData ? existingData.content : '[Content not available]';
+
+                                // Update the analysis result with feedback_items
+                                window.sectionData = window.sectionData || {};
+                                window.sectionData[sectionName] = {
+                                    content: sectionContent,
+                                    feedback: result.feedback_items
+                                };
+
+                                const feedbackCount = result.feedback_items.length;
+                                console.log(`✅ Updated feedback for "${sectionName}": ${feedbackCount} items, content: ${sectionContent.length} chars`);
+
+                                // ✅ NEW WORKFLOW: Display feedback for current section and hide progress
+                                displayFeedback(result.feedback_items, sectionName);
+                                updateRiskIndicator(result.feedback_items);
+                                loadUserFeedbackForSection(sectionName);
+
+                                // Restore highlights for this section
+                                setTimeout(() => {
+                                    restoreSectionHighlights(sectionName);
+                                    if (typeof updateAICustomButtonStates === 'function') {
+                                        updateAICustomButtonStates();
+                                    }
+                                }, 200);
+
+                                hideSimpleLoadingModal();
+                                showNotification(`✅ Analysis complete for "${sectionName}"`, 'success');
+                            } else {
+                                console.error('Analysis task succeeded but no feedback_items:', result);
+                                hideSimpleLoadingModal();
+                                showNotification('Analysis incomplete - no feedback generated', 'warning');
+                            }
+                        } else if (statusData.state === 'FAILURE') {
+                            clearInterval(pollInterval);
+
+                            const errorMsg = statusData.error || 'Unknown error occurred';
+                            console.error(`Analysis task failed for "${sectionName}":`, errorMsg);
+
+                            // ✅ NEW WORKFLOW: Just hide progress and show error - no auto-continue
+                            hideSimpleLoadingModal();
+                            showNotification(`❌ Analysis failed for "${sectionName}": ${errorMsg}`, 'error');
+                        } else if (attempts >= maxAttempts) {
+                            clearInterval(pollInterval);
+
+                            console.error(`Analysis polling timeout for "${sectionName}" after ${attempts} attempts`);
+
+                            // ✅ NEW WORKFLOW: Just hide progress and show error - no auto-continue
+                            hideSimpleLoadingModal();
+                            showNotification(`⏰ Analysis timeout for "${sectionName}" - please try again`, 'error');
+                        }
+                        // Otherwise keep polling (PENDING or STARTED state)
+                    })
+                    .catch(error => {
+                        console.error(`Error polling analysis task for "${sectionName}":`, error);
+                        // Don't stop polling on network errors, might be temporary
+                        if (attempts >= maxAttempts) {
+                            clearInterval(pollInterval);
+                            hideSimpleLoadingModal();
+                            showNotification(`❌ Network error while analyzing "${sectionName}"`, 'error');
+                        }
+                    });
+            }, 2000); // Poll every 2 seconds
         }
 
         // Note: Main initialization is handled above
@@ -4785,34 +4963,122 @@
         }
         
         function showGuidelinesPreferenceModal(analysisFile, guidelinesFile) {
-            const modalContent = `
-                <div style="text-align: center; padding: 20px;">
-                    <h3 style="color: #667eea; margin-bottom: 20px;">📄 Guidelines Document Detected</h3>
-                    <p style="margin-bottom: 30px;">You've uploaded a custom guidelines document. How should AI-Prism use it?</p>
-                    
-                    <div style="display: flex; gap: 20px; justify-content: center; flex-wrap: wrap;">
-                        <button class="btn btn-primary" onclick="useGuidelinesPreference('new_only')" style="padding: 15px 25px;">
-                            🆕 Use Only New Guidelines
-                        </button>
-                        <button class="btn btn-success" onclick="useGuidelinesPreference('both')" style="padding: 15px 25px;">
-                            🔄 Use Both Old & New Guidelines
-                        </button>
-                        <button class="btn btn-secondary" onclick="useGuidelinesPreference('old_only')" style="padding: 15px 25px;">
-                            📅 Use Only Default Guidelines
-                        </button>
+            // Enhanced version with proper error handling and structure
+            if (!analysisFile) {
+                showNotification('Analysis file is required', 'error');
+                return;
+            }
+
+            try {
+                const modalContent = `
+                    <div style="text-align: center; padding: 20px;">
+                        <h3 style="color: #667eea; margin-bottom: 20px; font-size: 1.5em; font-weight: 600;">📄 Guidelines Document Detected</h3>
+                        
+                        <div style="margin-bottom: 30px; padding: 15px; background: linear-gradient(135deg, #f8f9ff 0%, #e3f2fd 100%); border-radius: 12px; border: 2px solid #667eea;">
+                            <p style="margin: 0; color: #4a5568; line-height: 1.6; font-size: 1.1em;">
+                                You've uploaded a custom guidelines document. How should AI-Prism use it?
+                            </p>
+                        </div>
+                        
+                        <div style="display: flex; gap: 15px; justify-content: center; flex-wrap: wrap; margin-bottom: 25px;">
+                            <button
+                                class="btn btn-primary"
+                                onclick="handleGuidelinesChoice('new_only')"
+                                style="padding: 15px 25px; font-weight: 600; border-radius: 12px; min-width: 200px; transition: all 0.3s ease;"
+                                aria-label="Use only the newly uploaded guidelines document">
+                                🆕 Use Only New Guidelines
+                            </button>
+                            
+                            <button
+                                class="btn btn-success"
+                                onclick="handleGuidelinesChoice('both')"
+                                style="padding: 15px 25px; font-weight: 600; border-radius: 12px; min-width: 200px; transition: all 0.3s ease;"
+                                aria-label="Combine existing guidelines with new document">
+                                🔄 Use Both Old & New Guidelines
+                            </button>
+                            
+                            <button
+                                class="btn btn-secondary"
+                                onclick="handleGuidelinesChoice('old_only')"
+                                style="padding: 15px 25px; font-weight: 600; border-radius: 12px; min-width: 200px; transition: all 0.3s ease;"
+                                aria-label="Use only the default system guidelines">
+                                📅 Use Only Default Guidelines
+                            </button>
+                        </div>
+                        
+                        <div style="background: rgba(79, 70, 229, 0.1); padding: 15px; border-radius: 10px; margin-top: 20px;">
+                            <p style="margin: 0; font-size: 0.95em; color: #667eea; font-weight: 500; line-height: 1.5;">
+                                💡 AI-Prism will analyze your document according to your preference.
+                                You can change this setting for future analyses.
+                            </p>
+                        </div>
                     </div>
-                    
-                    <p style="margin-top: 20px; font-size: 0.9em; color: #666;">
-                        AI-Prism will analyze your document according to your preference.
-                    </p>
-                </div>
-            `;
-            
-            showModal('genericModal', 'Guidelines Preference', modalContent);
-            
-            // Store files for later use
-            window.tempAnalysisFile = analysisFile;
-            window.tempGuidelinesFile = guidelinesFile;
+                `;
+                
+                showModal('genericModal', 'Guidelines Preference', modalContent);
+                
+                // Store files for later use with validation
+                window.tempAnalysisFile = analysisFile;
+                window.tempGuidelinesFile = guidelinesFile;
+                
+                // Log action for analytics (privacy-safe)
+                try {
+                    const logEntry = {
+                        action: 'guidelines_modal_opened',
+                        timestamp: new Date().toISOString(),
+                        hasGuidelines: !!guidelinesFile
+                    };
+                    const logs = JSON.parse(localStorage.getItem('userActionLogs') || '[]');
+                    logs.push(logEntry);
+                    if (logs.length > 100) logs.splice(0, logs.length - 100);
+                    localStorage.setItem('userActionLogs', JSON.stringify(logs));
+                } catch (logError) {
+                    console.warn('Logging failed:', logError);
+                }
+                
+            } catch (error) {
+                console.error('Error showing guidelines modal:', error);
+                showNotification('Failed to show guidelines options. Please try again.', 'error');
+            }
+        }
+
+        /**
+         * Enhanced guidelines choice handler with validation and error handling
+         * @param {string} choice - User's choice for guidelines usage
+         */
+        function handleGuidelinesChoice(choice) {
+            // Input validation
+            const validChoices = ['new_only', 'both', 'old_only'];
+            if (!validChoices.includes(choice)) {
+                console.error('Invalid guidelines choice:', choice);
+                showNotification('Invalid selection. Please try again.', 'error');
+                return;
+            }
+
+            // Validate stored files
+            if (!window.tempAnalysisFile) {
+                showNotification('Analysis file not found. Please re-upload.', 'error');
+                return;
+            }
+
+            try {
+                // Provide user feedback
+                const choiceMessages = {
+                    'new_only': 'Using only your uploaded guidelines document',
+                    'both': 'Combining default and uploaded guidelines',
+                    'old_only': 'Using only default system guidelines'
+                };
+                
+                showNotification(choiceMessages[choice], 'info');
+                
+                // Close modal and proceed
+                closeModal('genericModal');
+                useGuidelinesPreference(choice);
+                
+            } catch (error) {
+                console.error('Error handling guidelines choice:', error);
+                showNotification('An error occurred. Please try again.', 'error');
+            }
         }
         
         function useGuidelinesPreference(preference) {
@@ -4856,18 +5122,27 @@
                         currentSession = data.session_id;
                         sections = data.sections;
                         totalSections = sections.length;
-                        
+
                         populateSectionSelect(data.sections);
                         showMainContent();
-                        
-                        // Start comprehensive analysis of all sections
-                        startComprehensiveAnalysis();
-                        
-                        let message = 'Documents uploaded successfully!';
+
+                        // ✅ CORRECTED WORKFLOW: Auto-analyze section when loaded (matches Jupyter notebook)
+                        console.log(`✅ Upload successful! ${sections.length} sections extracted.`);
+                        console.log(`📋 Sections: ${sections.join(', ')}`);
+
+                        let message = `Document uploaded successfully! ${sections.length} sections found. Analyzing first section...`;
                         if (data.guidelines_uploaded) {
                             message += ` Using ${guidelinesPreference.replace('_', ' ')} guidelines.`;
                         }
                         showNotification(message, 'success');
+
+                        // ✅ AUTO-ANALYZE: Load first section and auto-analyze (like Jupyter notebook _load_section())
+                        if (sections.length > 0 && typeof loadSectionAndAnalyze === 'function') {
+                            loadSectionAndAnalyze(0);
+                        } else {
+                            console.error('❌ loadSectionAndAnalyze function not found! Check progress_functions.js');
+                            showAnalysisInstruction();
+                        }
                     } else {
                         showNotification(data.error || 'Upload failed', 'error');
                         hideProgress();
@@ -4934,122 +5209,18 @@
             }, 500);
         }
 
-        function startComprehensiveAnalysis() {
-            showProgress('🚀 Starting comprehensive analysis...');
-            showDocumentProgress();
-            
-            currentAnalysisStep = 0;
-            
-            // Show initial progress message
-            updateDocumentProgressMessage('🤖 AI-Prism is preparing for comprehensive analysis...', 
-                                        `📊 About to analyze ${totalSections} sections with Hawkeye framework`);
-            
-            // Start analysis after a brief delay to show the loading screen
-            setTimeout(() => {
-                analyzeNextSection();
-            }, 1000);
-        }
-        
-        function analyzeNextSection() {
-            if (currentAnalysisStep >= totalSections) {
-                // Analysis complete
-                completeAnalysis();
-                return;
-            }
-            
-            const sectionName = sections[currentAnalysisStep];
-            const progressPercent = ((currentAnalysisStep + 1) / totalSections) * 100;
-            
-            // Show document progress panel with enhanced loading
-            showDocumentProgress();
-            
-            // Update progress with enhanced messages
-            const progressFill = document.getElementById('progressFill');
-            const progressText = document.getElementById('progressText');
-            
-            if (progressFill) progressFill.style.width = progressPercent + '%';
-            if (progressText) progressText.textContent = `🔍 Analyzing: ${sectionName} (${currentAnalysisStep + 1}/${totalSections}) - ${Math.round(progressPercent)}%`;
-            
-            // Update document progress panel
-            updateDocumentProgress(sectionName, currentAnalysisStep + 1, totalSections, progressPercent);
-            
-            // Show section-specific loading message
-            updateDocumentProgressMessage(`🤖 AI-Prism is analyzing "${sectionName}" with Hawkeye framework...`, 
-                                        `⏳ This may take 10-30 seconds depending on content complexity`);
-            
-            // Analyze current section
-            fetch('/analyze_section', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    session_id: currentSession,
-                    section_name: sectionName
-                })
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    // Store section data
-                    window.sectionData = window.sectionData || {};
-                    window.sectionData[sectionName] = {
-                        content: data.section_content,
-                        feedback: data.feedback_items
-                    };
-                    
-                    // Show success message
-                    const feedbackCount = data.feedback_items ? data.feedback_items.length : 0;
-                    updateDocumentProgressMessage(`✅ "${sectionName}" analysis complete!`, 
-                                                `📊 Generated ${feedbackCount} feedback items`);
-                    
-                    currentAnalysisStep++;
-                    
-                    // Continue with next section after a short delay
-                    setTimeout(analyzeNextSection, 1500);
-                } else {
-                    // Show error and continue
-                    updateDocumentProgressMessage(`⚠️ "${sectionName}" analysis had issues`, 
-                                                `🔄 Continuing with next section...`);
-                    currentAnalysisStep++;
-                    setTimeout(analyzeNextSection, 1000);
-                }
-            })
-            .catch(error => {
-                console.error('Analysis error:', error);
-                updateDocumentProgressMessage(`❌ "${sectionName}" analysis failed`, 
-                                            `🔄 Continuing with next section...`);
-                currentAnalysisStep++;
-                setTimeout(analyzeNextSection, 1000);
-            });
-        }
-        
-        function completeAnalysis() {
-            const progressText = document.getElementById('progressText');
-            if (progressText) progressText.textContent = '🎉 Comprehensive Analysis Complete!';
-            
-            // Show completion message
-            updateDocumentProgressMessage('🎉 All sections analyzed successfully!', 
-                                        '📋 Ready to review feedback and complete your document');
-            
-            setTimeout(() => {
-                hideProgress();
-                hideDocumentProgress();
-                loadSection(0); // Load first section
-                updateStatistics();
-                const submitBtn = document.getElementById('submitAllFeedbacksBtn');
-                if (submitBtn) submitBtn.disabled = false;
-                showNotification('🎉 Comprehensive analysis completed! Navigate through sections to review AI-generated feedback.', 'success');
-            }, 3000);
-        }
-        
+        // ✅ REMOVED: startComprehensiveAnalysis(), analyzeNextSection(), completeAnalysis()
+        // NEW WORKFLOW: Sections are analyzed on-demand when user clicks on them (see loadSection() function)
+
         function loadSection(index) {
             if (index < 0 || index >= sections.length) return;
-            
+
             // Save current section highlights before switching
             saveCurrentSectionHighlights();
-            
+
+            // ✅ FIXED: Set both window and global scope for compatibility
             currentSectionIndex = index;
+            window.currentSectionIndex = index;
             const sectionName = sections[index];
             
             // Update section select
@@ -5060,62 +5231,220 @@
             const userFeedbackDisplay = document.getElementById('userFeedbackDisplay');
             if (userFeedbackDisplay) userFeedbackDisplay.innerHTML = '';
             
-            // Load from stored data
+            // ✅ NEW WORKFLOW: Check if section already analyzed
             if (window.sectionData && window.sectionData[sectionName]) {
+                // Section already analyzed - show content and feedback
                 const data = window.sectionData[sectionName];
                 displaySectionContent(data.content, sectionName);
                 displayFeedback(data.feedback, sectionName);
                 updateRiskIndicator(data.feedback);
-                
+
                 // Load any existing user feedback for this section
                 loadUserFeedbackForSection(sectionName);
-                
+
                 // Restore highlights for this section
                 setTimeout(() => {
                     restoreSectionHighlights(sectionName);
-                    // Update custom feedback button states
                     if (typeof updateAICustomButtonStates === 'function') {
                         updateAICustomButtonStates();
                     }
                 }, 200);
             } else {
-                // Fallback to API call if data not stored
-                showProgress('Loading section...');
-                
-                fetch('/analyze_section', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        session_id: currentSession,
-                        section_name: sectionName
+                // ✅ CORRECTED: Section NOT analyzed yet - call loadSectionAndAnalyze() for AUTO-ANALYSIS
+                console.log(`📄 Section "${sectionName}" not analyzed yet - calling loadSectionAndAnalyze()...`);
+
+                // Use the auto-analyzing function from progress_functions.js
+                if (typeof window.loadSectionAndAnalyze === 'function') {
+                    window.loadSectionAndAnalyze(index);
+                } else {
+                    console.error('❌ loadSectionAndAnalyze not found! Falling back to manual mode.');
+                    // Fallback: fetch content without analysis
+                    fetch('/get_section_content', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            session_id: currentSession,
+                            section_name: sectionName
+                        })
                     })
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        displaySectionContent(data.section_content, sectionName);
-                        displayFeedback(data.feedback_items, sectionName);
-                        updateRiskIndicator(data.feedback_items);
-                        loadUserFeedbackForSection(sectionName);
-                        
-                        // Restore highlights for this section
-                        setTimeout(() => {
-                            restoreSectionHighlights(sectionName);
-                            // Update custom feedback button states
-                            if (typeof updateAICustomButtonStates === 'function') {
-                                updateAICustomButtonStates();
-                            }
-                        }, 200);
-                    }
-                    hideProgress();
-                })
-                .catch(error => {
-                    hideProgress();
-                    showNotification('Failed to load section: ' + error.message, 'error');
-                });
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success && data.content) {
+                            displaySectionContent(data.content, sectionName);
+                            showStartAnalysisButton(sectionName);
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error loading section content:', error);
+                        showNotification('Error: ' + error.message, 'error');
+                    });
+                }
+
+                return; // Exit - loadSectionAndAnalyze will handle the rest
             }
+        }
+
+        // ✅ SIMPLE LOADING MODAL - Only ONE modal, frozen background
+        function showSimpleLoadingModal(sectionName) {
+            // Remove any existing modal first
+            const existingModal = document.getElementById('simpleLoadingModal');
+            if (existingModal) {
+                existingModal.remove();
+            }
+
+            // Create single simple modal
+            const modal = document.createElement('div');
+            modal.id = 'simpleLoadingModal';
+            modal.style.cssText = `
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: rgba(0, 0, 0, 0.7);
+                backdrop-filter: blur(5px);
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                z-index: 99999;
+            `;
+
+            modal.innerHTML = `
+                <div style="background: white; padding: 40px 60px; border-radius: 15px; text-align: center; box-shadow: 0 10px 40px rgba(0,0,0,0.3);">
+                    <div class="spinner-border text-primary" role="status" style="width: 60px; height: 60px; margin-bottom: 20px;">
+                        <span class="sr-only">Loading...</span>
+                    </div>
+                    <h4 style="color: #4f46e5; margin-bottom: 15px;">Analyzing "${sectionName}"</h4>
+                    <p style="color: #666; margin: 0;">This may take 20-40 seconds...</p>
+                    <p style="color: #999; font-size: 14px; margin-top: 10px;">Using Claude Sonnet 4.5 with Extended Thinking</p>
+                </div>
+            `;
+
+            document.body.appendChild(modal);
+            console.log('✅ Simple loading modal shown');
+        }
+
+        function hideSimpleLoadingModal() {
+            const modal = document.getElementById('simpleLoadingModal');
+            if (modal) {
+                modal.remove();
+                console.log('✅ Simple loading modal hidden');
+            }
+        }
+
+        // ✅ NEW FUNCTION: Start analysis when user clicks button
+        function startSectionAnalysis(sectionName) {
+            console.log(`📊 Starting analysis for "${sectionName}"...`);
+
+            // ✅ SINGLE SIMPLE MODAL - No multiple popups!
+            showSimpleLoadingModal(sectionName);
+
+            fetch('/analyze_section', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    session_id: currentSession,
+                    section_name: sectionName
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                // Handle async responses from enhanced mode
+                if (data.async && data.task_id) {
+                    console.log(`✅ Async analysis task submitted for "${sectionName}": ${data.task_id}`);
+                    // ✅ REMOVED: updateDocumentProgressMessage - using single simple modal instead
+
+                    // Store section content immediately when available in async response
+                    if (data.section_content) {
+                        window.sectionData = window.sectionData || {};
+                        window.sectionData[sectionName] = {
+                            content: data.section_content,
+                            feedback: []  // Feedback will be populated when task completes
+                        };
+                        console.log(`✅ Stored section content for "${sectionName}" (${data.section_content.length} chars)`);
+                    }
+
+                    // Poll for analysis result (feedback_items)
+                    pollAnalysisTask(data.task_id, sectionName);
+                } else if (data.success) {
+                    // Synchronous response (legacy mode)
+                    window.sectionData = window.sectionData || {};
+                    window.sectionData[sectionName] = {
+                        content: data.section_content,
+                        feedback: data.feedback_items
+                    };
+
+                    displaySectionContent(data.section_content, sectionName);
+                    displayFeedback(data.feedback_items, sectionName);
+                    updateRiskIndicator(data.feedback_items);
+                    loadUserFeedbackForSection(sectionName);
+                    hideSimpleLoadingModal();
+
+                    // Restore highlights for this section
+                    setTimeout(() => {
+                        restoreSectionHighlights(sectionName);
+                        if (typeof updateAICustomButtonStates === 'function') {
+                            updateAICustomButtonStates();
+                        }
+                    }, 200);
+                } else {
+                    hideSimpleLoadingModal();
+                    showNotification('Analysis failed for this section', 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Analysis error:', error);
+                hideSimpleLoadingModal();
+                showNotification('Failed to analyze section: ' + error.message, 'error');
+            });
+        }
+
+        // ✅ NEW FUNCTION: Show "Start Analysis" button in feedback panel
+        function showStartAnalysisButton(sectionName) {
+            const feedbackDisplay = document.getElementById('feedbackDisplay');
+            if (!feedbackDisplay) return;
+
+            feedbackDisplay.innerHTML = `
+                <div style="text-align: center; padding: 60px 20px;">
+                    <div style="font-size: 3em; margin-bottom: 20px;">🤖</div>
+                    <h3 style="color: #4f46e5; margin-bottom: 15px;">Section Ready for Analysis</h3>
+                    <p style="color: #666; margin-bottom: 30px;">
+                        Click the button below to start AI-powered analysis of this section.<br>
+                        Analysis takes 20-40 seconds using Claude Sonnet 4.5 with Extended Thinking.
+                    </p>
+                    <button
+                        onclick="startSectionAnalysis('${sectionName}')"
+                        class="btn btn-primary"
+                        style="font-size: 16px; padding: 15px 40px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border: none; box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);">
+                        <span style="font-size: 1.2em; margin-right: 8px;">🚀</span>
+                        Start Section Analysis
+                    </button>
+                </div>
+            `;
+        }
+
+        // ✅ NEW FUNCTION: Show instruction after upload
+        function showAnalysisInstruction() {
+            const feedbackDisplay = document.getElementById('feedbackDisplay');
+            if (!feedbackDisplay) return;
+
+            feedbackDisplay.innerHTML = `
+                <div style="text-align: center; padding: 60px 20px;">
+                    <div style="font-size: 3em; margin-bottom: 20px;">📄</div>
+                    <h3 style="color: #4f46e5; margin-bottom: 15px;">Document Uploaded Successfully!</h3>
+                    <p style="color: #666; font-size: 16px; margin-bottom: 20px;">
+                        ${sections.length} section(s) extracted from your document.
+                    </p>
+                    <div style="background: #f0f7ff; border: 2px solid #4f46e5; border-radius: 10px; padding: 20px; max-width: 500px; margin: 0 auto;">
+                        <p style="color: #333; font-weight: 600; margin-bottom: 15px;">📋 Next Steps:</p>
+                        <ol style="text-align: left; color: #555; line-height: 1.8;">
+                            <li>Select a section from the dropdown above</li>
+                            <li>Review the document content in the left panel</li>
+                            <li>Click "Start Section Analysis" to get AI feedback</li>
+                        </ol>
+                    </div>
+                </div>
+            `;
         }
         
         function saveCurrentSectionHighlights() {
@@ -5202,8 +5531,21 @@
         }
 
         function displaySectionContent(content, sectionName) {
+            console.log(`📄 displaySectionContent called for "${sectionName}"`);
+            console.log(`   Content length: ${content ? content.length : 0} characters`);
+
             const container = document.getElementById('documentContent');
-            
+            if (!container) {
+                console.error('❌ documentContent container not found in DOM!');
+                return;
+            }
+
+            // Safety check for undefined/null content
+            if (!content) {
+                console.warn('⚠️ displaySectionContent: content is undefined or null');
+                content = '[No content available for this section]';
+            }
+
             // Format content to look exactly like a Word document
             const formattedContent = content
                 .replace(/\n\n/g, '</p><p style="margin: 12pt 0; text-align: justify;">')
@@ -5230,7 +5572,10 @@
                     </div>
                 </div>
             `;
-            
+
+            console.log(`✅ Document content displayed successfully for "${sectionName}"`);
+            console.log(`   Container innerHTML length: ${container.innerHTML.length}`);
+
             // Enable text selection for highlighting
             setTimeout(() => {
                 enableTextSelection();
@@ -5238,6 +5583,7 @@
                 if (typeof initializeTextHighlighting === 'function') {
                     initializeTextHighlighting();
                 }
+                console.log(`✅ Text selection enabled for highlighting`);
             }, 100);
         }
         
@@ -5368,56 +5714,8 @@
             }
         }
         
-        function revertFeedback(feedbackId, event) {
-            if (event) event.stopPropagation();
-            
-            // Send revert request to server
-            fetch('/revert_feedback', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    session_id: currentSession,
-                    section_name: sections[currentSectionIndex],
-                    feedback_id: feedbackId
-                })
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    // Restore original feedback actions
-                    const feedbackItem = document.querySelector(`[data-feedback-id="${feedbackId}"]`);
-                    if (feedbackItem && feedbackStates[feedbackId]) {
-                        const actions = feedbackItem.querySelector('.feedback-actions');
-                        actions.innerHTML = feedbackStates[feedbackId].originalHtml;
-                        feedbackItem.style.opacity = '1';
-                        
-                        feedbackStates[feedbackId].status = 'pending';
-                        
-                        showNotification('Feedback reverted to original state', 'success');
-                        updateStatistics();
-                    }
-                } else {
-                    showNotification(data.error || 'Revert failed', 'error');
-                }
-            })
-            .catch(error => {
-                // Fallback: revert locally even if server call fails
-                const feedbackItem = document.querySelector(`[data-feedback-id="${feedbackId}"]`);
-                if (feedbackItem && feedbackStates[feedbackId]) {
-                    const actions = feedbackItem.querySelector('.feedback-actions');
-                    actions.innerHTML = feedbackStates[feedbackId].originalHtml;
-                    feedbackItem.style.opacity = '1';
-                    
-                    feedbackStates[feedbackId].status = 'pending';
-                    
-                    showNotification('Feedback reverted locally', 'info');
-                    updateStatistics();
-                }
-                console.warn('Server revert failed, reverted locally:', error);
-            });
-        }
+        // ✅ REMOVED DUPLICATE: revertFeedback function now in unified_button_fixes.js
+        // This duplicate was causing "event.stopPropagation is not a function" error
         
         function zoomIn() {
             if (documentZoom < 200) {
@@ -6004,9 +6302,12 @@
                 highlightSpan.style.cursor = 'pointer';
                 highlightSpan.style.border = '1px solid rgba(0,0,0,0.2)';
                 highlightSpan.title = 'Click to view or edit comment';
-                
-                // Wrap the selected text
-                currentSelectedRange.surroundContents(highlightSpan);
+
+                // ✅ FIXED: Use extractContents + appendChild instead of surroundContents
+                // surroundContents fails when range spans multiple elements
+                const extractedContent = currentSelectedRange.extractContents();
+                highlightSpan.appendChild(extractedContent);
+                currentSelectedRange.insertNode(highlightSpan);
                 
                 // Store highlight data
                 const highlightData = {
@@ -6036,9 +6337,14 @@
                 showNotification('Could not highlight this text. Try selecting simpler text.', 'error');
             }
         }
-        
+
+        // ✅ FIXED: Create alias for applyHighlight (called by saveHighlightBtn)
+        function applyHighlight() {
+            saveHighlightedText();
+        }
+
         // clearHighlights function moved to text_highlight_comments.js
-        
+
         function enableTextSelection() {
             const docContent = document.getElementById('documentContent');
             
@@ -6566,95 +6872,23 @@
             }
         }
         
-        function sendChatMessage() {
-            const input = document.getElementById('chatInput');
-            const message = input.value.trim();
-
-            if (!message) return;
-
-            // Check for session in multiple scopes (CRITICAL FIX)
-            const sessionId = window.currentSession || currentSession || sessionStorage.getItem('currentSession');
-
-            if (!sessionId) {
-                showNotification('Please upload a document first to start chatting.', 'error');
-                return;
-            }
-
-            // Add user message to chat
-            addChatMessage(message, 'user');
-            input.value = '';
-
-            // Add thinking message
-            addChatMessage('🤔 Thinking...', 'assistant', true);
-
-            sendChatWithFallback(message, 0, sessionId);
-        }
-
-        function sendChatWithFallback(message, modelIndex, sessionId) {
-            const modelToUse = modelFallbackOrder[modelIndex] || currentAIModel;
-
-            fetch('/chat', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    session_id: sessionId,
-                    message: message,
-                    current_section: sections[currentSectionIndex],
-                    ai_model: modelToUse
-                })
-            })
-            .then(response => response.json())
-            .then(data => {
-                // Remove thinking message
-                const thinkingMessage = document.querySelector('.chat-message.thinking');
-                if (thinkingMessage) {
-                    thinkingMessage.remove();
-                }
-                
-                if (data.success) {
-                    addChatMessage(data.response, 'assistant', false, modelToUse);
-                } else if (modelIndex < modelFallbackOrder.length - 1) {
-                    // Try next model in fallback order
-                    showNotification(`${availableModels[modelToUse]} failed, trying ${availableModels[modelFallbackOrder[modelIndex + 1]]}...`, 'info');
-                    addChatMessage('🤔 Switching to backup AI model...', 'assistant', true);
-                    setTimeout(() => sendChatWithFallback(message, modelIndex + 1, sessionId), 1000);
-                } else {
-                    addChatMessage('Sorry, all AI models are currently unavailable. Please try again later.', 'assistant');
-                }
-            })
-            .catch(error => {
-                if (modelIndex < modelFallbackOrder.length - 1) {
-                    // Try next model in fallback order
-                    showNotification(`Connection failed, trying backup AI model...`, 'info');
-                    const thinkingMessage = document.querySelector('.chat-message.thinking');
-                    if (thinkingMessage) {
-                        thinkingMessage.innerHTML = '<strong>🤖 AI-Prism:</strong><br>🤔 Switching to backup AI model...';
-                    }
-                    setTimeout(() => sendChatWithFallback(message, modelIndex + 1, sessionId), 1000);
-                } else {
-                    const thinkingMessage = document.querySelector('.chat-message.thinking');
-                    if (thinkingMessage) {
-                        thinkingMessage.remove();
-                    }
-                    addChatMessage('Sorry, all AI models are currently unavailable. Please try again later.', 'assistant');
-                }
-            });
-        }
+        // REMOVED: Duplicate sendChatMessage function that overrode the correct async version
+        // The correct sendChatMessage with async polling is defined earlier at line 4483
+        // This duplicate version (lines 6647-6722) did not support async polling and caused chat failures
         
         function changeAIModel() {
             const select = document.getElementById('aiModelSelect');
-            currentAIModel = select.value;
-            currentModelIndex = modelFallbackOrder.indexOf(currentAIModel);
-            
-            showNotification(`Switched to ${availableModels[currentAIModel]}`, 'success');
-            
+            window.currentAIModel = select.value;
+            window.currentModelIndex = window.modelFallbackOrder ? window.modelFallbackOrder.indexOf(window.currentAIModel) : 0;
+
+            const modelName = window.availableModels ? window.availableModels[window.currentAIModel] : window.currentAIModel;
+            showNotification(`Switched to ${modelName}`, 'success');
+
             // Update chat header
             const lastMessage = document.querySelector('.chat-message.assistant:last-of-type');
-            if (lastMessage) {
-                const modelName = availableModels[currentAIModel].split(' (')[0];
-                addChatMessage(`I'm now using ${modelName}. How can I help you?`, 'assistant', false, currentAIModel);
+            if (lastMessage && window.availableModels) {
+                const shortModelName = window.availableModels[window.currentAIModel].split(' (')[0];
+                addChatMessage(`I'm now using ${shortModelName}. How can I help you?`, 'assistant', false, window.currentAIModel);
             }
         }
         
@@ -6720,12 +6954,19 @@
                 assistantMessages[assistantMessages.length - 1].remove();
             }
 
-            // Regenerate with current model
-            addChatMessage('🤔 Regenerating response...', 'assistant', true);
-            sendChatWithFallback(messageText, currentModelIndex, sessionId);
+            // Regenerate with current model using the correct sendChatMessage function
+            const chatInput = document.getElementById('chatInput');
+            if (chatInput) {
+                chatInput.value = messageText;
+                sendChatMessage();
+            }
         }
 
-        function addChatMessage(message, sender, isThinking = false, aiModel = null) {
+        // REMOVED: Duplicate addChatMessage function (lines 6733-6804)
+        // The correct addChatMessage with full formatting is defined earlier at line 4380
+        // This duplicate version was overriding the better implementation
+
+        function _REMOVED_addChatMessage_DUPLICATE(message, sender, isThinking = false, aiModel = null) {
             const container = document.getElementById('chatContainer');
             const messageDiv = document.createElement('div');
             messageDiv.className = `chat-message ${sender}${isThinking ? ' thinking' : ''}`;
@@ -7237,76 +7478,6 @@
             document.getElementById(modalId).style.display = 'none';
         }
 
-        function showProgress(text) {
-            // Show document processing progress
-            const docProgress = document.getElementById('documentProgress');
-            const progressGif = document.getElementById('progressGif');
-            const progressTitle = document.getElementById('progressTitle');
-            const progressDesc = document.getElementById('progressDesc');
-            
-            if (docProgress && progressGif && progressTitle && progressDesc) {
-                // Start with random media from new collection
-                usedMediaIndices = [];
-                currentMediaIndex = Math.floor(Math.random() * loadingMediaWithContent.length);
-                const initialMedia = loadingMediaWithContent[currentMediaIndex];
-                
-                progressGif.src = showGraphics ? initialMedia.gif : 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="150" height="150" viewBox="0 0 150 150"><rect width="150" height="150" fill="%23f0f0f0"/><text x="75" y="75" text-anchor="middle" dy=".3em" font-family="Arial" font-size="14" fill="%23666">Processing...</text></svg>';
-                
-                usedMediaIndices.push(currentMediaIndex);
-                currentContentType = 'gif';
-                
-                // Start enhanced media rotation every 5 seconds
-                if (showGraphics && !isMediaRotating) {
-                    startMediaRotation(progressGif);
-                }
-                
-                // Expanded funny messages with categories
-                const funnyMessages = [
-                    '🤖 AI-Prism is analyzing your document like a pro...',
-                    '📖 AI-Prism is reading every word with eagle eyes...',
-                    '🎯 AI-Prism is applying Hawkeye framework magic...',
-                    '🧠 AI-Prism is thinking deeper than Sherlock Holmes...',
-                    '🔍 AI-Prism is cross-referencing like a detective...',
-                    '🎬 AI-Prism is channeling inner movie critic...',
-                    '🐱 AI-Prism is as focused as a cat hunting...',
-                    '🎨 AI-Prism is painting a masterpiece of analysis...',
-                    '🚀 AI-Prism is launching into analytical orbit...',
-                    '🎪 AI-Prism is performing document analysis circus...',
-                    '🧮 AI-Prism is calculating like Einstein...',
-                    '🎭 AI-Prism is dramatically reviewing your content...'
-                ];
-                
-                const funnySubtexts = [
-                    'Please wait while I channel my inner genius',
-                    'This might take a moment, but magic is happening!',
-                    'Analyzing with 20-point investigation framework',
-                    'Quality analysis requires deep thinking time',
-                    'Almost done with the analytical deep dive',
-                    'Crunching numbers like a mathematical wizard',
-                    'Processing with the power of a thousand calculators',
-                    'Reviewing with the precision of a Swiss watch',
-                    'Analyzing faster than a speeding bullet',
-                    'Working harder than a busy bee in spring',
-                    'Thinking more intensely than a chess grandmaster',
-                    'Investigating with detective-level thoroughness'
-                ];
-                
-                progressTitle.textContent = funnyMessages[Math.floor(Math.random() * funnyMessages.length)];
-                progressDesc.textContent = funnySubtexts[Math.floor(Math.random() * funnySubtexts.length)];
-                
-                docProgress.style.display = 'block';
-            }
-            
-            // Also show regular progress
-            const progressContainer = document.getElementById('progressContainer');
-            const progressText = document.getElementById('progressText');
-            const progressFill = document.getElementById('progressFill');
-            
-            if (progressContainer) progressContainer.style.display = 'block';
-            if (progressText) progressText.textContent = text;
-            if (progressFill) progressFill.style.width = '100%';
-        }
-
         function hideProgress() {
             const loadingOverlay = document.getElementById('loadingOverlay');
             const progressContainer = document.getElementById('progressContainer');
@@ -7339,104 +7510,24 @@
             }, 5000); // Change every 5 seconds
         }
         
-        function rotateMediaContent(gifElement) {
-            // Get next unused media index
-            let nextIndex = getNextUnusedMediaIndex();
-            currentMediaIndex = nextIndex;
-            
-            const mediaItem = loadingMediaWithContent[currentMediaIndex];
-            const progressTitle = document.getElementById('progressTitle');
-            const progressDesc = document.getElementById('progressDesc');
-            
-            // Cycle through content types: gif -> joke -> math -> gif...
-            if (currentContentType === 'gif') {
-                // Show GIF with transition
-                gifElement.style.opacity = '0.3';
-                setTimeout(() => {
-                    gifElement.src = mediaItem.gif;
-                    gifElement.style.opacity = '1';
-                }, 300);
-                
-                if (progressTitle) progressTitle.textContent = '🎬 Enjoying some visual entertainment...';
-                if (progressDesc) progressDesc.textContent = 'AI-Prism is working hard while you watch funny memes!';
-                currentContentType = 'joke';
-                
-            } else if (currentContentType === 'joke') {
-                // Show joke
-                if (progressTitle) progressTitle.textContent = '😂 Here\'s a joke while you wait...';
-                if (progressDesc) progressDesc.textContent = mediaItem.joke;
-                currentContentType = 'math';
-                
-            } else if (currentContentType === 'math') {
-                // Show math problem
-                if (progressTitle) progressTitle.textContent = '🧮 Brain Exercise Time!';
-                if (progressDesc) progressDesc.textContent = mediaItem.math;
-                currentContentType = 'gif';
-            }
-        }
-        
-        function getNextUnusedMediaIndex() {
-            // If all media has been used, reset the used list
-            if (usedMediaIndices.length >= loadingMediaWithContent.length) {
-                usedMediaIndices = [];
-            }
-            
-            let availableIndices = [];
-            for (let i = 0; i < loadingMediaWithContent.length; i++) {
-                if (!usedMediaIndices.includes(i)) {
-                    availableIndices.push(i);
-                }
-            }
-            
-            // Pick random from available
-            const randomIndex = Math.floor(Math.random() * availableIndices.length);
-            const selectedIndex = availableIndices[randomIndex];
-            
-            // Mark as used
-            usedMediaIndices.push(selectedIndex);
-            
-            return selectedIndex;
-        }
-        
-        function stopMediaRotation() {
-            if (mediaRotationInterval) {
-                clearInterval(mediaRotationInterval);
-                mediaRotationInterval = null;
-            }
-            isMediaRotating = false;
-        }
-        
-        function toggleGraphics() {
-            showGraphics = !showGraphics;
-            const btn = document.getElementById('toggleGraphicsBtn');
-            const gif = document.getElementById('loadingGif');
-            const analysisGif = document.getElementById('analysisGif');
-            
-            btn.textContent = showGraphics ? '🙈 Hide' : '😍 Show';
-            
-            if (gif) {
-                gif.style.display = showGraphics ? 'block' : 'none';
-            }
-            if (analysisGif) {
-                analysisGif.style.display = showGraphics ? 'block' : 'none';
-            }
-        }
-
         function showNotification(message, type) {
             const notification = document.createElement('div');
             notification.className = `notification ${type}`;
             notification.textContent = message;
-            
+
             document.body.appendChild(notification);
-            
+
             setTimeout(() => {
                 notification.classList.add('show');
             }, 100);
-            
+
             setTimeout(() => {
                 notification.classList.remove('show');
                 setTimeout(() => {
-                    document.body.removeChild(notification);
+                    // Safety check: only remove if still in DOM
+                    if (notification.parentNode) {
+                        notification.parentNode.removeChild(notification);
+                    }
                 }, 300);
             }, 3000);
         }
@@ -8040,10 +8131,16 @@
         }
         
         function reanalyzeAllSections() {
-            if (confirm('This will re-analyze all sections with the current AI model. Continue?')) {
-                closeModal('genericModal');
-                startComprehensiveAnalysis();
-            }
+            // ❌ DISABLED: Old auto-analysis workflow with GIF popups
+            showNotification('⚠️ This feature is disabled. Please analyze sections individually using the "Analyze This Section" button.', 'warning');
+            closeModal('genericModal');
+            return;
+
+            // OLD CODE DISABLED:
+            // if (confirm('This will re-analyze all sections with the current AI model. Continue?')) {
+            //     closeModal('genericModal');
+            //     startComprehensiveAnalysis();
+            // }
         }
         
         function provideFeedbackOnTool() {
@@ -8206,39 +8303,6 @@
             }
         });
     </script>
-        <!-- Document Processing Progress -->
-        <div class="document-progress" id="documentProgress">
-            <img class="progress-gif" id="progressGif" src="" alt="Processing...">
-            <div id="progressTitle" style="font-size: 1.3em; font-weight: bold; margin-bottom: 10px; color: #667eea;">🤖 AI-Prism is analyzing your document...</div>
-            <div id="progressDesc" style="color: #666; margin-bottom: 20px;">Please wait while I review every detail</div>
-            <div style="width: 100%; height: 6px; background: #ecf0f1; border-radius: 3px; overflow: hidden;">
-                <div style="height: 100%; background: linear-gradient(90deg, #667eea, #764ba2); width: 100%; animation: pulse 2s infinite;"></div>
-            </div>
-        </div>
-
-        <!-- Loading Overlay with Funny GIFs -->
-        <div class="loading-overlay" id="loadingOverlay">
-            <div class="loading-content">
-                <img class="loading-gif" id="loadingGif" src="" alt="Loading...">
-                <div class="loading-text" id="loadingText">AI-Prism is analyzing your document...</div>
-                <div class="loading-subtext" id="loadingSubtext">Please wait while I review every detail 🔍</div>
-            </div>
-        </div>
-
-        <!-- Analysis Progress Panel -->
-        <div id="analysisProgressPanel" style="display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 30px; border-radius: 15px; box-shadow: 0 20px 60px rgba(0,0,0,0.3); z-index: 1000; max-width: 600px; width: 90%;">
-            <h3 style="text-align: center; margin-bottom: 20px; color: #667eea;">🔍 Analyzing Document Sections</h3>
-            <div id="progressBar" style="width: 100%; height: 8px; background: #ecf0f1; border-radius: 4px; overflow: hidden; margin-bottom: 15px;">
-                <div style="height: 100%; background: linear-gradient(90deg, #667eea, #764ba2); width: 0%; transition: width 0.3s ease;"></div>
-            </div>
-            <div id="progressText" style="text-align: center; font-weight: bold; margin-bottom: 5px;">Starting analysis...</div>
-            <div id="progressSubtext" style="text-align: center; color: #666; font-size: 0.9em; margin-bottom: 20px;">Please wait...</div>
-            <div id="sectionProgress" style="max-height: 300px; overflow-y: auto; background: #f8f9fa; padding: 15px; border-radius: 8px;">
-                <!-- Section progress will be populated here -->
-            </div>
-            <img id="analysisGif" src="" alt="Analysis in progress" style="width: 100px; height: 100px; margin: 20px auto; display: block; border-radius: 10px;">
-        </div>
-
         <!-- Custom Feedback Panel -->
         <div id="customFeedbackPanel" style="display: none;">
             <!-- Custom feedback content -->
@@ -8265,362 +8329,3 @@
             </div>
         </div>
 </body>
-</html>
-<body>
-<html>
-    <script>
-
-        // Function to revert all feedback
-        function revertAllFeedback() {
-            if (!currentSession) {
-                showNotification('No active session', 'error');
-                return;
-            }
-            
-            if (confirm('Are you sure you want to revert ALL feedback decisions? This will reset all accepted/rejected items.')) {
-                fetch('/revert_all_feedback', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ session_id: currentSession })
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        showNotification('All feedback reverted successfully!', 'success');
-                        loadSection(currentSectionIndex);
-                        updateStatistics();
-                    } else {
-                        showNotification(data.error || 'Revert failed', 'error');
-                    }
-                })
-                .catch(error => {
-                    showNotification('Revert failed: ' + error.message, 'error');
-                });
-            }
-        }
-
-        // Function to update feedback
-        function updateFeedback() {
-            showNotification('Feedback updated! Statistics refreshed.', 'success');
-            updateStatistics();
-        }
-
-        // Function to show dashboard
-        function showDashboard() {
-            if (!currentSession) {
-                showNotification('No active session', 'error');
-                return;
-            }
-            
-            fetch(`/get_dashboard_data?session_id=${currentSession}`)
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    const dashboard = data.dashboard;
-                    const modalContent = `
-                        <div style="max-height: 70vh; overflow-y: auto;">
-                            <h3 style="color: #667eea; margin-bottom: 20px;">📊 Analytics Dashboard</h3>
-                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 20px;">
-                                <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; border-radius: 10px; text-align: center;">
-                                    <div style="font-size: 2.5em; font-weight: bold;">${dashboard.totalDocuments}</div>
-                                    <div>Documents Analyzed</div>
-                                </div>
-                                <div style="background: linear-gradient(135deg, #2ecc71 0%, #27ae60 100%); color: white; padding: 20px; border-radius: 10px; text-align: center;">
-                                    <div style="font-size: 2.5em; font-weight: bold;">${dashboard.acceptedFeedback}</div>
-                                    <div>Accepted Feedback</div>
-                                </div>
-                                <div style="background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%); color: white; padding: 20px; border-radius: 10px; text-align: center;">
-                                    <div style="font-size: 2.5em; font-weight: bold;">${dashboard.rejectedFeedback}</div>
-                                    <div>Rejected Feedback</div>
-                                </div>
-                                <div style="background: linear-gradient(135deg, #3498db 0%, #2980b9 100%); color: white; padding: 20px; border-radius: 10px; text-align: center;">
-                                    <div style="font-size: 2.5em; font-weight: bold;">${dashboard.userFeedback}</div>
-                                    <div>User Added</div>
-                                </div>
-                            </div>
-                        </div>
-                    `;
-                    showModal('genericModal', '📊 Analytics Dashboard', modalContent);
-                } else {
-                    showNotification('Failed to load dashboard data', 'error');
-                }
-            })
-            .catch(error => {
-                showNotification('Dashboard error: ' + error.message, 'error');
-            });
-        }
-
-        // Function to delete document
-        function deleteDocument() {
-            if (!currentSession) {
-                showNotification('No active session', 'error');
-                return;
-            }
-            
-            if (confirm('Are you sure you want to delete the current document? Guidelines will be preserved.')) {
-                fetch('/delete_document', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ 
-                        session_id: currentSession,
-                        keep_guidelines: true 
-                    })
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        showNotification('Document deleted successfully! Guidelines preserved.', 'success');
-                        document.getElementById('mainContent').style.display = 'none';
-                        document.getElementById('statisticsPanel').style.display = 'none';
-                        document.getElementById('actionButtons').style.display = 'none';
-                        document.getElementById('analysisFileName').textContent = '';
-                        document.getElementById('startAnalysisBtn').disabled = true;
-                    } else {
-                        showNotification(data.error || 'Delete failed', 'error');
-                    }
-                })
-                .catch(error => {
-                    showNotification('Delete failed: ' + error.message, 'error');
-                });
-            }
-        }
-
-        // Function to provide feedback on tool
-        function provideFeedbackOnTool() {
-            const modalContent = `
-                <div style="padding: 20px;">
-                    <h3 style="color: #667eea; margin-bottom: 20px;">💬 Help Us Improve AI-Prism</h3>
-                    <div style="margin-bottom: 15px;">
-                        <label style="font-weight: bold; margin-bottom: 5px; display: block;">How would you rate your experience?</label>
-                        <select id="toolRating" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 5px;">
-                            <option value="5">⭐⭐⭐⭐⭐ Excellent</option>
-                            <option value="4">⭐⭐⭐⭐ Good</option>
-                            <option value="3">⭐⭐⭐ Average</option>
-                            <option value="2">⭐⭐ Poor</option>
-                            <option value="1">⭐ Very Poor</option>
-                        </select>
-                    </div>
-                    <div style="text-align: center;">
-                        <button class="btn btn-success" onclick="submitToolFeedback()" style="margin: 5px;">📤 Submit Feedback</button>
-                        <button class="btn btn-secondary" onclick="closeModal('genericModal')" style="margin: 5px;">✗ Cancel</button>
-                    </div>
-                </div>
-            `;
-            showModal('genericModal', 'Tool Feedback', modalContent);
-        }
-
-        function submitToolFeedback() {
-            const rating = document.getElementById('toolRating').value;
-            const feedbackData = {
-                rating: rating,
-                timestamp: new Date().toISOString(),
-                session_id: currentSession
-            };
-            
-            fetch('/submit_tool_feedback', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(feedbackData)
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    showNotification('Thank you for your feedback!', 'success');
-                    closeModal('genericModal');
-                } else {
-                    showNotification('Failed to submit feedback.', 'error');
-                }
-            })
-            .catch(error => {
-                showNotification('Feedback submission failed: ' + error.message, 'error');
-            });
-        }
-
-        // Function to complete review
-        function completeReview() {
-            if (!currentSession) {
-                showNotification('No active session', 'error');
-                return;
-            }
-            
-            if (confirm('Complete the review and generate the final document with comments?')) {
-                showProgress('Generating final document...');
-                
-                fetch('/complete_review', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ session_id: currentSession })
-                })
-                .then(response => response.json())
-                .then(data => {
-                    hideProgress();
-                    if (data.success) {
-                        showNotification(`Review completed! Document generated with ${data.comments_count} comments.`, 'success');
-                        const downloadBtn = document.getElementById('downloadBtn');
-                        if (downloadBtn) {
-                            downloadBtn.disabled = false;
-                            downloadBtn.setAttribute('data-filename', data.output_file);
-                        }
-
-                        // Enable S3 export button
-                        const exportS3Btn = document.getElementById('exportS3Btn');
-                        if (exportS3Btn) {
-                            exportS3Btn.disabled = false;
-                        }
-
-                        finalDocumentData = data;
-                    } else {
-                        showNotification(data.error || 'Review completion failed', 'error');
-                    }
-                })
-                .catch(error => {
-                    hideProgress();
-                    showNotification('Review completion failed: ' + error.message, 'error');
-                });
-            }
-        }
-
-        // Function to export chat history
-        function exportChatHistory() {
-            if (chatHistory.length === 0) {
-                showNotification('No chat history to export', 'info');
-                return;
-            }
-            
-            const exportData = {
-                export_timestamp: new Date().toISOString(),
-                session_id: currentSession,
-                total_messages: chatHistory.length,
-                chat_history: chatHistory
-            };
-            
-            const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `ai_prism_chat_${new Date().toISOString().split('T')[0]}.json`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            window.URL.revokeObjectURL(url);
-            
-            showNotification('Chat history exported successfully!', 'success');
-        }
-
-        // Function to download guidelines
-        function downloadGuidelines() {
-            if (!currentSession) {
-                showNotification('No active session', 'error');
-                return;
-            }
-            
-            window.location.href = `/download_guidelines?session_id=${currentSession}`;
-            showNotification('Downloading guidelines...', 'info');
-        }
-
-        // Function to export statistics
-        function exportStatistics(statType) {
-            if (!currentSession) {
-                showNotification('No active session', 'error');
-                return;
-            }
-            
-            const exportData = {
-                export_timestamp: new Date().toISOString(),
-                session_id: currentSession,
-                stat_type: statType,
-                statistics: 'Exported from breakdown view'
-            };
-            
-            const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `${statType}_statistics_${new Date().toISOString().split('T')[0]}.json`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            window.URL.revokeObjectURL(url);
-            
-            showNotification(`${statType.replace('_', ' ')} statistics exported!`, 'success');
-        }
-
-        function hideProgress() {
-            const progressContainer = document.getElementById('progressContainer');
-            const docProgress = document.getElementById('documentProgress');
-            
-            if (progressContainer) {
-                progressContainer.style.display = 'none';
-            }
-            
-            if (docProgress) {
-                docProgress.style.display = 'none';
-                stopMediaRotation();
-            }
-        }
-
-        function startMediaRotation() {
-            if (isMediaRotating) return;
-            
-            isMediaRotating = true;
-            currentMediaIndex = 0;
-            usedMediaIndices = [];
-            
-            rotateMedia();
-            mediaRotationInterval = setInterval(rotateMedia, 5000);
-        }
-
-        function stopMediaRotation() {
-            if (mediaRotationInterval) {
-                clearInterval(mediaRotationInterval);
-                mediaRotationInterval = null;
-            }
-            isMediaRotating = false;
-        }
-
-        function rotateMedia() {
-            if (!showGraphics || loadingMediaWithContent.length === 0) return;
-            
-            if (usedMediaIndices.length >= loadingMediaWithContent.length) {
-                usedMediaIndices = [];
-            }
-            
-            let nextIndex;
-            do {
-                nextIndex = Math.floor(Math.random() * loadingMediaWithContent.length);
-            } while (usedMediaIndices.includes(nextIndex));
-            
-            usedMediaIndices.push(nextIndex);
-            currentMediaIndex = nextIndex;
-            
-            const media = loadingMediaWithContent[currentMediaIndex];
-            const progressGif = document.getElementById('progressGif');
-            const progressTitle = document.getElementById('progressTitle');
-            const progressDesc = document.getElementById('progressDesc');
-            
-            if (progressGif && media.gif) {
-                progressGif.src = media.gif;
-                progressGif.onerror = function() {
-                    this.style.display = 'none';
-                };
-            }
-            
-            const contentTypes = ['gif', 'joke', 'math'];
-            const currentType = contentTypes[Math.floor(Math.random() * contentTypes.length)];
-            
-            if (progressDesc && media[currentType]) {
-                progressDesc.textContent = media[currentType];
-            }
-        }
-    </script>
-
-    <!-- Global function fixes for Issues #1-4 and #9-13 -->
-    <!-- NOTE: Removed duplicate script loads to prevent function override conflicts -->
-    <!-- All necessary functions are properly defined in global_function_fixes.js -->
-    <script src="{{ url_for('static', filename='js/global_function_fixes.js') }}"></script>
-
-    <!-- ✅ NEW: Activity Logs - Brand New Implementation (Nov 16, 2025) -->
-    <!-- Completely rewritten from scratch for reliability -->
-    <script src="{{ url_for('static', filename='js/activity_logs.js') }}"></script>
-</body>
-</html>

@@ -1,0 +1,153 @@
+
+================================================================================
+🚀 AI-PRISM COMPREHENSIVE END-TO-END TEST SUITE
+================================================================================
+
+================================================================================
+🧪 TEST: Server Status and Connectivity
+================================================================================
+  ✓ Server response: 200
+  ✓ Server is running and accessible
+  ✓ Response size: 410826 bytes
+
+✅ PASS (0.03s)
+
+================================================================================
+🧪 TEST: Claude API Connection Test
+================================================================================
+  ✓ Response status: 200
+  ✓ Connected: True
+  ✓ Model: Claude 3.5 Sonnet
+  ✓ Response time: 1.19s
+
+✅ PASS (1.20s)
+
+================================================================================
+🧪 TEST: Document Upload and Section Extraction
+================================================================================
+  ✓ Test document created successfully
+  ✓ Upload response: 200
+  ✓ Session ID: e7c0b259-4223-45b8-be72-4ea74701b526
+  ✓ Sections extracted: 4
+  ✓ Section names: Executive Summary, Timeline of Events, Root Cause Analysis, Preventative Actions
+
+✅ PASS (0.10s)
+
+================================================================================
+🧪 TEST: On-Demand Section Analysis
+================================================================================
+  ✓ Analysis response: 200
+  ✓ Async mode: True
+  ✓ Task ID: c9f46c52-c435-4ad6-bd44-8e892d5b106e
+  ✓ Section content included: True
+  ✓ Polling for task completion...
+  ✓ Poll attempt 1: PROGRESS
+  ✓ Poll attempt 2: PROGRESS
+  ✓ Poll attempt 3: PROGRESS
+  ✓ Poll attempt 4: PROGRESS
+  ✓ Poll attempt 5: PROGRESS
+  ✓ Poll attempt 6: SUCCESS
+  ✓ Raw result keys: ['duration', 'feedback_count', 'model_used', 'section', 'status', 'tokens_used']
+  ✓ Result success: N/A
+  ✓ Analysis complete!
+  ✓ Feedback items type: <class 'list'>
+  ✓ Feedback items generated: 0
+  ✓ Duration: 32.37s
+  ✓ Model used: Claude Sonnet 4.5 (Extended Thinking)
+  ✗ ERROR: No feedback items generated (empty list)
+
+⚠️ WARN (40.59s)
+
+================================================================================
+🧪 TEST: Chat Assistant Functionality
+================================================================================
+  ✓ Chat response: 200
+  ✓ Async mode: True
+  ✓ Task ID: dc467fae-7dad-4cb4-9632-59959769a263
+  ✓ Polling for chat response...
+  ✓ Chat response received!
+  ✓ Response length: 1337 characters
+  ✓ Model used: Claude Sonnet 4.5 (Extended Thinking)
+  ✓ Preview: For an **Executive Summary**, focus on these key Hawkeye checkpoints:
+
+**Primary Checkpoints:**
+• **...
+
+✅ PASS (19.24s)
+
+================================================================================
+🧪 TEST: Statistics and Session Management
+================================================================================
+  ✓ Statistics response: 200
+  ✓ Sections analyzed: 0
+  ✓ Total feedback: 0
+  ✓ High risk items: 0
+  ✓ Medium risk items: 0
+
+✅ PASS (0.00s)
+
+
+================================================================================
+📊 COMPREHENSIVE TEST REPORT
+================================================================================
+Test Date: 2025-11-20 15:50:01
+Base URL: http://localhost:8080
+Total Tests: 6
+
+✅ PASSED: 5
+❌ FAILED: 0
+⚠️  WARNINGS: 1
+
+================================================================================
+DETAILED RESULTS BY CATEGORY
+================================================================================
+
+📁 Infrastructure
+--------------------------------------------------------------------------------
+✅ Server Status and Connectivity (0.03s)
+    • Server response: 200
+    • Server is running and accessible
+    • Response size: 410826 bytes
+✅ Claude API Connection Test (1.20s)
+    • Response status: 200
+    • Connected: True
+    • Model: Claude 3.5 Sonnet
+    • Response time: 1.19s
+
+📁 Core Functionality
+--------------------------------------------------------------------------------
+✅ Document Upload and Section Extraction (0.10s)
+    • Test document created successfully
+    • Upload response: 200
+    • Session ID: e7c0b259-4223-45b8-be72-4ea74701b526
+    • Sections extracted: 4
+    • Section names: Executive Summary, Timeline of Events, Root Cause Analysis, Preventative Actions
+⚠️ On-Demand Section Analysis (40.59s)
+    • Analysis response: 200
+    • Async mode: True
+    • Task ID: c9f46c52-c435-4ad6-bd44-8e892d5b106e
+    • Section content included: True
+    • Polling for task completion...
+    ✗ No feedback items generated (empty list)
+
+📁 User Interaction
+--------------------------------------------------------------------------------
+✅ Chat Assistant Functionality (19.24s)
+    • Chat response: 200
+    • Async mode: True
+    • Task ID: dc467fae-7dad-4cb4-9632-59959769a263
+    • Polling for chat response...
+    • Chat response received!
+
+📁 Data Management
+--------------------------------------------------------------------------------
+✅ Statistics and Session Management (0.00s)
+    • Statistics response: 200
+    • Sections analyzed: 0
+    • Total feedback: 0
+    • High risk items: 0
+    • Medium risk items: 0
+
+📄 Full report saved to: test_report_20251120_155001.txt
+
+⚠️  SOME TESTS FAILED - See report for details

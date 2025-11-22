@@ -14,6 +14,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 try:
     from core.document_analyzer import DocumentAnalyzer
     from core.ai_feedback_engine import AIFeedbackEngine
+    from core.database_manager import db_manager  # ✅ NEW: Auto-save database
     from utils.statistics_manager import StatisticsManager
     from utils.document_processor import DocumentProcessor
     from utils.pattern_analyzer import DocumentPatternAnalyzer
@@ -25,43 +26,38 @@ except ImportError as e:
     print(f"⚠️ Import error: {e}")
     print("Creating fallback components...")
 
-# Import Celery integration helper
-try:
-    from celery_integration import (
-        is_celery_available,
-        submit_analysis_task,
-        submit_chat_task,
-        submit_test_task,
-        get_task_status,
-        get_queue_stats
-    )
-    CELERY_ENABLED = is_celery_available()
-    if CELERY_ENABLED:
-        print("✅ Celery task queue is available and configured")
-    else:
-        print("ℹ️  Celery not available - using synchronous processing")
-except ImportError:
-    print("ℹ️  Celery integration not found - using synchronous processing")
-    CELERY_ENABLED = False
+# ✅ RQ (Redis Queue) - Simpler, no signature expiration, no S3 polling
+# Replaced Celery + SQS + S3 backend with RQ + Redis (100% free, open source)
 
-# ✅ Import Enhanced Celery Tasks (NEW - Multi-model fallback with throttling protection)
+# ✅ Import RQ Tasks (NEW - Multi-model fallback WITHOUT Celery complexity)
 ENHANCED_MODE = False
+RQ_ENABLED = False  # Track if RQ is available
 try:
-    from celery_tasks_enhanced import (
+    from rq_tasks import (
         analyze_section_task,
         process_chat_task,
         monitor_health
     )
+    from rq_config import get_queue, is_rq_available, redis_conn
+    from rq.job import Job
     from core.async_request_manager import get_async_request_manager
     from config.model_config_enhanced import get_default_models
-    ENHANCED_MODE = True
-    print("✅ ✨ ENHANCED MODE ACTIVATED ✨")
-    print("   Features enabled:")
-    print("   • Multi-model fallback (5 models)")
-    print("   • Extended thinking (Sonnet 4.5)")
-    print("   • 5-layer throttling protection")
-    print("   • Token optimization (TOON)")
-    print("   • us-east-2 region for Bedrock")
+
+    # Check if Redis is actually running
+    if is_rq_available():
+        ENHANCED_MODE = True
+        RQ_ENABLED = True  # RQ is available when Redis is running
+        print("✅ ✨ ENHANCED MODE ACTIVATED (RQ) ✨")
+        print("   Features enabled:")
+        print("   • Multi-model fallback (Claude Sonnet 4.5)")
+        print("   • Extended thinking capability")
+        print("   • RQ task queue (NO signature expiration!)")
+        print("   • Redis result storage (NO S3 polling!)")
+        print("   • 100% Free & Open Source")
+        print("   • us-east-2 region for Bedrock")
+    else:
+        print("⚠️ Redis not running - RQ disabled")
+        print("   Start Redis: brew services start redis")
 
     # Display available models
     try:
@@ -74,85 +70,40 @@ try:
         print(f"   ⚠️  Could not load model details: {e}")
 
 except ImportError as e:
-    print(f"ℹ️  Enhanced mode not available: {e}")
-    print("   Using standard Celery tasks (fallback mode)")
+    print(f"❌ CRITICAL: Enhanced mode import failed: {e}")
+    print("   Application requires these components to function.")
+    print("   Please ensure all dependencies are installed: pip install -r requirements.txt")
     ENHANCED_MODE = False
+    # Don't create fallback classes - let the real import errors show
+    raise ImportError(f"Required components not available: {e}")
 
-    # Create minimal fallback classes
-    class DocumentAnalyzer:
-        def extract_sections_from_docx(self, file_path):
-            return {"Section 1": "Sample content"}, {"Section 1": ["Sample paragraph"]}, {"Section 1": [0]}
-    
-    class AIFeedbackEngine:
-        def analyze_section(self, section_name, content):
-            return {"feedback_items": []}
-        def process_chat_query(self, query, context):
-            return "AI chat temporarily unavailable"
-    
-    class StatisticsManager:
-        def get_statistics(self): return {}
-        def update_feedback_data(self, *args): pass
-        def record_acceptance(self, *args): pass
-        def record_rejection(self, *args): pass
-        def add_user_feedback(self, *args): pass
-        def get_detailed_breakdown(self, *args): return {}
-        def generate_breakdown_html(self, *args): return "<p>Statistics unavailable</p>"
-    
-    class DocumentProcessor:
-        def create_document_with_comments(self, *args): return None
-    
-    class DocumentPatternAnalyzer:
-        def find_recurring_patterns(self): return []
-        def get_category_trends(self): return {}
-        def get_risk_patterns(self): return {}
-        def get_pattern_report_html(self): return "<p>Pattern analysis unavailable</p>"
-        def add_document_feedback(self, *args): pass
-    
-    class AuditLogger:
-        def log(self, *args): pass
-        def get_session_logs(self): return []
-        def get_performance_metrics(self): return {}
-        def get_activity_timeline(self): return []
-    
-    class FeedbackLearningSystem:
-        def record_ai_feedback_response(self, *args): pass
-        def add_custom_feedback(self, *args): pass
-        def get_learning_statistics(self): return {}
-        def generate_learning_report_html(self): return "<p>Learning system unavailable</p>"
-        def get_recommended_feedback(self, *args): return []
-    
-    class S3ExportManager:
-        def export_complete_review_to_s3(self, *args): return {"success": False, "error": "S3 export unavailable"}
-        def test_s3_connection(self): return {"connected": False, "error": "S3 unavailable"}
-    
-    class ActivityLogger:
-        def __init__(self, session_id): self.session_id = session_id
-        def log_document_upload(self, *args, **kwargs): pass
-        def log_ai_analysis(self, *args, **kwargs): pass
-        def log_feedback_action(self, *args, **kwargs): pass
-        def log_s3_operation(self, *args, **kwargs): pass
-        def log_activity(self, *args, **kwargs): pass  # ✅ FIX: Added missing method
-        def log_session_event(self, *args, **kwargs): pass
-        def get_activity_summary(self): return {"total_activities": 0, "success_count": 0, "failed_count": 0, "success_rate": 0}
-        def export_activities(self): return {"activities": [], "summary": {}}
+# Simple model config class for Flask app settings
+class SimpleModelConfig:
+    """Simplified model config for Flask application settings"""
+    def get_model_config(self):
+        return {
+            'model_id': os.environ.get('BEDROCK_MODEL_ID', 'us.anthropic.claude-sonnet-4-5-20250929-v1:0'),
+            'model_name': 'Claude Sonnet 4.5 (Enhanced)',
+            'region': os.environ.get('AWS_REGION', 'us-east-2'),
+            'port': int(os.environ.get('PORT', 8080)),
+            'flask_env': os.environ.get('FLASK_ENV', 'production')
+        }
 
-# Try to import model config with fallback
-try:
-    from config.model_config import model_config
-except ImportError:
-    class FallbackModelConfig:
-        def get_model_config(self):
-            return {
-                'model_id': os.environ.get('BEDROCK_MODEL_ID', 'anthropic.claude-3-5-sonnet-20240620-v1:0'),
-                'model_name': 'Claude 3.5 Sonnet',
-                'region': os.environ.get('AWS_REGION', 'us-east-1'),
-                'port': int(os.environ.get('PORT', 8080)),
-                'flask_env': os.environ.get('FLASK_ENV', 'production')
-            }
-        def has_credentials(self): return True
-        def print_config_summary(self): print("⚠️ Using fallback configuration")
-    
-    model_config = FallbackModelConfig()
+    def has_credentials(self):
+        """Check if AWS credentials are configured"""
+        return bool(os.environ.get('AWS_ACCESS_KEY_ID') or os.environ.get('AWS_PROFILE'))
+
+    def print_config_summary(self):
+        """Print configuration summary"""
+        config = self.get_model_config()
+        print(f"✅ Model Configuration:")
+        print(f"   • Model: {config['model_name']}")
+        print(f"   • Region: {config['region']}")
+        print(f"   • Port: {config['port']}")
+        print(f"   • Environment: {config['flask_env']}")
+        print(f"   • AWS Credentials: {'✅ Configured' if self.has_credentials() else '❌ Not configured'}")
+
+model_config = SimpleModelConfig()
 
 app = Flask(__name__, static_folder='static')
 app.secret_key = 'your-secret-key-here'
@@ -215,8 +166,32 @@ except Exception as e:
     import traceback
     traceback.print_exc()
 
-# Session storage
+# Session storage with thread safety
+import threading
 sessions = {}
+sessions_lock = threading.Lock()  # Protect concurrent access to sessions dictionary
+
+# Thread-safe session access helpers
+def get_session(session_id):
+    """Thread-safe session retrieval"""
+    with sessions_lock:
+        return sessions.get(session_id)
+
+def set_session(session_id, review_session):
+    """Thread-safe session storage"""
+    with sessions_lock:
+        sessions[session_id] = review_session
+
+def delete_session(session_id):
+    """Thread-safe session deletion"""
+    with sessions_lock:
+        if session_id in sessions:
+            del sessions[session_id]
+
+def session_exists(session_id):
+    """Thread-safe session existence check"""
+    with sessions_lock:
+        return session_id in sessions
 
 class ReviewSession:
     def __init__(self):
@@ -303,9 +278,9 @@ def upload_document():
         review_session.sections = sections
         review_session.section_paragraphs = section_paragraphs
         review_session.paragraph_indices = paragraph_indices
-        
-        # Store session
-        sessions[session_id] = review_session
+
+        # Store session (thread-safe)
+        set_session(session_id, review_session)
         session['session_id'] = session_id
         
         # Log activity with comprehensive tracking
@@ -337,7 +312,18 @@ def upload_document():
         
         # Log with audit logger
         review_session.audit_logger.log('DOCUMENTS_UPLOADED', log_details)
-        
+
+        # ✅ NEW: Save to database
+        try:
+            db_manager.create_review_session(
+                session_id=session_id,
+                document_name=filename,
+                sections=list(sections.keys())
+            )
+            print(f"✅ Database: Review session created for {session_id}")
+        except Exception as db_error:
+            print(f"⚠️ Database save error: {db_error}")
+
         return jsonify({
             'success': True,
             'session_id': session_id,
@@ -351,6 +337,39 @@ def upload_document():
     except Exception as e:
         print(f"ERROR Upload error: {str(e)}")
         return jsonify({'error': f'Upload failed: {str(e)}'}), 500
+
+# ✅ NEW ENDPOINT: Get section content without analysis
+@app.route('/get_section_content', methods=['POST'])
+def get_section_content():
+    """Get section content without triggering analysis - for manual workflow"""
+    try:
+        data = request.get_json()
+        session_id = data.get('session_id')
+        section_name = data.get('section_name')
+
+        if not session_id or not section_name:
+            return jsonify({'success': False, 'error': 'Missing session_id or section_name'}), 400
+
+        if not session_exists(session_id):
+            return jsonify({'success': False, 'error': 'Invalid or expired session'}), 400
+
+        # Get document sections
+        review_session = get_session(session_id)
+        sections_dict = review_session.sections
+
+        if section_name not in sections_dict:
+            return jsonify({'success': False, 'error': f'Section "{section_name}" not found'}), 404
+
+        # Return just the content
+        return jsonify({
+            'success': True,
+            'content': sections_dict[section_name],
+            'section_name': section_name
+        })
+
+    except Exception as e:
+        print(f"ERROR getting section content: {str(e)}")
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/analyze_section', methods=['POST'])
 def analyze_section():
@@ -368,14 +387,14 @@ def analyze_section():
         
         if not session_id:
             return jsonify({'success': False, 'error': 'No session ID provided'}), 400
-            
-        if session_id not in sessions:
+
+        if not session_exists(session_id):
             return jsonify({'success': False, 'error': 'Invalid or expired session'}), 400
-        
+
         if not section_name:
             return jsonify({'success': False, 'error': 'No section name provided'}), 400
-        
-        review_session = sessions[session_id]
+
+        review_session = get_session(session_id)
         
         if section_name not in review_session.sections:
             return jsonify({'success': False, 'error': f'Section "{section_name}" not found in document'}), 400
@@ -401,35 +420,39 @@ def analyze_section():
         print("=" * 80, flush=True)
         sys.stdout.flush()
 
-        # ✅ Check if Enhanced Mode is available (NEW - Multi-model fallback)
-        if ENHANCED_MODE and CELERY_ENABLED:
-            # Use enhanced async processing with multi-model fallback
-            print(f"✨ Submitting to ENHANCED task queue (multi-model fallback)", flush=True)
-            task = analyze_section_task.delay(
-                section_name=section_name,
-                content=section_content,
-                doc_type="Full Write-up",
-                session_id=session_id
+        # ✅ Check if Enhanced Mode is available (NEW - RQ with multi-model fallback)
+        if ENHANCED_MODE and RQ_ENABLED:
+            # Use RQ async processing (simpler than Celery, no signature expiration!)
+            print(f"✨ Submitting to RQ task queue (NO signature expiration!)", flush=True)
+
+            # Submit task to RQ queue
+            queue = get_queue('analysis')
+            job = queue.enqueue(
+                analyze_section_task,
+                args=(section_name, section_content, "Full Write-up", session_id),
+                job_timeout=300  # 5 minutes timeout
             )
 
-            # Return task ID for async polling
+            # Return job ID for async polling + section content for immediate display
             return jsonify({
                 'success': True,
-                'task_id': task.id,
-                'status': 'processing',
-                'message': 'Analysis started with multi-model fallback and throttling protection',
+                'task_id': job.id,
+                'status': 'queued',
+                'message': 'Analysis started with RQ (NO AWS signature expiration!)',
                 'async': True,
                 'enhanced': True,
+                'section_content': section_content,  # ✅ Include section content for frontend display
                 'features': {
+                    'rq_queue': True,
                     'multi_model_fallback': True,
                     'extended_thinking': True,
-                    'throttle_protection': True,
-                    'token_optimization': True
+                    'no_signature_expiration': True,
+                    'redis_result_storage': True
                 }
             })
 
         # Check if standard Celery is available
-        elif CELERY_ENABLED:
+        elif RQ_ENABLED:
             # Submit task to standard Celery queue
             print(f"📤 Submitting analysis task to standard Celery queue", flush=True)
             task_id, is_async = submit_analysis_task(
@@ -615,10 +638,10 @@ def accept_feedback():
         if not section_name or not isinstance(section_name, str):
             return jsonify({'error': 'Invalid or missing section_name'}), 400
 
-        if not session_id or session_id not in sessions:
+        if not session_id or not session_exists(session_id):
             return jsonify({'error': 'Invalid session'}), 400
 
-        review_session = sessions[session_id]
+        review_session = get_session(session_id)
 
         # Find the feedback item
         feedback_item = None
@@ -636,12 +659,15 @@ def accept_feedback():
         # Update statistics
         stats_manager.record_acceptance(section_name, feedback_item)
         
-        # Log activity with comprehensive tracking
+        # Log activity with comprehensive tracking - ENHANCED with more details
         review_session.activity_logger.log_feedback_action(
-            'accepted', 
-            feedback_id, 
-            section_name, 
-            feedback_item.get('description')
+            'accepted',
+            feedback_id,
+            section_name,
+            feedback_item.get('description'),
+            feedback_type=feedback_item.get('type'),
+            risk_level=feedback_item.get('risk_level'),
+            confidence=feedback_item.get('confidence', 0.8)
         )
         
         # Legacy logging
@@ -654,7 +680,17 @@ def accept_feedback():
         # Log with audit logger and learning system
         review_session.audit_logger.log('FEEDBACK_ACCEPTED', f'Accepted {feedback_item.get("type")} feedback in {section_name}')
         review_session.learning_system.record_ai_feedback_response(feedback_item, section_name, accepted=True)
-        
+
+        # ✅ NEW: Save to database
+        try:
+            db_manager.log_activity(session_id, 'FEEDBACK_ACCEPTED', 'success', {
+                'section': section_name,
+                'type': feedback_item.get('type'),
+                'risk_level': feedback_item.get('risk_level')
+            })
+        except Exception as db_error:
+            print(f"⚠️ Database log error: {db_error}")
+
         return jsonify({'success': True})
         
     except Exception as e:
@@ -675,10 +711,10 @@ def reject_feedback():
         if not section_name or not isinstance(section_name, str):
             return jsonify({'error': 'Invalid or missing section_name'}), 400
 
-        if not session_id or session_id not in sessions:
+        if not session_id or not session_exists(session_id):
             return jsonify({'error': 'Invalid session'}), 400
 
-        review_session = sessions[session_id]
+        review_session = get_session(session_id)
 
         # Find the feedback item
         feedback_item = None
@@ -696,12 +732,15 @@ def reject_feedback():
         # Update statistics
         stats_manager.record_rejection(section_name, feedback_item)
         
-        # Log activity with comprehensive tracking
+        # Log activity with comprehensive tracking - ENHANCED with more details
         review_session.activity_logger.log_feedback_action(
-            'rejected', 
-            feedback_id, 
-            section_name, 
-            feedback_item.get('description')
+            'rejected',
+            feedback_id,
+            section_name,
+            feedback_item.get('description'),
+            feedback_type=feedback_item.get('type'),
+            risk_level=feedback_item.get('risk_level'),
+            confidence=feedback_item.get('confidence', 0.8)
         )
         
         # Legacy logging
@@ -711,11 +750,21 @@ def reject_feedback():
             'details': f'Rejected {feedback_item.get("type")} feedback in {section_name}'
         })
         
-        
+
         # Log with audit logger and learning system
         review_session.audit_logger.log('FEEDBACK_REJECTED', f'Rejected {feedback_item.get("type")} feedback in {section_name}')
         review_session.learning_system.record_ai_feedback_response(feedback_item, section_name, accepted=False)
-        
+
+        # ✅ NEW: Save to database
+        try:
+            db_manager.log_activity(session_id, 'FEEDBACK_REJECTED', 'success', {
+                'section': section_name,
+                'type': feedback_item.get('type'),
+                'risk_level': feedback_item.get('risk_level')
+            })
+        except Exception as db_error:
+            print(f"⚠️ Database log error: {db_error}")
+
         return jsonify({'success': True})
 
     except Exception as e:
@@ -729,10 +778,10 @@ def revert_feedback():
         section_name = data.get('section_name')
         feedback_id = data.get('feedback_id')
 
-        if not session_id or session_id not in sessions:
+        if not session_id or not session_exists(session_id):
             return jsonify({'error': 'Invalid session'}), 400
 
-        review_session = sessions[session_id]
+        review_session = get_session(session_id)
 
         # Remove from accepted feedback if present
         if section_name in review_session.accepted_feedback:
@@ -775,10 +824,10 @@ def add_custom_feedback():
         highlight_id = data.get('highlight_id')  # New field for highlighted text
         highlighted_text = data.get('highlighted_text')  # New field for highlighted text content
         
-        if not session_id or session_id not in sessions:
+        if not session_id or not session_exists(session_id):
             return jsonify({'error': 'Invalid session'}), 400
         
-        review_session = sessions[session_id]
+        review_session = get_session(session_id)
         
         # Create custom feedback item
         custom_feedback = {
@@ -836,10 +885,10 @@ def chat():
         current_section = data.get('current_section')
         ai_model = data.get('ai_model', 'claude-3-sonnet')
         
-        if not session_id or session_id not in sessions:
+        if not session_id or not session_exists(session_id):
             return jsonify({'error': 'Invalid session'}), 400
         
-        review_session = sessions[session_id]
+        review_session = get_session(session_id)
         
         # Add user message to history
         review_session.chat_history.append({
@@ -863,27 +912,26 @@ def chat():
             'rejected_count': len(review_session.rejected_feedback.get(current_section, []))
         }
         
-        # Check if Celery is available for async processing
-        if CELERY_ENABLED:
-            # Submit task to Celery queue
-            print(f"📤 Submitting chat task to Celery queue", flush=True)
-            task_id, is_async = submit_chat_task(
-                query=message,
-                context=context
+        # Check if RQ is available for async processing
+        if RQ_ENABLED and ENHANCED_MODE:
+            # Submit task to RQ queue
+            print(f"📤 Submitting chat task to RQ queue", flush=True)
+
+            queue = get_queue('chat')
+            job = queue.enqueue(
+                process_chat_task,
+                args=(message, context),
+                job_timeout=120  # 2 minutes timeout
             )
 
-            if is_async:
-                # Return task ID for async polling
-                return jsonify({
-                    'success': True,
-                    'task_id': task_id,
-                    'status': 'processing',
-                    'message': 'Chat task submitted to queue',
-                    'async': True
-                })
-            else:
-                # Celery not available, got result directly
-                response = task_id  # task_id is actually the result in sync mode
+            # Return job ID for async polling
+            return jsonify({
+                'success': True,
+                'task_id': job.id,
+                'status': 'queued',
+                'message': 'Chat task submitted to RQ queue',
+                'async': True
+            })
         else:
             # Track chat response time (synchronous fallback)
             chat_start_time = datetime.now()
@@ -959,10 +1007,10 @@ def delete_document():
         session_id = data.get('session_id') or session.get('session_id')
         keep_guidelines = data.get('keep_guidelines', True)
         
-        if not session_id or session_id not in sessions:
+        if not session_id or not session_exists(session_id):
             return jsonify({'error': 'Invalid session'}), 400
         
-        review_session = sessions[session_id]
+        review_session = get_session(session_id)
         
         # Delete document file but keep guidelines
         if review_session.document_path and os.path.exists(review_session.document_path):
@@ -1034,10 +1082,10 @@ def get_statistics():
     try:
         session_id = request.args.get('session_id') or session.get('session_id')
         
-        if not session_id or session_id not in sessions:
+        if not session_id or not session_exists(session_id):
             return jsonify({'error': 'Invalid session'}), 400
         
-        review_session = sessions[session_id]
+        review_session = get_session(session_id)
         
         # Reset and rebuild statistics from current session
         global stats_manager
@@ -1072,10 +1120,10 @@ def get_statistics_breakdown():
         session_id = request.args.get('session_id') or session.get('session_id')
         stat_type = request.args.get('stat_type')
         
-        if not session_id or session_id not in sessions:
+        if not session_id or not session_exists(session_id):
             return jsonify({'error': 'Invalid session'}), 400
         
-        review_session = sessions[session_id]
+        review_session = get_session(session_id)
         
         # Reset and rebuild statistics from current session
         global stats_manager
@@ -1110,10 +1158,10 @@ def get_patterns():
     try:
         session_id = request.args.get('session_id') or session.get('session_id')
         
-        if not session_id or session_id not in sessions:
+        if not session_id or not session_exists(session_id):
             return jsonify({'error': 'Invalid session'}), 400
         
-        review_session = sessions[session_id]
+        review_session = get_session(session_id)
         
         # Add current session data to pattern analyzer
         all_feedback = []
@@ -1228,10 +1276,10 @@ def get_activity_logs():
         session_id = request.args.get('session_id') or session.get('session_id')
         format_type = request.args.get('format', 'json')
         
-        if not session_id or session_id not in sessions:
+        if not session_id or not session_exists(session_id):
             return jsonify({'error': 'Invalid session'}), 400
         
-        review_session = sessions[session_id]
+        review_session = get_session(session_id)
         
         if format_type == 'html':
             # Generate comprehensive HTML logs including all activities
@@ -1382,10 +1430,10 @@ def get_learning_status():
         session_id = request.args.get('session_id') or session.get('session_id')
         format_type = request.args.get('format', 'json')
         
-        if not session_id or session_id not in sessions:
+        if not session_id or not session_exists(session_id):
             return jsonify({'error': 'Invalid session'}), 400
         
-        review_session = sessions[session_id]
+        review_session = get_session(session_id)
         
         if format_type == 'html':
             learning_html = review_session.learning_system.generate_learning_report_html()
@@ -1470,46 +1518,7 @@ def generate_improvement_suggestions(acceptance_rate, user_engagement):
     
     return suggestions
 
-@app.route('/get_section_content', methods=['GET'])
-def get_section_content():
-    """
-    NEW ENDPOINT: Get section content WITHOUT analysis
-    Used for on-demand analysis workflow
-    """
-    try:
-        session_id = request.args.get('session_id') or session.get('session_id')
-        section_name = request.args.get('section_name')
-
-        if not session_id or session_id not in sessions:
-            return jsonify({'success': False, 'error': 'Invalid session'}), 400
-
-        if not section_name:
-            return jsonify({'success': False, 'error': 'No section name provided'}), 400
-
-        review_session = sessions[session_id]
-
-        # Get section content from document analyzer (use 'sections' not 'document_sections')
-        if hasattr(review_session, 'sections') and section_name in review_session.sections:
-            content = review_session.sections[section_name]
-
-            return jsonify({
-                'success': True,
-                'content': content,
-                'section_name': section_name
-            })
-        else:
-            # Log available sections for debugging
-            available_sections = list(review_session.sections.keys()) if hasattr(review_session, 'sections') else []
-            print(f"ERROR: Section '{section_name}' not found. Available sections: {available_sections}")
-
-            return jsonify({
-                'success': False,
-                'error': f'Section "{section_name}" not found. Available sections: {available_sections}'
-            }), 404
-
-    except Exception as e:
-        print(f"ERROR Get section content: {str(e)}")
-        return jsonify({'success': False, 'error': str(e)}), 500
+# ✅ REMOVED DUPLICATE: get_section_content already defined at line 321
 
 @app.route('/complete_review', methods=['POST'])
 def complete_review():
@@ -1518,10 +1527,10 @@ def complete_review():
         session_id = data.get('session_id') or session.get('session_id')
         export_to_s3 = data.get('export_to_s3', False)
         
-        if not session_id or session_id not in sessions:
+        if not session_id or not session_exists(session_id):
             return jsonify({'error': 'Invalid session'}), 400
         
-        review_session = sessions[session_id]
+        review_session = get_session(session_id)
         
         # Prepare comments data
         comments_data = []
@@ -1686,6 +1695,22 @@ def complete_review():
                         'error': str(s3_error),
                         'location': 'failed'
                     }
+
+            # ✅ NEW: Save completion to database
+            try:
+                stats = stats_manager.get_statistics()
+                s3_loc = export_result.get('location') if export_to_s3 and export_result.get('success') else None
+
+                db_manager.complete_review(
+                    session_id=session_id,
+                    output_filename=output_filename,
+                    stats=stats,
+                    s3_location=s3_loc
+                )
+                print(f"✅ Database: Review completed and saved for {session_id}")
+            except Exception as db_error:
+                print(f"⚠️ Database completion error: {db_error}")
+
             return jsonify(response_data)
         else:
             review_session.activity_logger.complete_operation(success=False, error='Failed to create reviewed document')
@@ -1707,10 +1732,10 @@ def get_accepted_feedback_count():
     try:
         session_id = request.args.get('session_id')
 
-        if not session_id or session_id not in sessions:
+        if not session_id or not session_exists(session_id):
             return jsonify({'error': 'Invalid session'}), 400
 
-        review_session = sessions[session_id]
+        review_session = get_session(session_id)
 
         # Count all accepted feedback across all sections
         accepted_count = sum(
@@ -1755,10 +1780,10 @@ def get_latest_document():
     try:
         session_id = request.args.get('session_id')
 
-        if not session_id or session_id not in sessions:
+        if not session_id or not session_exists(session_id):
             return jsonify({'success': False, 'error': 'Invalid session'}), 400
 
-        review_session = sessions[session_id]
+        review_session = get_session(session_id)
 
         # Look for the most recent reviewed document
         # Check if finalDocumentData or similar exists
@@ -1795,9 +1820,9 @@ def reset_session():
     try:
         session_id = session.get('session_id')
         
-        if session_id and session_id in sessions:
+        if session_id and session_exists(session_id):
             # Clean up old session
-            del sessions[session_id]
+            delete_session(session_id)
         
         # Clear session
         session.clear()
@@ -1817,10 +1842,10 @@ def revert_all_feedback():
         data = request.get_json()
         session_id = data.get('session_id') or session.get('session_id')
         
-        if not session_id or session_id not in sessions:
+        if not session_id or not session_exists(session_id):
             return jsonify({'error': 'Invalid session'}), 400
         
-        review_session = sessions[session_id]
+        review_session = get_session(session_id)
         
         # Clear all feedback
         review_session.accepted_feedback = defaultdict(list)
@@ -1847,10 +1872,10 @@ def get_dashboard_data():
     try:
         session_id = request.args.get('session_id') or session.get('session_id')
         
-        if not session_id or session_id not in sessions:
+        if not session_id or not session_exists(session_id):
             return jsonify({'error': 'Invalid session'}), 400
         
-        review_session = sessions[session_id]
+        review_session = get_session(session_id)
         
         # Calculate dashboard metrics
         total_accepted = sum(len(items) for items in review_session.accepted_feedback.values())
@@ -1877,10 +1902,10 @@ def download_guidelines():
     try:
         session_id = request.args.get('session_id') or session.get('session_id')
         
-        if not session_id or session_id not in sessions:
+        if not session_id or not session_exists(session_id):
             return jsonify({'error': 'Invalid session'}), 400
         
-        review_session = sessions[session_id]
+        review_session = get_session(session_id)
         
         if hasattr(review_session, 'guidelines_path') and review_session.guidelines_path:
             return send_file(review_session.guidelines_path, as_attachment=True)
@@ -1927,10 +1952,10 @@ def get_user_feedback():
     try:
         session_id = request.args.get('session_id') or session.get('session_id')
         
-        if not session_id or session_id not in sessions:
+        if not session_id or not session_exists(session_id):
             return jsonify({'error': 'Invalid session'}), 400
         
-        review_session = sessions[session_id]
+        review_session = get_session(session_id)
         
         # Collect all user feedback across sections
         all_user_feedback = []
@@ -1961,10 +1986,10 @@ def update_user_feedback():
         feedback_id = data.get('feedback_id')
         updated_data = data.get('updated_data')
         
-        if not session_id or session_id not in sessions:
+        if not session_id or not session_exists(session_id):
             return jsonify({'error': 'Invalid session'}), 400
         
-        review_session = sessions[session_id]
+        review_session = get_session(session_id)
         
         # Find and update the feedback item
         updated = False
@@ -2009,10 +2034,10 @@ def delete_user_feedback():
         session_id = data.get('session_id') or session.get('session_id')
         feedback_id = data.get('feedback_id')
         
-        if not session_id or session_id not in sessions:
+        if not session_id or not session_exists(session_id):
             return jsonify({'error': 'Invalid session'}), 400
         
-        review_session = sessions[session_id]
+        review_session = get_session(session_id)
         
         # Find and delete the feedback item
         deleted = False
@@ -2054,10 +2079,10 @@ def export_user_feedback():
         session_id = request.args.get('session_id') or session.get('session_id')
         format_type = request.args.get('format', 'json')  # json, csv, txt
         
-        if not session_id or session_id not in sessions:
+        if not session_id or not session_exists(session_id):
             return jsonify({'error': 'Invalid session'}), 400
         
-        review_session = sessions[session_id]
+        review_session = get_session(session_id)
         
         # Collect all user feedback
         all_user_feedback = []
@@ -2143,10 +2168,10 @@ def download_statistics():
         session_id = request.args.get('session_id') or session.get('session_id')
         format_type = request.args.get('format', 'json')
         
-        if not session_id or session_id not in sessions:
+        if not session_id or not session_exists(session_id):
             return jsonify({'error': 'Invalid session'}), 400
         
-        review_session = sessions[session_id]
+        review_session = get_session(session_id)
         
         # Get comprehensive statistics
         stats = stats_manager.get_statistics()
@@ -2229,10 +2254,10 @@ def export_to_s3():
         data = request.get_json()
         session_id = data.get('session_id') or session.get('session_id')
         
-        if not session_id or session_id not in sessions:
+        if not session_id or not session_exists(session_id):
             return jsonify({'error': 'Invalid session'}), 400
         
-        review_session = sessions[session_id]
+        review_session = get_session(session_id)
         
         # Create the reviewed document first if not exists
         comments_data = []
@@ -2359,8 +2384,8 @@ def test_s3_connection():
         }
 
         # Log the test if we have a session
-        if session_id and session_id in sessions:
-            review_session = sessions[session_id]
+        if session_id and session_exists(session_id):
+            review_session = get_session(session_id)
             review_session.activity_logger.log_s3_operation(
                 'connection_test',
                 success=connection_status.get('connected', False) and connection_status.get('bucket_accessible', False),
@@ -2379,8 +2404,8 @@ def test_s3_connection():
         })
     except Exception as e:
         # Log the failed test if we have a session
-        if session_id and session_id in sessions:
-            review_session = sessions[session_id]
+        if session_id and session_exists(session_id):
+            review_session = get_session(session_id)
             review_session.activity_logger.log_s3_operation(
                 'connection_test',
                 success=False,
@@ -2402,34 +2427,17 @@ def test_claude_connection():
     try:
         session_id = request.args.get('session_id') or session.get('session_id')
 
-        # Check if Celery is available for async processing
-        if CELERY_ENABLED:
-            # Submit task to Celery queue
-            print(f"📤 Submitting test connection task to Celery queue", flush=True)
-            task_id, is_async = submit_test_task()
-
-            if is_async:
-                # Return task ID for async polling
-                return jsonify({
-                    'success': True,
-                    'task_id': task_id,
-                    'status': 'testing',
-                    'message': 'Connection test submitted to queue',
-                    'async': True
-                })
-            else:
-                # Celery not available, got result directly
-                test_response = task_id['result'] if isinstance(task_id, dict) and 'result' in task_id else task_id
-        else:
-            # Test Claude connection with a simple test prompt (synchronous fallback)
-            test_response = ai_engine.test_connection()
+        # Test Claude connection directly (synchronous)
+        print(f"🔍 Testing Claude connection directly...", flush=True)
+        test_response = ai_engine.test_connection()
 
         # Get model configuration for additional details (with fallback)
         try:
             from config.model_config import model_config
             config = model_config.get_model_config()
-        except (ImportError, ModuleNotFoundError):
+        except (ImportError, ModuleNotFoundError, AttributeError, NameError) as e:
             # Fallback configuration if config module not found
+            print(f"⚠️  Using fallback config: {e}", flush=True)
             config = {
                 'region': os.environ.get('AWS_REGION', 'us-east-1'),
                 'max_tokens': int(os.environ.get('BEDROCK_MAX_TOKENS', 8192)),
@@ -2457,8 +2465,8 @@ def test_claude_connection():
         }
 
         # Log the test if we have a session
-        if session_id and session_id in sessions:
-            review_session = sessions[session_id]
+        if session_id and session_exists(session_id):
+            review_session = get_session(session_id)
             # Use correct log_activity signature (action, details_dict)
             review_session.activity_logger.log_activity(
                 'Claude Connection Test - Success' if test_response['connected'] else 'Claude Connection Test - Failed',
@@ -2468,16 +2476,20 @@ def test_claude_connection():
                 }
             )
 
+        # ✅ FIXED: Return connection status at root level for test compatibility
         return jsonify({
             'success': True,
+            'connected': test_response.get('connected', False),
+            'model': test_response.get('model', 'unknown'),
+            'response_time': test_response.get('response_time', 0),
             'claude_status': detailed_status,
             'timestamp': datetime.now().isoformat()
         })
     except Exception as e:
         # Log the failed test if we have a session
         try:
-            if session_id and session_id in sessions:
-                review_session = sessions[session_id]
+            if session_id and session_exists(session_id):
+                review_session = get_session(session_id)
                 # Use correct log_activity signature (action, details_dict)
                 review_session.activity_logger.log_activity(
                     'Claude Connection Test - Error',
@@ -2488,8 +2500,10 @@ def test_claude_connection():
         except:
             pass  # Don't let logging errors prevent error response
 
+        # ✅ FIXED: Return connection status at root level for test compatibility
         return jsonify({
             'success': False,
+            'connected': False,
             'error': str(e),
             'claude_status': {
                 'connected': False,
@@ -2503,10 +2517,10 @@ def clear_all_user_feedback():
         data = request.get_json()
         session_id = data.get('session_id') or session.get('session_id')
 
-        if not session_id or session_id not in sessions:
+        if not session_id or not session_exists(session_id):
             return jsonify({'error': 'Invalid session'}), 400
         
-        review_session = sessions[session_id]
+        review_session = get_session(session_id)
         
         # Clear all user feedback
         cleared_count = sum(len(items) for items in review_session.user_feedback.values())
@@ -2537,10 +2551,10 @@ def export_activity_logs():
         session_id = request.args.get('session_id') or session.get('session_id')
         format_type = request.args.get('format', 'json')
         
-        if not session_id or session_id not in sessions:
+        if not session_id or not session_exists(session_id):
             return jsonify({'error': 'Invalid session'}), 400
         
-        review_session = sessions[session_id]
+        review_session = get_session(session_id)
         
         # Export activity logs
         export_data = review_session.activity_logger.export_activities()
@@ -2666,6 +2680,134 @@ def reset_model_cooldowns():
 
 
 # ============================================================================
+# CELERY TASK MANAGEMENT HELPERS
+# ============================================================================
+
+def get_task_status(task_id):
+    """
+    Get Celery task status and result from S3 backend
+
+    ✅ RQ Version: Results stored directly in Redis (NO S3 polling needed!)
+    Much simpler than Celery + S3 backend.
+
+    Returns dict with task state and result (if completed)
+    """
+    print(f"📊 [CHECKPOINT] Fetching RQ task status for: {task_id}", flush=True)
+
+    try:
+        # Fetch job from RQ (simple!)
+        job = Job.fetch(task_id, connection=redis_conn)
+
+        # Get job status - RQ has clear states
+        job_status = job.get_status()  # queued, started, finished, failed, deferred, scheduled, stopped, canceled
+
+        # Build response
+        response = {
+            'task_id': task_id,
+            'state': job_status.upper(),  # Convert to uppercase like Celery states
+            'ready': job.is_finished or job.is_failed
+        }
+
+        print(f"   RQ Job state: {job_status}, Ready: {response['ready']}", flush=True)
+
+        # Handle different states
+        if job.is_finished:
+            # Job completed successfully
+            response['state'] = 'SUCCESS'
+            response['status'] = 'Task completed successfully'
+            response['progress'] = 100
+            response['result'] = job.result
+            print(f"✅ [RQ] Task SUCCESS, result keys: {response['result'].keys() if isinstance(response['result'], dict) else 'not a dict'}", flush=True)
+
+        elif job.is_failed:
+            # Job failed
+            response['state'] = 'FAILURE'
+            response['status'] = 'Task failed'
+            response['progress'] = 0
+            response['error'] = job.exc_info if job.exc_info else 'Unknown error'
+            print(f"❌ [RQ] Task FAILURE: {response['error']}", flush=True)
+
+        elif job.is_started:
+            # Job is currently running
+            response['state'] = 'PROGRESS'
+            response['status'] = 'Task is running'
+            response['progress'] = job.meta.get('progress', 50) if hasattr(job, 'meta') else 50
+            print(f"⏳ [RQ] Task PROGRESS: {response['progress']}%", flush=True)
+
+        elif job.is_queued or job.is_deferred:
+            # Job is waiting in queue
+            response['state'] = 'PENDING'
+            response['status'] = 'Task is queued'
+            response['progress'] = 0
+            print(f"⏸️  [RQ] Task PENDING (queued)", flush=True)
+
+        return response
+
+    except Exception as e:
+        # Job not found or error accessing Redis
+        print(f"⚠️ Error fetching RQ job {task_id}: {e}", flush=True)
+
+        # Return pending state if job not found
+        response = {
+            'task_id': task_id,
+            'state': 'PENDING',
+            'status': 'Task not found or Redis connection error',
+            'progress': 0,
+            'ready': False,
+            'error': str(e)
+        }
+        return response
+
+    # Should never reach here due to early returns in try/except
+    return response
+
+
+def get_queue_stats():
+    """
+    Get Celery queue statistics
+
+    Returns dict with queue stats and worker info
+    """
+    from celery_config import celery_app
+
+    try:
+        # Get active tasks
+        inspect = celery_app.control.inspect()
+
+        active_tasks = inspect.active() or {}
+        scheduled_tasks = inspect.scheduled() or {}
+        registered_tasks = inspect.registered() or {}
+
+        # Count total active tasks across all workers
+        total_active = sum(len(tasks) for tasks in active_tasks.values())
+        total_scheduled = sum(len(tasks) for tasks in scheduled_tasks.values())
+
+        # Get worker count
+        worker_count = len(active_tasks.keys())
+
+        return {
+            'available': True,
+            'workers': worker_count,
+            'active_tasks': total_active,
+            'scheduled_tasks': total_scheduled,
+            'registered_tasks': list(registered_tasks.values())[0] if registered_tasks else [],
+            'details': {
+                'active': active_tasks,
+                'scheduled': scheduled_tasks
+            }
+        }
+
+    except Exception as e:
+        return {
+            'available': False,
+            'error': str(e),
+            'workers': 0,
+            'active_tasks': 0,
+            'scheduled_tasks': 0
+        }
+
+
+# ============================================================================
 # CELERY TASK MANAGEMENT ENDPOINTS
 # ============================================================================
 
@@ -2673,7 +2815,7 @@ def reset_model_cooldowns():
 def task_status(task_id):
     """Get status of a Celery task"""
     try:
-        if not CELERY_ENABLED:
+        if not RQ_ENABLED:
             return jsonify({
                 'error': 'Celery not available',
                 'task_id': task_id,
@@ -2681,9 +2823,39 @@ def task_status(task_id):
             }), 503
 
         status = get_task_status(task_id)
+
+        # ✅ CRITICAL FIX: Store feedback_items in backend session when task completes
+        # This fixes the "Feedback item not found" error when accepting/rejecting feedback
+        if status.get('state') == 'SUCCESS' and status.get('result'):
+            result = status.get('result')
+
+            # Check if result contains feedback items from analysis task
+            if isinstance(result, dict) and 'feedback_items' in result and 'section' in result:
+                section_name = result.get('section')
+                feedback_items = result.get('feedback_items', [])
+
+                # Get session_id from request parameter
+                session_id = request.args.get('session_id') or session.get('session_id')
+
+                if session_id and session_exists(session_id):
+                    review_session = get_session(session_id)
+
+                    # Store feedback in backend session (THIS WAS MISSING!)
+                    review_session.feedback_data[section_name] = feedback_items
+
+                    print(f"✅ [TASK_STATUS] Stored {len(feedback_items)} feedback items for section '{section_name}' in backend session")
+                    print(f"   Task ID: {task_id}")
+                    print(f"   Session ID: {session_id}")
+                else:
+                    print(f"⚠️ [TASK_STATUS] Could not store feedback - session not found: {session_id}")
+
         return jsonify(status)
 
     except Exception as e:
+        print(f"❌ [TASK_STATUS] Error: {e}")
+        import traceback
+        traceback.print_exc()
+
         return jsonify({
             'error': str(e),
             'task_id': task_id,
@@ -2709,7 +2881,7 @@ def queue_stats():
 def cancel_task(task_id):
     """Cancel a running Celery task"""
     try:
-        if not CELERY_ENABLED:
+        if not RQ_ENABLED:
             return jsonify({
                 'error': 'Celery not available',
                 'cancelled': False

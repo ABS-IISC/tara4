@@ -15,29 +15,27 @@ class S3ExportManager:
         self._initialize_s3_client()
     
     def _initialize_s3_client(self):
-        """Initialize S3 client with error handling"""
+        """Initialize S3 client - uses AWS CLI credentials locally, IAM role in App Runner"""
         try:
-            # Try admin-abhsatsa profile first, then default
-            import boto3.session
-            
-            # Try specific profile first
-            try:
-                session = boto3.session.Session(profile_name='admin-abhsatsa')
-                credentials = session.get_credentials()
-                if credentials:
-                    self.s3_client = session.client('s3')
-                    print("✅ Using AWS profile: admin-abhsatsa")
-                else:
-                    raise Exception("No credentials in admin-abhsatsa profile")
-            except:
-                # Fallback to default profile
-                session = boto3.session.Session()
+            # Detect environment
+            is_app_runner = os.environ.get('AWS_EXECUTION_ENV') or os.environ.get('AWS_CONTAINER_CREDENTIALS_RELATIVE_URI')
+
+            if is_app_runner:
+                # App Runner: Use IAM role (no profile needed)
+                print("✅ AWS App Runner detected - using IAM role credentials")
+                self.s3_client = boto3.client('s3')
+            else:
+                # Local: Use AWS CLI default credentials (from ~/.aws/credentials)
+                print("✅ Local environment - using AWS CLI credentials")
+                session = boto3.Session()  # Automatically uses default credentials from CLI
                 credentials = session.get_credentials()
                 if credentials:
                     self.s3_client = boto3.client('s3')
-                    print("✅ Using default AWS profile")
+                    cred_source = os.environ.get('AWS_PROFILE', 'default profile')
+                    print(f"✅ AWS credentials loaded from: {cred_source}")
                 else:
-                    print("⚠️ No AWS credentials found. S3 export will use local fallback.")
+                    print("⚠️ No AWS CLI credentials found. S3 export will use local fallback.")
+                    print("   Run 'aws configure' to set up credentials")
                     self.s3_client = None
                     return
             

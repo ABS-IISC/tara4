@@ -1,0 +1,79 @@
+================================================================================
+COMPREHENSIVE END-TO-END TEST REPORT
+================================================================================
+Date: 2025-11-20 15:53:53
+Base URL: http://localhost:8080
+
+
+Infrastructure
+--------------------------------------------------------------------------------
+
+PASS: Server Status and Connectivity (0.01s)
+  Details:
+    - Server response: 200
+    - Server is running and accessible
+    - Response size: 410826 bytes
+
+PASS: Claude API Connection Test (1.49s)
+  Details:
+    - Response status: 200
+    - Connected: True
+    - Model: Claude 3.5 Sonnet
+    - Response time: 1.49s
+
+Core Functionality
+--------------------------------------------------------------------------------
+
+PASS: Document Upload and Section Extraction (0.11s)
+  Details:
+    - Test document created successfully
+    - Upload response: 200
+    - Session ID: e6020242-a1c5-4ccf-8bc4-f6da299683ff
+    - Sections extracted: 4
+    - Section names: Executive Summary, Timeline of Events, Root Cause Analysis, Preventative Actions
+
+WARN: On-Demand Section Analysis (19.15s)
+  Details:
+    - Analysis response: 200
+    - Async mode: True
+    - Task ID: bc76a98c-0ea5-4f84-9445-16572a014fa8
+    - Section content included: True
+    - Polling for task completion...
+    - Poll attempt 1: PROGRESS
+    - Poll attempt 2: PROGRESS
+    - Poll attempt 3: SUCCESS
+    - Raw result keys: ['error', 'section', 'success']
+    - Result success: False
+    - Analysis complete!
+    - Feedback items type: <class 'list'>
+    - Feedback items generated: 0
+    - Duration: 0.00s
+    - Model used: Unknown
+  Errors:
+    - No feedback items generated (empty list)
+
+User Interaction
+--------------------------------------------------------------------------------
+
+WARN: Chat Assistant Functionality (15.00s)
+  Details:
+    - Chat response: 200
+    - Async mode: True
+    - Task ID: 84f821ee-df78-4a07-b556-6e8f7d2e62be
+    - Polling for chat response...
+    - Chat response received!
+    - Response length: 0 characters
+    - Model used: Unknown
+  Errors:
+    - Response too short or empty
+
+Data Management
+--------------------------------------------------------------------------------
+
+PASS: Statistics and Session Management (0.00s)
+  Details:
+    - Statistics response: 200
+    - Sections analyzed: 0
+    - Total feedback: 0
+    - High risk items: 0
+    - Medium risk items: 0

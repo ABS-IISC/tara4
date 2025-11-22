@@ -180,22 +180,46 @@ window.rejectFeedback = function(feedbackId, eventOrSection) {
 
 /**
  * Helper: Get current section name from multiple sources
+ * ✅ FIXED: Added comprehensive debugging and fallback to sectionData
  */
 function getCurrentSectionName() {
-    // Try multiple sources
+    console.log('🔍 getCurrentSectionName called - checking all sources...');
+
+    // Source 1: window.sections + window.currentSectionIndex
     if (window.sections && typeof window.currentSectionIndex === 'number' && window.currentSectionIndex >= 0) {
-        return window.sections[window.currentSectionIndex];
+        const sectionName = window.sections[window.currentSectionIndex];
+        console.log('✅ Found section from window.sections:', sectionName);
+        return sectionName;
     }
 
+    // Source 2: Global sections + currentSectionIndex (without window prefix)
     if (typeof sections !== 'undefined' && typeof currentSectionIndex !== 'undefined' && currentSectionIndex >= 0) {
-        return sections[currentSectionIndex];
+        const sectionName = sections[currentSectionIndex];
+        console.log('✅ Found section from global sections:', sectionName);
+        return sectionName;
     }
 
-    // Try to extract from page title or active section indicator
+    // Source 3: sectionData keys (last analyzed section)
+    if (window.sectionData && Object.keys(window.sectionData).length > 0) {
+        const lastSection = Object.keys(window.sectionData)[Object.keys(window.sectionData).length - 1];
+        console.log('✅ Found section from sectionData:', lastSection);
+        return lastSection;
+    }
+
+    // Source 4: Section dropdown selection
     const sectionSelect = document.getElementById('sectionSelect');
     if (sectionSelect && sectionSelect.selectedIndex > 0) {
-        return sectionSelect.options[sectionSelect.selectedIndex].text;
+        const sectionName = sectionSelect.options[sectionSelect.selectedIndex].text;
+        console.log('✅ Found section from dropdown:', sectionName);
+        return sectionName;
     }
+
+    console.error('❌ Could not determine current section name from any source!');
+    console.error('   window.sections:', window.sections);
+    console.error('   window.currentSectionIndex:', window.currentSectionIndex);
+    console.error('   global sections:', typeof sections !== 'undefined' ? sections : 'undefined');
+    console.error('   global currentSectionIndex:', typeof currentSectionIndex !== 'undefined' ? currentSectionIndex : 'undefined');
+    console.error('   window.sectionData:', window.sectionData ? Object.keys(window.sectionData) : 'undefined');
 
     return null;
 }
