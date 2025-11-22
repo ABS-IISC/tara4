@@ -1520,6 +1520,89 @@ def generate_improvement_suggestions(acceptance_rate, user_engagement):
 
 # ✅ REMOVED DUPLICATE: get_section_content already defined at line 321
 
+@app.route('/get_feedback_summary', methods=['GET'])
+def get_feedback_summary():
+    """Get feedback summary before final submission"""
+    try:
+        session_id = request.args.get('session_id')
+
+        if not session_id or not session_exists(session_id):
+            return jsonify({'error': 'Invalid session', 'success': False}), 400
+
+        review_session = get_session(session_id)
+
+        # Calculate summary statistics
+        summary = {
+            'accepted': {
+                'total': 0,
+                'high_risk': 0,
+                'medium_risk': 0,
+                'low_risk': 0,
+                'types': {}
+            },
+            'rejected': {
+                'total': 0,
+                'types': {}
+            },
+            'custom': {
+                'total': 0,
+                'types': {}
+            },
+            'total_comments': 0
+        }
+
+        # Count accepted feedback
+        for section_name, accepted_items in review_session.accepted_feedback.items():
+            for item in accepted_items:
+                summary['accepted']['total'] += 1
+
+                # Count risk levels
+                risk_level = item.get('risk_level', 'Low')
+                if risk_level == 'High':
+                    summary['accepted']['high_risk'] += 1
+                elif risk_level == 'Medium':
+                    summary['accepted']['medium_risk'] += 1
+                else:
+                    summary['accepted']['low_risk'] += 1
+
+                # Count types
+                item_type = item.get('type', 'suggestion')
+                summary['accepted']['types'][item_type] = summary['accepted']['types'].get(item_type, 0) + 1
+
+                # Count as comment if not user-created (will be counted in custom)
+                if not item.get('user_created', False):
+                    summary['total_comments'] += 1
+
+        # Count rejected feedback
+        for section_name, rejected_items in review_session.rejected_feedback.items():
+            for item in rejected_items:
+                summary['rejected']['total'] += 1
+                item_type = item.get('type', 'suggestion')
+                summary['rejected']['types'][item_type] = summary['rejected']['types'].get(item_type, 0) + 1
+
+        # Count custom user feedback
+        for section_name, custom_items in review_session.user_feedback.items():
+            for item in custom_items:
+                summary['custom']['total'] += 1
+                item_type = item.get('type', 'suggestion')
+                summary['custom']['types'][item_type] = summary['custom']['types'].get(item_type, 0) + 1
+                summary['total_comments'] += 1
+
+        # ✅ FIX: Extract section names from review_session
+        section_names = list(review_session.sections.keys()) if review_session.sections else []
+
+        return jsonify({
+            'success': True,
+            'summary': summary,
+            'sections': section_names  # ✅ FIX: Return section names for frontend fallback
+        })
+
+    except Exception as e:
+        print(f"Error getting feedback summary: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e), 'success': False}), 500
+
 @app.route('/complete_review', methods=['POST'])
 def complete_review():
     try:

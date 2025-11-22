@@ -130,10 +130,12 @@ function uploadAndAnalyze(analysisFile, guidelinesFile, guidelinesPreference) {
             window.currentSession = data.session_id;
             currentSession = data.session_id; // For button_fixes.js compatibility
             sessionStorage.setItem('currentSession', data.session_id);
-            
+
             window.sections = data.sections;
             sections = data.sections; // For button_fixes.js compatibility
-            
+            // ✅ FIX: Save to sessionStorage as backup
+            sessionStorage.setItem('sections', JSON.stringify(data.sections));
+
             populateSectionSelect(data.sections);
             showMainContent();
 

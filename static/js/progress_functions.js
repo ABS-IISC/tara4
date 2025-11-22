@@ -269,6 +269,8 @@ function startAnalysis() {
             });
 
             window.sections = sections;
+            // ✅ FIX: Save to sessionStorage as backup
+            sessionStorage.setItem('sections', JSON.stringify(sections));
 
             totalSections = sections.length;
 

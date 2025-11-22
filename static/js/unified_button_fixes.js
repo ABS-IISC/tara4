@@ -85,6 +85,13 @@ window.acceptFeedback = function(feedbackId, eventOrSection) {
             if (window.updateRealTimeFeedbackLogs) {
                 window.updateRealTimeFeedbackLogs();
             }
+
+            // Enable Submit All Feedbacks button after first feedback decision
+            const submitBtn = document.getElementById('submitAllFeedbacksBtn');
+            if (submitBtn && submitBtn.disabled) {
+                submitBtn.disabled = false;
+                console.log('✅ Submit All Feedbacks button ENABLED after accept');
+            }
         } else {
             showNotification('❌ Failed to accept feedback: ' + (data.error || 'Unknown error'), 'error');
         }
@@ -167,6 +174,13 @@ window.rejectFeedback = function(feedbackId, eventOrSection) {
             // Update real-time logs
             if (window.updateRealTimeFeedbackLogs) {
                 window.updateRealTimeFeedbackLogs();
+            }
+
+            // Enable Submit All Feedbacks button after first feedback decision
+            const submitBtn = document.getElementById('submitAllFeedbacksBtn');
+            if (submitBtn && submitBtn.disabled) {
+                submitBtn.disabled = false;
+                console.log('✅ Submit All Feedbacks button ENABLED after reject');
             }
         } else {
             showNotification('❌ Failed to reject feedback: ' + (data.error || 'Unknown error'), 'error');
@@ -459,16 +473,184 @@ window.submitAllFeedbacks = function() {
         return;
     }
 
-    const availableSections = window.sections || (typeof sections !== 'undefined' ? sections : []);
-    if (!availableSections || availableSections.length === 0) {
-        showNotification('No document sections found. Please upload and analyze a document first.', 'error');
-        return;
+    // ✅ FIX: Try multiple sources for sections with fallback to backend
+    let availableSections = null;
+
+    // Try window.sections
+    if (window.sections && Array.isArray(window.sections) && window.sections.length > 0) {
+        availableSections = window.sections;
+        console.log('✅ Using window.sections:', availableSections);
+    }
+    // Try global sections variable
+    else if (typeof sections !== 'undefined' && Array.isArray(sections) && sections.length > 0) {
+        availableSections = sections;
+        console.log('✅ Using global sections:', availableSections);
+    }
+    // Try sessionStorage with safe JSON parsing
+    else {
+        try {
+            const storedSections = sessionStorage.getItem('sections');
+            if (storedSections && storedSections !== 'undefined' && storedSections !== 'null') {
+                const parsed = JSON.parse(storedSections);
+                if (Array.isArray(parsed) && parsed.length > 0) {
+                    availableSections = parsed;
+                    console.log('✅ Using sessionStorage sections:', availableSections);
+                }
+            }
+        } catch (error) {
+            console.warn('⚠️ Failed to parse sections from sessionStorage:', error);
+        }
     }
 
-    // Show confirmation dialog
-    if (!confirm('📤 Submit All Feedbacks?\n\nThis will:\n• Generate final document with all comments\n• Export complete data package to S3\n• Create comprehensive activity logs\n• Include all feedback decisions\n• Enable document download\n\nContinue?')) {
-        return;
+    console.log('🔍 Sections check result:', {
+        'window.sections': window.sections,
+        'global sections': (typeof sections !== 'undefined' ? sections : undefined),
+        'sessionStorage': sessionStorage.getItem('sections'),
+        'availableSections': availableSections
+    });
+
+    // ✅ FIX: If sections still not available, fetch from backend
+    if (!availableSections || availableSections.length === 0) {
+        console.warn('⚠️ Sections not found in frontend, fetching from backend...');
+
+        // Fetch feedback summary which includes sections
+        fetch(`/get_feedback_summary?session_id=${sessionId}`)
+            .then(response => response.json())
+            .then(summaryData => {
+                if (!summaryData.success) {
+                    throw new Error(summaryData.error || 'Failed to get feedback summary');
+                }
+
+                // Extract sections from backend response
+                const backendSections = summaryData.sections || [];
+
+                if (backendSections.length === 0) {
+                    throw new Error('No sections found in session. Please upload and analyze a document first.');
+                }
+
+                console.log('✅ Sections fetched from backend:', backendSections);
+
+                // Update frontend state
+                window.sections = backendSections;
+                if (typeof sections !== 'undefined') {
+                    sections = backendSections;
+                }
+                sessionStorage.setItem('sections', JSON.stringify(backendSections));
+
+                // Show preview modal with summary data and backend sections
+                showSubmitPreviewModal(summaryData, sessionId, backendSections);
+            })
+            .catch(error => {
+                console.error('❌ Error getting feedback summary:', error);
+                showNotification('❌ Error: ' + error.message, 'error');
+            });
+    } else {
+        // Sections available, proceed with normal flow
+        console.log('✅ Sections available:', availableSections);
+
+        fetch(`/get_feedback_summary?session_id=${sessionId}`)
+            .then(response => response.json())
+            .then(summaryData => {
+                if (!summaryData.success) {
+                    throw new Error(summaryData.error || 'Failed to get feedback summary');
+                }
+
+                // Show preview modal with summary data
+                showSubmitPreviewModal(summaryData, sessionId, availableSections);
+            })
+            .catch(error => {
+                console.error('❌ Error getting feedback summary:', error);
+                showNotification('❌ Error: ' + error.message, 'error');
+            });
     }
+};
+
+/**
+ * Show Submit Preview Modal
+ * Displays summary of all feedbacks before final submission
+ */
+function showSubmitPreviewModal(summaryData, sessionId, availableSections) {
+    const summary = summaryData.summary;
+
+    // Create modal HTML
+    const modalHtml = `
+        <div id="submitPreviewModal" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 10000; display: flex; align-items: center; justify-content: center;">
+            <div style="background: white; padding: 30px; border-radius: 15px; max-width: 700px; max-height: 80vh; overflow-y: auto; box-shadow: 0 10px 40px rgba(0,0,0,0.3);">
+                <h2 style="color: #4f46e5; margin-bottom: 20px; text-align: center;">📋 Review Submission Preview</h2>
+
+                <div style="background: #f0f9ff; padding: 20px; border-radius: 10px; margin-bottom: 20px;">
+                    <h3 style="color: #0284c7; margin-bottom: 15px;">✅ Accepted AI Feedbacks</h3>
+                    <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 10px;">
+                        <div><strong>Total Count:</strong> ${summary.accepted.total}</div>
+                        <div><strong>High Risk:</strong> <span style="color: #ef4444;">${summary.accepted.high_risk}</span></div>
+                        <div><strong>Medium Risk:</strong> <span style="color: #f59e0b;">${summary.accepted.medium_risk}</span></div>
+                        <div><strong>Low Risk:</strong> <span style="color: #10b981;">${summary.accepted.low_risk}</span></div>
+                    </div>
+                    <div><strong>Types:</strong> ${Object.entries(summary.accepted.types).map(([type, count]) => `${type}: ${count}`).join(', ') || 'None'}</div>
+                </div>
+
+                <div style="background: #fef2f2; padding: 20px; border-radius: 10px; margin-bottom: 20px;">
+                    <h3 style="color: #dc2626; margin-bottom: 15px;">❌ Rejected AI Feedbacks</h3>
+                    <div><strong>Total Count:</strong> ${summary.rejected.total}</div>
+                    <div><strong>Types:</strong> ${Object.entries(summary.rejected.types).map(([type, count]) => `${type}: ${count}`).join(', ') || 'None'}</div>
+                </div>
+
+                <div style="background: #f0fdf4; padding: 20px; border-radius: 10px; margin-bottom: 20px;">
+                    <h3 style="color: #16a34a; margin-bottom: 15px;">💬 Custom User Feedbacks</h3>
+                    <div><strong>Total Count:</strong> ${summary.custom.total}</div>
+                    <div><strong>Types:</strong> ${Object.entries(summary.custom.types).map(([type, count]) => `${type}: ${count}`).join(', ') || 'None'}</div>
+                </div>
+
+                <div style="background: #fef3c7; padding: 20px; border-radius: 10px; margin-bottom: 20px;">
+                    <h3 style="color: #d97706; margin-bottom: 15px;">📄 Document Sections Analyzed</h3>
+                    <div style="max-height: 150px; overflow-y: auto; background: white; padding: 10px; border-radius: 5px;">
+                        <ul style="margin: 0; padding-left: 20px;">
+                            ${availableSections.map(section => `<li>${section}</li>`).join('')}
+                        </ul>
+                    </div>
+                    <div style="margin-top: 10px;"><strong>Total Sections:</strong> ${availableSections.length}</div>
+                </div>
+
+                <div style="background: #e0e7ff; padding: 20px; border-radius: 10px; margin-bottom: 25px; text-align: center;">
+                    <h3 style="color: #4338ca; margin-bottom: 10px;">📊 Final Statistics</h3>
+                    <div style="font-size: 1.2em;"><strong>Total Comments to Add:</strong> <span style="color: #4f46e5; font-size: 1.5em;">${summary.total_comments}</span></div>
+                    <div style="margin-top: 10px; font-size: 0.9em; color: #64748b;">
+                        Accepted AI (${summary.accepted.total}) + Custom User (${summary.custom.total}) = ${summary.total_comments} comments
+                    </div>
+                </div>
+
+                <div style="display: flex; gap: 15px; justify-content: center;">
+                    <button onclick="confirmSubmitAllFeedbacks('${sessionId}')" style="background: #4f46e5; color: white; padding: 12px 30px; border: none; border-radius: 8px; cursor: pointer; font-size: 16px; font-weight: 600;">
+                        ✅ Confirm & Submit
+                    </button>
+                    <button onclick="closeSubmitPreviewModal()" style="background: #6b7280; color: white; padding: 12px 30px; border: none; border-radius: 8px; cursor: pointer; font-size: 16px; font-weight: 600;">
+                        ❌ Cancel
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+
+    // Insert modal into page
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+}
+
+/**
+ * Close Submit Preview Modal
+ */
+window.closeSubmitPreviewModal = function() {
+    const modal = document.getElementById('submitPreviewModal');
+    if (modal) {
+        modal.remove();
+    }
+};
+
+/**
+ * Confirm and Execute Final Submission
+ */
+window.confirmSubmitAllFeedbacks = function(sessionId) {
+    // Close modal
+    closeSubmitPreviewModal();
 
     // Show progress
     if (typeof showProgress === 'function') {
