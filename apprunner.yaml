@@ -12,6 +12,14 @@ run:
   network:
     port: 8080
     env: PORT
+  # Health check configuration - App Runner will use /health endpoint
+  health-check:
+    protocol: HTTP
+    path: /health
+    interval: 10
+    timeout: 5
+    healthy-threshold: 1
+    unhealthy-threshold: 5
   env:
     # ========================================
     # APPLICATION CONFIGURATION
@@ -20,6 +28,10 @@ run:
       value: "8080"
     - name: FLASK_ENV
       value: "production"
+
+    # Disable Redis/RQ on App Runner (not available in managed runtime)
+    - name: REDIS_URL
+      value: "disabled"
 
     # ========================================
     # AWS BEDROCK CONFIGURATION

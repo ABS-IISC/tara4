@@ -105,20 +105,27 @@ def main():
     celery_process = None
 
     try:
-        # Check if we're on App Runner or similar managed environment
-        is_managed_env = os.environ.get('AWS_EXECUTION_ENV', '').startswith('AWS_ECS_')
+        # Check if we're on App Runner - it doesn't support background processes
+        # App Runner sets AWS_EXECUTION_ENV to AWS_AppRunner_* or doesn't set it at all
+        is_app_runner = (
+            os.environ.get('AWS_EXECUTION_ENV', '').startswith('AWS_AppRunner_') or
+            'APP_RUNNER' in os.environ.get('AWS_EXECUTION_ENV', '') or
+            os.environ.get('FLASK_ENV') == 'production' and not os.environ.get('AWS_EXECUTION_ENV')
+        )
 
-        if not is_managed_env:
+        if is_app_runner:
+            print("🔧 Running on AWS App Runner - Background processes disabled")
+            print("   Using synchronous processing mode (no Celery worker)")
+            print("   All AI analysis will run inline")
+            print()
+        else:
             # Local development - start Celery worker as subprocess
+            print("💻 Running in local development mode")
             celery_process = start_celery_worker()
 
             # Give Celery a moment to start
             import time
             time.sleep(3)
-        else:
-            print("ℹ️  Running in managed environment (App Runner)")
-            print("   Celery worker should be running separately")
-            print()
 
         # Start Flask app (blocks until shutdown)
         start_flask_app()
