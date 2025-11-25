@@ -21,4 +21,3 @@ kombu==5.3.4
 vine==5.1.0
 amqp==5.2.0
 billiard==4.2.0
-pycurl==7.45.2
