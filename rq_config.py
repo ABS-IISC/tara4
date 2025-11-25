@@ -115,6 +115,11 @@ def is_rq_available():
         return False
 
 
+# Export redis_conn for backward compatibility
+# This returns None if Redis is disabled/unavailable
+redis_conn = get_redis_conn()
+
+
 # Print configuration on import
 if __name__ != "__main__":
     try:
