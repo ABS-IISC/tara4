@@ -107,12 +107,22 @@ model_config = SimpleModelConfig()
 
 app = Flask(__name__, static_folder='static')
 app.secret_key = 'your-secret-key-here'
-app.config['UPLOAD_FOLDER'] = 'uploads'
+
+# Use /tmp for uploads and data on App Runner (read-only filesystem)
+# Falls back to local directories for development
+is_app_runner = os.environ.get('FLASK_ENV') == 'production'
+if is_app_runner:
+    app.config['UPLOAD_FOLDER'] = '/tmp/uploads'
+    DATA_DIR = '/tmp/data'
+else:
+    app.config['UPLOAD_FOLDER'] = 'uploads'
+    DATA_DIR = 'data'
+
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
 
 # Ensure upload directory exists
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
-os.makedirs('data', exist_ok=True)
+os.makedirs(DATA_DIR, exist_ok=True)
 
 # Add CORS support to fix NetworkError issues
 @app.after_request
@@ -1054,10 +1064,10 @@ def delete_document():
 def submit_tool_feedback():
     try:
         feedback_data = request.get_json()
-        
+
         # Save feedback to file for analysis
-        feedback_file = 'data/tool_feedback.json'
-        os.makedirs('data', exist_ok=True)
+        feedback_file = os.path.join(DATA_DIR, 'tool_feedback.json')
+        os.makedirs(DATA_DIR, exist_ok=True)
         
         existing_feedback = []
         if os.path.exists(feedback_file):

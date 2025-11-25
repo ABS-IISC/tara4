@@ -461,4 +461,7 @@ class DatabaseManager:
             return []
 
 # Global database manager instance
-db_manager = DatabaseManager()
+# Use /tmp on App Runner (read-only filesystem), local data/ directory otherwise
+is_production = os.environ.get('FLASK_ENV') == 'production'
+db_path = '/tmp/data/analysis_history.db' if is_production else 'data/analysis_history.db'
+db_manager = DatabaseManager(db_path)
