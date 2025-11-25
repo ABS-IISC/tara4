@@ -22,17 +22,57 @@ from rq import Queue
 # Production: Set REDIS_URL environment variable
 REDIS_URL = os.environ.get('REDIS_URL', 'redis://localhost:6379/0')
 
-# Create Redis connection
-redis_conn = Redis.from_url(REDIS_URL, decode_responses=False)
+# Lazy initialization - connection created only when needed
+_redis_conn = None
+_queues_initialized = False
+analysis_queue = None
+chat_queue = None
+monitoring_queue = None
+default_queue = None
 
-# Create task queues
-# Separate queues for different task types (optional, but organized)
-analysis_queue = Queue('analysis', connection=redis_conn, default_timeout=300)  # 5 min timeout
-chat_queue = Queue('chat', connection=redis_conn, default_timeout=120)  # 2 min timeout
-monitoring_queue = Queue('monitoring', connection=redis_conn, default_timeout=60)  # 1 min timeout
+def get_redis_conn():
+    """
+    Get Redis connection (lazy initialization)
+    Returns None if Redis is disabled or unavailable
+    """
+    global _redis_conn
 
-# Default queue for generic tasks
-default_queue = Queue('default', connection=redis_conn)
+    if _redis_conn is None:
+        try:
+            # Check if explicitly disabled
+            if REDIS_URL in ('disabled', 'none', None, ''):
+                return None
+
+            # Try to create connection
+            _redis_conn = Redis.from_url(REDIS_URL, decode_responses=False)
+        except Exception as e:
+            print(f"⚠️  Could not create Redis connection: {e}")
+            return None
+
+    return _redis_conn
+
+def _initialize_queues():
+    """Initialize RQ queues (called only once)"""
+    global _queues_initialized, analysis_queue, chat_queue, monitoring_queue, default_queue
+
+    if _queues_initialized:
+        return
+
+    conn = get_redis_conn()
+    if conn is None:
+        # Create dummy None queues
+        analysis_queue = None
+        chat_queue = None
+        monitoring_queue = None
+        default_queue = None
+    else:
+        # Create real queues
+        analysis_queue = Queue('analysis', connection=conn, default_timeout=300)
+        chat_queue = Queue('chat', connection=conn, default_timeout=120)
+        monitoring_queue = Queue('monitoring', connection=conn, default_timeout=60)
+        default_queue = Queue('default', connection=conn)
+
+    _queues_initialized = True
 
 def get_queue(queue_name='default'):
     """
@@ -42,8 +82,11 @@ def get_queue(queue_name='default'):
         queue_name: One of 'analysis', 'chat', 'monitoring', 'default'
 
     Returns:
-        RQ Queue instance
+        RQ Queue instance or None if Redis unavailable
     """
+    # Initialize queues on first access
+    _initialize_queues()
+
     queues = {
         'analysis': analysis_queue,
         'chat': chat_queue,
@@ -61,7 +104,10 @@ def is_rq_available():
         bool: True if Redis is running and accessible
     """
     try:
-        redis_conn.ping()
+        conn = get_redis_conn()
+        if conn is None:
+            return False
+        conn.ping()
         return True
     except Exception as e:
         print(f"⚠️  RQ not available: {e}")
@@ -72,11 +118,14 @@ def is_rq_available():
 # Print configuration on import
 if __name__ != "__main__":
     try:
-        redis_conn.ping()
-        print("✅ RQ configured with local Redis (No AWS costs!)")
-        print(f"   Redis URL: {REDIS_URL}")
-        print(f"   Queues: analysis, chat, monitoring, default")
-        print(f"   Free & Open Source: 100%")
+        if is_rq_available():
+            print("✅ RQ configured with local Redis (No AWS costs!)")
+            print(f"   Redis URL: {REDIS_URL}")
+            print(f"   Queues: analysis, chat, monitoring, default")
+            print(f"   Free & Open Source: 100%")
+        else:
+            print(f"⚠️  Redis not available (REDIS_URL={REDIS_URL})")
+            print(f"   Running in synchronous mode")
     except Exception as e:
         print(f"⚠️  Could not connect to Redis: {e}")
-        print(f"   Start Redis: brew services start redis")
+        print(f"   Running in synchronous mode")
