@@ -6,8 +6,8 @@ Optimized for 100+ concurrent users with AWS Bedrock Claude API calls
 import multiprocessing
 import os
 
-# Server socket
-bind = "0.0.0.0:8000"
+# Server socket - Use PORT environment variable from Elastic Beanstalk
+bind = f"0.0.0.0:{os.environ.get('PORT', '8000')}"
 backlog = 4096  # Increased from 2048 for high concurrency
 
 # Worker processes - OPTIMIZED FOR 100+ USERS
@@ -23,9 +23,9 @@ timeout = 600  # 10 minutes (for long Claude API calls - doubled from 5min)
 graceful_timeout = 60  # Increased for clean shutdowns
 keepalive = 10  # Increased keepalive
 
-# Logging
-accesslog = "/var/log/gunicorn/access.log"
-errorlog = "/var/log/gunicorn/error.log"
+# Logging - Use stdout/stderr for Elastic Beanstalk log capture
+accesslog = "-"
+errorlog = "-"
 loglevel = "info"
 access_log_format = '%(h)s %(l)s %(u)s %(t)s "%(r)s" %(s)s %(b)s "%(f)s" "%(a)s" %(D)s'
 
