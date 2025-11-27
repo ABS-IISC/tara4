@@ -1,28 +1,66 @@
-__pycache__
-*.pyc
-*.pyo
-*.pyd
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
 .Python
-env
-pip-log.txt
-pip-delete-this-directory.txt
-.tox
-.coverage
-.coverage.*
-.cache
-nosetests.xml
-coverage.xml
-*.cover
-*.log
-.git
-.mypy_cache
-.pytest_cache
-.hypothesis
-.DS_Store
-*.egg-info/
-dist/
+env/
+venv/
+ENV/
 build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Application
 uploads/*
-data/*
 !uploads/.gitkeep
+data/*
 !data/.gitkeep
+*.log
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Git
+.git/
+.gitignore
+
+# Documentation
+*.md
+docs/
+archive/
+
+# Environment
+.env
+.env.local
+
+# AWS
+.aws/
+.ebextensions/
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Elastic Beanstalk
+.elasticbeanstalk/
+.ebignore
+Procfile
+gunicorn.conf.py

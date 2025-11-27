@@ -7,34 +7,106 @@ from datetime import datetime
 from botocore.exceptions import NoCredentialsError, BotoCoreError
 import tempfile
 
+# Import centralized region configuration
+try:
+    from config.aws_regions import get_region_config, get_s3_bucket_region
+except ImportError as e:
+    # Fallback if module not available
+    print(f"⚠️ aws_regions module not available in S3ExportManager: {e}")
+    print("   Using environment variables for region configuration")
+
+    def get_region_config(**kwargs):
+        return {
+            'region': os.environ.get('AWS_REGION', 'eu-north-1'),
+            's3_region': os.environ.get('S3_REGION', 'eu-north-1'),
+            'bedrock_region': os.environ.get('BEDROCK_REGION', 'us-east-1'),
+            'detection_method': 'environment-fallback'
+        }
+
+    def get_s3_bucket_region(bucket_name):
+        # Try to detect bucket region using boto3 directly
+        try:
+            import boto3
+            s3_client = boto3.client('s3')
+            response = s3_client.get_bucket_location(Bucket=bucket_name)
+            return response.get('LocationConstraint') or 'us-east-1'
+        except:
+            return os.environ.get('S3_REGION', 'eu-north-1')
+
 class S3ExportManager:
-    def __init__(self, bucket_name='felix-s3-bucket', base_path='tara/'):
-        self.bucket_name = bucket_name
-        self.base_path = base_path.rstrip('/') + '/'
+    def __init__(self, bucket_name=None, base_path=None, region=None):
+        """
+        Initialize S3 Export Manager with region-agnostic configuration.
+
+        Args:
+            bucket_name: S3 bucket name (auto-detected from env if None)
+            base_path: Base path within bucket (auto-detected from env if None)
+            region: AWS region (auto-detected if None)
+        """
+        # Get centralized region configuration
+        self.bucket_name = bucket_name or os.environ.get('S3_BUCKET_NAME', 'felix-s3-bucket')
+
+        # Auto-detect S3 bucket's region if bucket exists
+        detected_bucket_region = None
+        if self.bucket_name and self.bucket_name != 'felix-s3-bucket':
+            detected_bucket_region = get_s3_bucket_region(self.bucket_name)
+
+        # Get region config with S3 bucket consideration
+        self.region_config = get_region_config(
+            force_region=region,
+            s3_bucket_name=self.bucket_name if self.bucket_name != 'felix-s3-bucket' else None
+        )
+
+        # Use S3-specific region (may differ from primary region for cross-region buckets)
+        self.s3_region = detected_bucket_region or self.region_config['s3_region']
+        self.primary_region = self.region_config['region']
+
+        self.base_path = (base_path or os.environ.get('S3_BASE_PATH', 'tara/')).rstrip('/') + '/'
         self.s3_client = None
         self._initialize_s3_client()
     
     def _initialize_s3_client(self):
-        """Initialize S3 client - uses AWS CLI credentials locally, IAM role in App Runner"""
-        try:
-            # Detect environment
-            is_app_runner = os.environ.get('AWS_EXECUTION_ENV') or os.environ.get('AWS_CONTAINER_CREDENTIALS_RELATIVE_URI')
+        """
+        Initialize S3 client with region-agnostic configuration.
 
-            if is_app_runner:
-                # App Runner: Use IAM role (no profile needed)
-                print("✅ AWS App Runner detected - using IAM role credentials")
-                self.s3_client = boto3.client('s3')
+        Uses IAM role in AWS environments (Elastic Beanstalk/App Runner/ECS/EC2),
+        AWS CLI credentials locally. Automatically handles cross-region access.
+        """
+        try:
+            # Detect environment (Elastic Beanstalk, App Runner, ECS, EC2, or local)
+            is_aws_env = (os.environ.get('AWS_EXECUTION_ENV') or
+                         os.environ.get('AWS_CONTAINER_CREDENTIALS_RELATIVE_URI') or
+                         os.environ.get('FLASK_ENV') == 'production' or
+                         os.environ.get('AWS_EXECUTION_ENV'))
+
+            detection_info = self.region_config.get('detection_method', 'unknown')
+
+            if is_aws_env:
+                # AWS environment: Use IAM role (Elastic Beanstalk EC2 instance profile or App Runner)
+                print(f"✅ AWS environment detected - using IAM role credentials")
+                print(f"   Primary Region: {self.primary_region} ({self.region_config.get('region_name', 'Unknown')})")
+                print(f"   S3 Region: {self.s3_region}")
+                print(f"   S3 Bucket: {self.bucket_name}")
+                print(f"   Base Path: {self.base_path}")
+                print(f"   Detection Method: {detection_info}")
+
+                # Create S3 client with bucket's region for optimal performance
+                self.s3_client = boto3.client('s3', region_name=self.s3_region)
+
             else:
                 # Local: Use AWS CLI default credentials (from ~/.aws/credentials)
                 print("✅ Local environment - using AWS CLI credentials")
+                print(f"   Primary Region: {self.primary_region}")
+                print(f"   S3 Region: {self.s3_region}")
+
                 session = boto3.Session()  # Automatically uses default credentials from CLI
                 credentials = session.get_credentials()
                 if credentials:
-                    self.s3_client = boto3.client('s3')
+                    self.s3_client = boto3.client('s3', region_name=self.s3_region)
                     cred_source = os.environ.get('AWS_PROFILE', 'default profile')
                     print(f"✅ AWS credentials loaded from: {cred_source}")
                 else:
-                    print("⚠️ No AWS CLI credentials found. S3 export will use local fallback.")
+                    print("⚠️  No AWS CLI credentials found. S3 export will use local fallback.")
                     print("   Run 'aws configure' to set up credentials")
                     self.s3_client = None
                     return

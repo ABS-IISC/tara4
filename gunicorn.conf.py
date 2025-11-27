@@ -1,6 +1,6 @@
 """
 Gunicorn configuration for AI-Prism on Elastic Beanstalk
-Optimized for AWS Bedrock Claude API calls
+Optimized for 100+ concurrent users with AWS Bedrock Claude API calls
 """
 
 import multiprocessing
@@ -8,17 +8,20 @@ import os
 
 # Server socket
 bind = "0.0.0.0:8000"
-backlog = 2048
+backlog = 4096  # Increased from 2048 for high concurrency
 
-# Worker processes
-workers = multiprocessing.cpu_count() * 2 + 1  # 2-4 workers on t3.medium
-worker_class = "sync"  # Use 'sync' for Flask (not async)
-worker_connections = 1000
-max_requests = 1000  # Restart workers after 1000 requests (prevent memory leaks)
-max_requests_jitter = 50
-timeout = 300  # 5 minutes (for long Claude API calls)
-graceful_timeout = 30
-keepalive = 5
+# Worker processes - OPTIMIZED FOR 100+ USERS
+# t3.large has 2 vCPUs, 8 GB RAM
+# Formula: (2 * CPU cores) + 1 = 5 workers per instance
+# With 3 instances minimum = 15 workers handling 100+ users
+workers = (multiprocessing.cpu_count() * 2) + 1  # 5 workers on t3.large
+worker_class = "gevent"  # Changed to gevent for better concurrency
+worker_connections = 2000  # Increased from 1000 for more concurrent connections
+max_requests = 2000  # Restart workers after 2000 requests
+max_requests_jitter = 100
+timeout = 600  # 10 minutes (for long Claude API calls - doubled from 5min)
+graceful_timeout = 60  # Increased for clean shutdowns
+keepalive = 10  # Increased keepalive
 
 # Logging
 accesslog = "/var/log/gunicorn/access.log"

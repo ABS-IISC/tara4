@@ -22,6 +22,27 @@ try:
     from utils.learning_system import FeedbackLearningSystem
     from utils.s3_export_manager import S3ExportManager
     from utils.activity_logger import ActivityLogger
+    # Import centralized region configuration (optional - has fallbacks)
+    try:
+        from config.aws_regions import get_region_config, get_supported_regions, validate_region_setup
+    except ImportError as region_import_error:
+        print(f"⚠️ Region config module not available: {region_import_error}")
+        print("   Using environment variable fallback for region configuration")
+        # Create stub functions
+        def get_region_config(**kwargs):
+            return {
+                'region': os.environ.get('AWS_REGION', 'eu-north-1'),
+                'bedrock_region': os.environ.get('BEDROCK_REGION', 'us-east-1'),
+                's3_region': os.environ.get('S3_REGION', 'eu-north-1'),
+                'model_id': os.environ.get('BEDROCK_MODEL_ID', 'us.anthropic.claude-sonnet-4-5-20250929-v1:0'),
+                'region_name': 'Environment Variable',
+                'detection_method': 'environment-variables',
+                'is_bedrock_supported': True
+            }
+        def get_supported_regions():
+            return []
+        def validate_region_setup(**kwargs):
+            return (True, [])
 except ImportError as e:
     print(f"⚠️ Import error: {e}")
     print("Creating fallback components...")
@@ -77,16 +98,57 @@ except ImportError as e:
     # Don't create fallback classes - let the real import errors show
     raise ImportError(f"Required components not available: {e}")
 
-# Simple model config class for Flask app settings
+# Simple model config class for Flask app settings with region-agnostic configuration
 class SimpleModelConfig:
-    """Simplified model config for Flask application settings"""
+    """
+    Simplified model config for Flask application settings.
+    Uses centralized region configuration for multi-region deployment.
+    """
+    def __init__(self):
+        """Initialize with region auto-detection"""
+        try:
+            # Get S3 bucket name for region alignment
+            s3_bucket = os.environ.get('S3_BUCKET_NAME')
+
+            # Get centralized region config (auto-detects or uses environment)
+            self.region_config = get_region_config(
+                s3_bucket_name=s3_bucket
+            )
+        except Exception as e:
+            print(f"⚠️  Region config failed, using fallback: {e}")
+            # Fallback to simple config
+            self.region_config = {
+                'region': os.environ.get('AWS_REGION', 'us-east-1'),
+                'bedrock_region': os.environ.get('AWS_REGION', 'us-east-1'),
+                's3_region': os.environ.get('S3_REGION') or os.environ.get('AWS_REGION', 'us-east-1'),
+                'model_id': 'anthropic.claude-sonnet-4-5-20250929-v1:0',
+                'region_name': 'Unknown',
+                'detection_method': 'fallback',
+                'is_bedrock_supported': True
+            }
+
     def get_model_config(self):
+        """
+        Get complete model configuration for the application.
+
+        Returns:
+            dict: Configuration including model_id, region, etc.
+        """
+        # Override with explicit env vars if provided (for backward compatibility)
+        explicit_model = os.environ.get('BEDROCK_MODEL_ID')
+        model_id = explicit_model if explicit_model else self.region_config['model_id']
+
         return {
-            'model_id': os.environ.get('BEDROCK_MODEL_ID', 'us.anthropic.claude-sonnet-4-5-20250929-v1:0'),
-            'model_name': 'Claude Sonnet 4.5 (Enhanced)',
-            'region': os.environ.get('AWS_REGION', 'us-east-2'),
+            'model_id': model_id,
+            'model_name': 'Claude Sonnet 4.5',
+            'region': self.region_config['region'],
+            'bedrock_region': self.region_config['bedrock_region'],
+            's3_region': self.region_config['s3_region'],
+            'region_name': self.region_config['region_name'],
             'port': int(os.environ.get('PORT', 8080)),
-            'flask_env': os.environ.get('FLASK_ENV', 'production')
+            'flask_env': os.environ.get('FLASK_ENV', 'production'),
+            'detection_method': self.region_config.get('detection_method', 'unknown'),
+            'is_bedrock_supported': self.region_config.get('is_bedrock_supported', True)
         }
 
     def has_credentials(self):
@@ -94,13 +156,18 @@ class SimpleModelConfig:
         return bool(os.environ.get('AWS_ACCESS_KEY_ID') or os.environ.get('AWS_PROFILE'))
 
     def print_config_summary(self):
-        """Print configuration summary"""
+        """Print comprehensive configuration summary"""
         config = self.get_model_config()
-        print(f"✅ Model Configuration:")
-        print(f"   • Model: {config['model_name']}")
-        print(f"   • Region: {config['region']}")
+        print(f"✅ Model Configuration (Region-Agnostic):")
+        print(f"   • Model ID: {config['model_id']}")
+        print(f"   • Model Name: {config['model_name']}")
+        print(f"   • Primary Region: {config['region']} ({config['region_name']})")
+        print(f"   • Bedrock Region: {config['bedrock_region']}")
+        print(f"   • S3 Region: {config['s3_region']}")
+        print(f"   • Detection Method: {config['detection_method']}")
         print(f"   • Port: {config['port']}")
         print(f"   • Environment: {config['flask_env']}")
+        print(f"   • Bedrock Support: {'✅ Yes' if config['is_bedrock_supported'] else '⚠️  Cross-region'}")
         print(f"   • AWS Credentials: {'✅ Configured' if self.has_credentials() else '❌ Not configured'}")
 
 model_config = SimpleModelConfig()
@@ -234,7 +301,40 @@ def index():
 
 @app.route('/health')
 def health_check():
-    return jsonify({'status': 'healthy', 'timestamp': datetime.now().isoformat()}), 200
+    """
+    Health check endpoint with region configuration information.
+    Returns deployment region, Bedrock region, S3 configuration, and model details.
+    """
+    try:
+        # Get model config from SimpleModelConfig
+        model_config_obj = SimpleModelConfig()
+        config = model_config_obj.get_model_config()
+
+        # Get S3 configuration
+        s3_bucket = os.environ.get('S3_BUCKET_NAME', 'Not configured')
+        s3_region = os.environ.get('S3_REGION', config.get('s3_region', 'Not configured'))
+
+        return jsonify({
+            'status': 'healthy',
+            'timestamp': datetime.now().isoformat(),
+            'region': config.get('region', 'Unknown'),
+            'region_name': config.get('region_name', 'Unknown'),
+            'bedrock_region': config.get('bedrock_region', 'Unknown'),
+            's3_region': s3_region,
+            's3_bucket': s3_bucket,
+            'model_id': config.get('model_id', 'Unknown'),
+            'is_bedrock_supported': config.get('is_bedrock_supported', False),
+            'detection_method': config.get('detection_method', 'Unknown'),
+            'version': 'region-agnostic-v3'
+        }), 200
+    except Exception as e:
+        # Fallback response if config fails
+        return jsonify({
+            'status': 'healthy',
+            'timestamp': datetime.now().isoformat(),
+            'error': f'Config error: {str(e)}',
+            'version': 'region-agnostic-v3-fallback'
+        }), 200
 
 @app.route('/upload', methods=['POST'])
 def upload_document():
@@ -2456,24 +2556,44 @@ def export_to_s3():
 
 @app.route('/test_s3_connection', methods=['GET'])
 def test_s3_connection():
-    """Test S3 connectivity and return detailed status"""
+    """Test S3 connectivity and return detailed status with region information"""
     try:
         session_id = request.args.get('session_id') or session.get('session_id')
 
         # Test S3 connection
         connection_status = s3_export_manager.test_s3_connection()
 
-        # Add detailed configuration information
+        # Get region configuration
+        config = model_config.get_model_config()
+
+        # Add detailed configuration information with region-agnostic support
         detailed_status = {
             **connection_status,
-            'region': os.environ.get('S3_REGION', 'us-east-1'),
+            # Region information
+            'primary_region': config['region'],
+            'primary_region_name': config['region_name'],
+            's3_region': config['s3_region'],
+            'bedrock_region': config['bedrock_region'],
+            'detection_method': config['detection_method'],
+            # Connection details
             'connection_type': 'AWS Bedrock SDK (boto3)',
             'base_path': s3_export_manager.base_path,
             'full_path': f"s3://{connection_status.get('bucket_name', 'unknown')}/{s3_export_manager.base_path}",
-            'credentials_source': 'AWS Profile (admin-abhsatsa)' if os.environ.get('AWS_PROFILE') else 'Environment Variables',
+            'credentials_source': 'IAM Role (AWS Service)' if os.environ.get('FLASK_ENV') == 'production' else ('AWS Profile' if os.environ.get('AWS_PROFILE') else 'Environment Variables'),
             'service': 'Amazon S3',
             'sdk_version': 'boto3',
-            'access_permissions': 'Read/Write' if connection_status.get('bucket_accessible') else 'None'
+            'access_permissions': 'Read/Write' if connection_status.get('bucket_accessible') else 'None',
+            # Environment variables for debugging
+            'environment_variables': {
+                'S3_BUCKET_NAME': os.environ.get('S3_BUCKET_NAME', 'Not set'),
+                'S3_REGION': os.environ.get('S3_REGION', 'Not set'),
+                'AWS_REGION': os.environ.get('AWS_REGION', 'Not set'),
+                'FLASK_ENV': os.environ.get('FLASK_ENV', 'Not set')
+            },
+            # Multi-region support info
+            'multi_region_support': True,
+            'supported_regions': len(get_supported_regions()),
+            'region_auto_detected': config['detection_method'] in ['auto-detected', 'ec2-metadata']
         }
 
         # Log the test if we have a session
@@ -2516,7 +2636,7 @@ def test_s3_connection():
 
 @app.route('/test_claude_connection', methods=['GET'])
 def test_claude_connection():
-    """Test Claude AI connectivity and return detailed status"""
+    """Test Claude AI connectivity and return detailed status with region information"""
     try:
         session_id = request.args.get('session_id') or session.get('session_id')
 
@@ -2524,30 +2644,22 @@ def test_claude_connection():
         print(f"🔍 Testing Claude connection directly...", flush=True)
         test_response = ai_engine.test_connection()
 
-        # Get model configuration for additional details (with fallback)
-        try:
-            from config.model_config import model_config
-            config = model_config.get_model_config()
-        except (ImportError, ModuleNotFoundError, AttributeError, NameError) as e:
-            # Fallback configuration if config module not found
-            print(f"⚠️  Using fallback config: {e}", flush=True)
-            config = {
-                'region': os.environ.get('AWS_REGION', 'us-east-1'),
-                'max_tokens': int(os.environ.get('BEDROCK_MAX_TOKENS', 8192)),
-                'temperature': float(os.environ.get('BEDROCK_TEMPERATURE', 0.7)),
-                'reasoning_enabled': os.environ.get('REASONING_ENABLED', 'false').lower() == 'true',
-                'anthropic_version': 'bedrock-2023-05-31',
-                'supports_reasoning': False,
-                'fallback_models': []
-            }
+        # Get model configuration (using region-agnostic config)
+        config = model_config.get_model_config()
 
-        # Add detailed configuration information
+        # Add detailed configuration information with multi-region support
         detailed_status = {
             **test_response,
             'connection_type': 'AWS Bedrock Runtime',
             'service': 'Amazon Bedrock',
             'sdk_version': 'boto3',
-            'region': config.get('region', 'us-east-1'),
+            # Region information
+            'region': config['region'],
+            'region_name': config['region_name'],
+            'bedrock_region': config['bedrock_region'],
+            's3_region': config['s3_region'],
+            'detection_method': config['detection_method'],
+            'is_bedrock_supported': config['is_bedrock_supported'],
             'max_tokens': config.get('max_tokens', 8192),
             'temperature': config.get('temperature', 0.7),
             'reasoning_enabled': config.get('reasoning_enabled', False),
