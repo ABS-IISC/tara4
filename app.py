@@ -3,6 +3,7 @@ import os
 import sys
 import json
 import uuid
+import pickle
 from datetime import datetime
 from collections import defaultdict
 from werkzeug.utils import secure_filename
@@ -243,32 +244,75 @@ except Exception as e:
     import traceback
     traceback.print_exc()
 
-# Session storage with thread safety
+# Session storage with Redis support for multi-worker environments
 import threading
-sessions = {}
-sessions_lock = threading.Lock()  # Protect concurrent access to sessions dictionary
 
-# Thread-safe session access helpers
-def get_session(session_id):
-    """Thread-safe session retrieval"""
-    with sessions_lock:
-        return sessions.get(session_id)
+# Redis-based session manager for cross-worker session sharing
+if RQ_ENABLED and 'redis_conn' in globals():
+    print("✅ Using Redis for session storage (cross-worker compatible)")
+    SESSION_STORE = 'redis'
+    SESSION_TTL = 86400  # 24 hours
 
-def set_session(session_id, review_session):
-    """Thread-safe session storage"""
-    with sessions_lock:
-        sessions[session_id] = review_session
+    def get_session(session_id):
+        """Redis-based session retrieval"""
+        try:
+            data = redis_conn.get(f"session:{session_id}")
+            if data:
+                return pickle.loads(data)
+            return None
+        except Exception as e:
+            print(f"Error retrieving session from Redis: {e}")
+            return None
 
-def delete_session(session_id):
-    """Thread-safe session deletion"""
-    with sessions_lock:
-        if session_id in sessions:
-            del sessions[session_id]
+    def set_session(session_id, review_session):
+        """Redis-based session storage"""
+        try:
+            data = pickle.dumps(review_session)
+            redis_conn.setex(f"session:{session_id}", SESSION_TTL, data)
+        except Exception as e:
+            print(f"Error storing session in Redis: {e}")
 
-def session_exists(session_id):
-    """Thread-safe session existence check"""
-    with sessions_lock:
-        return session_id in sessions
+    def delete_session(session_id):
+        """Redis-based session deletion"""
+        try:
+            redis_conn.delete(f"session:{session_id}")
+        except Exception as e:
+            print(f"Error deleting session from Redis: {e}")
+
+    def session_exists(session_id):
+        """Redis-based session existence check"""
+        try:
+            return redis_conn.exists(f"session:{session_id}") > 0
+        except Exception as e:
+            print(f"Error checking session existence in Redis: {e}")
+            return False
+else:
+    # Fallback to in-memory session storage (single-worker only)
+    print("⚠️  Using in-memory session storage (single-worker only)")
+    SESSION_STORE = 'memory'
+    sessions = {}
+    sessions_lock = threading.Lock()
+
+    def get_session(session_id):
+        """Thread-safe in-memory session retrieval"""
+        with sessions_lock:
+            return sessions.get(session_id)
+
+    def set_session(session_id, review_session):
+        """Thread-safe in-memory session storage"""
+        with sessions_lock:
+            sessions[session_id] = review_session
+
+    def delete_session(session_id):
+        """Thread-safe in-memory session deletion"""
+        with sessions_lock:
+            if session_id in sessions:
+                del sessions[session_id]
+
+    def session_exists(session_id):
+        """Thread-safe in-memory session existence check"""
+        with sessions_lock:
+            return session_id in sessions
 
 class ReviewSession:
     def __init__(self):
