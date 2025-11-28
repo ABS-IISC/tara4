@@ -7,6 +7,7 @@ import pickle
 from datetime import datetime
 from collections import defaultdict
 from werkzeug.utils import secure_filename
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 # Add current directory to Python path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -175,6 +176,15 @@ model_config = SimpleModelConfig()
 
 app = Flask(__name__, static_folder='static')
 app.secret_key = 'your-secret-key-here'
+
+# Apply ProxyFix to trust CloudFront headers (X-Forwarded-Proto, X-Forwarded-For)
+# This makes Flask aware it's behind a proxy and enables HTTPS detection
+app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
+
+# Configure session cookies for CloudFront/HTTPS
+app.config['SESSION_COOKIE_SECURE'] = True  # Require HTTPS
+app.config['SESSION_COOKIE_HTTPONLY'] = True  # Prevent JavaScript access
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'  # CSRF protection
 
 # Use /tmp for uploads and data on App Runner (read-only filesystem)
 # Falls back to local directories for development
